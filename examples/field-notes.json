@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "name": "Field notes",
+  "themes": [
+    {
+      "id": "latitude",
+      "name": "Field notes",
+      "note": "Ocean ink and warm brass",
+      "scheme": "dark",
+      "colors": {
+        "bg": "#1b292e",
+        "panel": "#24363b",
+        "panel2": "#30454a",
+        "line": "#496067",
+        "text": "#f1ebdc",
+        "muted": "#b8c5c1",
+        "faint": "#a5b6b4",
+        "accent": "#e1ba76",
+        "highlight": "#efcf8e",
+        "ink": "#302b20",
+        "green": "#add2ac",
+        "red": "#ffa8a3",
+        "amber": "#e9c787"
+      }
+    }
+  ],
+  "templates": [
+    {
+      "name": "Vertical review",
+      "scene": "split",
+      "preset": "natural",
+      "note": "Two halves of one monitor, stacked vertically.",
+      "layout": {
+        "crops": {
+          "a": {
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 0.5
+          },
+          "b": {
+            "x": 0,
+            "y": 0.5,
+            "w": 1,
+            "h": 0.5
+          },
+          "camera": {
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 1
+          }
+        },
+        "facecams": {
+          "present": {
+            "x": 0.71,
+            "y": 0.7,
+            "w": 0.27,
+            "h": 0.27
+          },
+          "split": {
+            "x": 0.71,
+            "y": 0.7,
+            "w": 0.27,
+            "h": 0.27
+          }
+        },
+        "secondary": "same",
+        "axis": "vertical",
+        "fit": "contain",
+        "split": 0.5,
+        "gap": 16,
+        "overlay": false,
+        "cameraAspect": "wide"
+      }
+    }
+  ]
+}

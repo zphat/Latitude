@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a recording, audio, scene, or interface problem.
+title: '[Bug]: '
+body:
+  - type: markdown
+    attributes:
+      value: Please use a short test recording when possible. Do not attach private recordings, credentials, or unredacted personal paths.
+  - type: input
+    id: version
+    attributes:
+      label: Latitude version
+      placeholder: 0.3.0 beta
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Computer and devices
+      description: Windows version, CPU/GPU, microphone or interface, webcam, and recording resolution/frame rate.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: What did you do, what did you expect, and what happened?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Optional evidence
+      description: Error text, screenshots, or a short non-sensitive test. For sync problems, include whether pause/resume or a scene switch occurred.

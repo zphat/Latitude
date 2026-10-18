@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'"
+    />
+    <title>Latitude</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="logo">
+        <img src="../assets/icon.svg" alt="" /><span
+          >latitude<span class="logo-dot">.</span></span
+        >
+      </div>
+      <div class="session-name">
+        <span data-icon="folder"></span
+        ><input
+          id="session-name"
+          aria-label="Session name"
+          value="Untitled session"
+          maxlength="70"
+        /><span class="local-badge">LOCAL</span>
+      </div>
+      <div class="top-actions">
+        <span class="beta">DESKTOP BETA · 0.3</span
+        ><button
+          class="icon-button"
+          id="help-button"
+          title="Quick guide"
+          aria-label="Quick guide"
+          data-icon="help"
+        ></button
+        ><button id="top-folder" class="button small">
+          <span data-icon="folder"></span> Recordings folder
+        </button>
+      </div>
+    </header>
+    <div class="app-body">
+      <nav class="rail" aria-label="Workspace">
+        <button class="nav-button active" data-view="studio" title="Studio">
+          <span data-icon="sliders"></span><small>Studio</small>
+        </button>
+        <button class="nav-button" data-view="soundcheck" title="Soundcheck">
+          <span data-icon="wave"></span><small>Check</small>
+        </button>
+        <button class="nav-button" data-view="recordings" title="Recordings">
+          <span data-icon="library"></span><small>Takes</small>
+        </button>
+        <div class="rail-spacer"></div>
+        <button class="nav-button" data-view="settings" title="Settings">
+          <span data-icon="settings"></span><small>Settings</small>
+        </button>
+        <span class="rail-foot">L</span>
+      </nav>
+      <main id="workspace">
+        <section class="page active" id="page-studio">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">YOUR RECORDING SPACE</div>
+              <h1>Let’s make a great take.</h1>
+            </div>
+            <button id="templates-button" class="button">
+              <span data-icon="layout"></span> Templates
+            </button>
+          </div>
+          <div class="preview-shell">
+            <div class="preview-toolbar">
+              <div class="preview-label">
+                <span class="status-dot" id="preview-dot"></span
+                ><span id="preview-title">Scene preview</span
+                ><span class="tag" id="scene-label">Screen only</span>
+              </div>
+              <div class="preview-meta">
+                <span id="resolution-label">1080p · 30 fps</span
+                ><button
+                  class="icon-button"
+                  id="fullscreen-preview"
+                  title="Expand preview"
+                  aria-label="Expand preview"
+                  data-icon="expand"
+                ></button>
+              </div>
+            </div>
+            <div class="preview-frame" id="preview-frame">
+              <canvas
+                id="preview"
+                width="1920"
+                height="1080"
+                aria-label="Recording scene preview"
+              ></canvas>
+              <div class="empty-preview" id="empty-preview">
+                <div class="empty-symbol" data-icon="monitor"></div>
+                <h2>A little setup. A better recording.</h2>
+                <p>
+                  Choose your screen, connect your voice, and make it yours.
+                </p>
+                <button class="button primary" id="choose-screen-main">
+                  <span data-icon="plus"></span> Choose a screen</button
+                ><span class="empty-note"
+                  >Your audio and video stay on your computer.</span
+                >
+              </div>
+              <div class="recording-indicator" id="recording-indicator" hidden>
+                <span></span> REC <b id="preview-timer">00:00</b>
+              </div>
+              <div id="layout-overlay" class="layout-overlay">
+                <div id="snap-guides"></div>
+                <div id="selection-box" hidden>
+                  <span id="selection-name"></span><i data-handle="nw"></i
+                  ><i data-handle="ne"></i><i data-handle="sw"></i
+                  ><i data-handle="se"></i>
+                </div>
+              </div>
+              <div class="countdown" id="countdown" hidden></div>
+            </div>
+            <div class="source-bar">
+              <button class="source-chip" id="screen-source">
+                <span data-icon="monitor"></span><span>Screen A</span
+                ><i id="screen-state">Not connected</i
+                ><span data-icon="chevron"></span></button
+              ><button class="source-chip" id="screen-b-source">
+                <span data-icon="columns"></span><span>View B</span
+                ><i id="screen-b-state">From A</i></button
+              ><button class="source-chip" id="camera-source">
+                <span data-icon="camera"></span><span>Camera</span
+                ><i id="camera-state">Off</i><span data-icon="chevron"></span>
+              </button>
+              <div class="source-spacer"></div>
+              <button class="text-button" id="layout-button">
+                Two-view layout</button
+              ><button
+                class="button small"
+                id="arrange-toggle"
+                aria-pressed="false"
+                title="Protect the scene from accidental edits"
+              >
+                Lock preview</button
+              ><span class="quiet" id="actual-fps">Preview</span
+              ><button
+                class="icon-button"
+                id="scene-settings"
+                aria-label="Scene appearance"
+                title="Scene appearance"
+                data-icon="settings"
+              ></button>
+            </div>
+          </div>
+          <div class="editor-toolbar">
+            <button id="add-source" class="button small primary">
+              + Add source</button
+            ><span id="editor-status">Click a source to move or resize</span>
+            <div class="source-spacer"></div>
+            <button
+              id="undo-edit"
+              class="icon-button"
+              aria-label="Undo"
+              title="Undo · Ctrl Z"
+            >
+              ↶</button
+            ><button
+              id="redo-edit"
+              class="icon-button"
+              aria-label="Redo"
+              title="Redo · Ctrl Shift Z"
+            >
+              ↷</button
+            ><button id="copy-scene" class="text-button">Copy scene</button>
+          </div>
+          <input
+            id="image-file"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+          />
+          <div class="scenes-heading">
+            <span class="section-label"
+              >SCENES <span class="quiet">Ctrl Shift + 1–5</span></span
+            ><label class="inline-label"
+              >Transition
+              <select id="transition">
+                <option value="fade">Dissolve</option>
+                <option value="cut">Cut</option>
+                <option value="slide">Slide</option>
+              </select></label
+            >
+          </div>
+          <div id="scene-list" class="scene-list"></div>
+          <div class="mixer-heading">
+            <div>
+              <span class="section-label">AUDIO MIXER</span
+              ><span class="quiet">Each source. Its own track.</span>
+            </div>
+            <div class="mixer-actions">
+              <button class="text-button" id="mute-all">Mute all</button
+              ><button class="text-button" id="audio-setup">
+                <span data-icon="sliders"></span> Inputs & outputs
+              </button>
+            </div>
+          </div>
+          <div class="mixer" id="mixer"></div>
+          <div class="record-bar">
+            <div class="record-time">
+              <span class="record-state" id="record-state"
+                >READY WHEN YOU ARE</span
+              ><strong id="timer">00:00:00</strong>
+            </div>
+            <button class="button" id="marker-button" disabled>
+              <span data-icon="flag"></span> Marker <kbd>B</kbd></button
+            ><button
+              class="button"
+              id="pause-button"
+              disabled
+              title="Pause / resume · Ctrl Shift P"
+            >
+              Ⅱ <span id="pause-label">Pause</span>
+            </button>
+            <div class="record-spacer"></div>
+            <span class="record-format" id="record-format"
+              >Separate tracks <span>48 kHz · WAV + MP4</span></span
+            ><button class="record-button" id="record-button">
+              <span class="rec-disc"></span
+              ><span id="record-label">Start recording</span><kbd>⌃ ⇧ R</kbd>
+            </button>
+          </div>
+        </section>
+        <section class="page" id="page-soundcheck">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">GOOD SOUND STARTS HERE</div>
+              <h1>A minute for your voice.</h1>
+            </div>
+          </div>
+          <div class="check-layout">
+            <div class="check-hero">
+              <div class="big-wave" data-icon="wave"></div>
+              <span class="eyebrow">GUIDED SOUNDCHECK</span>
+              <h2 id="check-title">Find your comfortable level.</h2>
+              <p id="check-copy">
+                We’ll listen to the room, then to your normal speaking voice.
+                You’ll get a suggested input gain and noise-control threshold.
+              </p>
+              <div class="check-meter"><div id="check-level"></div></div>
+              <div class="check-scale">
+                <span>−60</span><span>−36</span><span>−18</span
+                ><span>0 dBFS</span>
+              </div>
+              <div class="check-controls">
+                <select id="check-input" aria-label="Soundcheck microphone">
+                  <option value="0">Voice 1</option>
+                  <option value="1">Voice 2</option></select
+                ><button class="button primary" id="start-check">
+                  <span data-icon="play"></span> Start 12-second check
+                </button>
+              </div>
+              <div id="check-result" hidden></div>
+            </div>
+            <div class="check-notes">
+              <h3>A better take, before you record.</h3>
+              <article>
+                <span class="step-number">01</span>
+                <div>
+                  <h4>Get close. Leave a little space.</h4>
+                  <p>
+                    Start about a hand’s width from the mic, slightly off-axis.
+                    Use a pop filter if you have one.
+                  </p>
+                </div>
+              </article>
+              <article>
+                <span class="step-number">02</span>
+                <div>
+                  <h4>Make room for the loud parts.</h4>
+                  <p>
+                    Aim for raw speech peaks around −12 to −6 dBFS. If the input
+                    clips, turn down the mic or interface gain.
+                  </p>
+                </div>
+              </article>
+              <article>
+                <span class="step-number">03</span>
+                <div>
+                  <h4>Wear headphones.</h4>
+                  <p>
+                    Keep speaker sound out of the microphone. Use your
+                    interface’s direct monitoring when recording desktop audio.
+                  </p>
+                </div>
+              </article>
+              <article>
+                <span class="step-number">04</span>
+                <div>
+                  <h4>Clap once. Check sync.</h4>
+                  <p>
+                    Record a short test. If the voice arrives early, add a
+                    little audio delay in Inputs & outputs.
+                  </p>
+                </div>
+              </article>
+              <button class="button" id="check-setup">
+                Connect a microphone <span data-icon="arrow"></span>
+              </button>
+            </div>
+          </div>
+        </section>
+        <section class="page" id="page-recordings">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">CAPTURED, KEPT, READY TO EDIT</div>
+              <h1>Your takes.</h1>
+            </div>
+            <button class="button" id="refresh-takes">
+              <span data-icon="refresh"></span> Refresh
+            </button>
+          </div>
+          <div class="export-progress" id="export-progress" hidden>
+            <span class="spinner"></span>
+            <div>
+              <strong id="export-stage">Preparing export</strong>
+              <div class="progress-track"><i id="export-bar"></i></div>
+            </div>
+            <b id="export-percent">0%</b>
+          </div>
+          <div id="takes-list" class="takes-list"></div>
+        </section>
+        <section class="page" id="page-settings">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">A STUDIO THAT FITS YOU</div>
+              <h1>The useful details.</h1>
+            </div>
+          </div>
+          <div class="settings-grid">
+            <article class="settings-card">
+              <h3><span data-icon="layout"></span> Make it yours</h3>
+              <label>Color theme<select id="theme-select"></select></label>
+              <div class="button-row">
+                <button class="button" id="browse-themes">Preview themes</button
+                ><button class="button" id="reopen-onboarding">
+                  Run setup again
+                </button>
+              </div>
+              <p>
+                Five looks: Signal, Dusk, Linen, Golden latitude, and Tide. Your
+                choice is remembered.
+              </p>
+            </article>
+            <article class="settings-card">
+              <h3><span data-icon="sliders"></span> Open by design</h3>
+              <p>
+                Import a community theme and layout pack, or share your
+                composition. Settings only, never executable code.
+              </p>
+              <div class="button-row">
+                <button class="button" id="import-pack">Import pack</button
+                ><button class="button" id="export-layout">
+                  Export my layout
+                </button>
+              </div>
+              <input
+                id="pack-file"
+                type="file"
+                accept=".json,application/json"
+                hidden
+              />
+              <p>MIT licensed source. See MODDING.md to extend Latitude.</p>
+            </article>
+            <article class="settings-card">
+              <h3><span data-icon="video"></span> Recording</h3>
+              <label
+                >Resolution<select id="video-size">
+                  <option value="1080">1920 × 1080 · Full HD</option>
+                  <option value="720">
+                    1280 × 720 · Lighter on your computer
+                  </option>
+                  <option value="1440">2560 × 1440 · QHD</option>
+                  <option value="2160">3840 × 2160 · 4K</option>
+                </select></label
+              ><label
+                >Frame rate<select id="video-fps">
+                  <option value="30">30 fps · Recommended for podcasts</option>
+                  <option value="60">
+                    60 fps · More motion, more processing
+                  </option>
+                </select></label
+              ><label
+                >Recording quality<select id="video-quality">
+                  <option value="efficient">Efficient · smaller files</option>
+                  <option value="balanced">Balanced · recommended</option>
+                  <option value="high">High detail · larger files</option>
+                </select></label
+              ><label
+                >Video encoder<select id="video-codec">
+                  <option value="auto">Automatic · prefer H.264</option>
+                  <option value="vp8">Compatibility · VP8</option>
+                </select></label
+              ><label
+                >Preview quality<select id="preview-quality">
+                  <option value="balanced">Balanced · 720p preview</option>
+                  <option value="eco">
+                    Economy · lower preview frame rate
+                  </option>
+                  <option value="detail">Detailed · 1080p preview</option>
+                </select></label
+              >
+              <p id="quality-estimate"></p>
+              <p>
+                Preview quality does not lower recording quality. 4K and 60 fps
+                need capable hardware; watch the frame-rate indicator during a
+                test take.
+              </p>
+              <label class="toggle-row"
+                ><span>Reconnect saved microphones on launch</span
+                ><input type="checkbox" id="reconnect-mic" checked /></label
+              ><label class="toggle-row"
+                ><span>3-second recording countdown</span
+                ><input type="checkbox" id="use-countdown" checked /></label
+              ><label class="toggle-row"
+                ><span>Automatically export after stopping</span
+                ><input type="checkbox" id="auto-export" checked
+              /></label>
+              <p>
+                Live audio runs at 48 kHz. Processing backups are 32-bit float;
+                editing stems export as 24-bit WAV.
+              </p>
+            </article>
+            <article class="settings-card">
+              <h3><span data-icon="sparkles"></span> Export defaults</h3>
+              <label
+                >Master loudness<select id="target-loudness">
+                  <option value="-16">−16 LUFS · Balanced podcast</option>
+                  <option value="-18">−18 LUFS · More breathing room</option>
+                  <option value="-14">−14 LUFS · Louder web mix</option>
+                  <option value="-20">−20 LUFS · Gentle</option>
+                </select></label
+              ><label class="toggle-row"
+                ><span>Measure and normalize the final mix</span
+                ><input id="normalize" type="checkbox" checked /></label
+              ><label class="toggle-row"
+                ><span>Separate video copies for each audio track</span
+                ><input id="editor-clips" type="checkbox"
+              /></label>
+              <p>
+                Useful for choosing mic-only or desktop-only audio on individual
+                CapCut clips. Extra copies use more disk space.
+              </p>
+            </article>
+            <article class="settings-card">
+              <h3><span data-icon="folder"></span> Saved on your computer</h3>
+              <p id="save-path" class="folder-path">
+                Desktop app required for recording
+              </p>
+              <button class="button" id="choose-folder">
+                Change recording folder
+              </button>
+              <p>
+                Original takes stay available after export. Interrupted
+                recordings appear in Takes so you can attempt recovery.
+              </p>
+              <div class="encoder-status" id="encoder-status"></div>
+            </article>
+            <article class="settings-card">
+              <h3><span data-icon="keyboard"></span> Global shortcuts</h3>
+              <div class="hotkey-list">
+                <span>Start / stop recording</span><kbd>Ctrl Shift R</kbd
+                ><span>Pause / resume</span><kbd>Ctrl Shift P</kbd
+                ><span>Mute Voice 1</span><kbd>Ctrl Shift M</kbd
+                ><span>Drop a marker</span><kbd>Ctrl Shift B</kbd
+                ><span>Switch scenes</span><kbd>Ctrl Shift 1–5</kbd>
+              </div>
+              <label class="toggle-row"
+                ><span>Enable shortcuts outside the app</span
+                ><input id="global-hotkeys" type="checkbox" checked
+              /></label>
+              <p id="hotkey-note">
+                Shortcuts are active while Latitude is open.
+              </p>
+            </article>
+          </div>
+        </section>
+      </main>
+      <aside class="inspector" id="inspector">
+        <div class="inspector-tabs">
+          <button class="active" data-inspector-tab="voice">Voice Studio</button
+          ><button data-inspector-tab="source">Scene layers</button>
+        </div>
+        <div id="voice-panel">
+          <div class="inspector-heading">
+            <div class="studio-glyph" data-icon="wave"></div>
+            <div>
+              <h2>Voice Studio</h2>
+              <p>Sound like yourself. At your best.</p>
+            </div>
+          </div>
+          <div class="voice-tabs">
+            <button class="active" data-voice="0">Voice 1</button
+            ><button data-voice="1">Voice 2</button>
+          </div>
+          <div class="preset-label">
+            <span class="section-label">YOUR STARTING POINT</span
+            ><span class="tag violet">PRESET</span>
+          </div>
+          <select
+            id="voice-preset"
+            class="preset-select"
+            aria-label="Voice processing preset"
+          ></select>
+          <p id="preset-note" class="preset-note"></p>
+          <div class="chain-header">
+            <span class="section-label">PROCESSING CHAIN</span
+            ><button
+              class="text-button"
+              id="bypass-button"
+              aria-pressed="false"
+            >
+              Bypass
+            </button>
+          </div>
+          <div id="processing-chain" class="processing-chain"></div>
+          <div class="polish-card">
+            <div class="polish-title">
+              <span data-icon="sparkles"></span>
+              <h3>Rich clarity</h3>
+              <output id="polish-value">0%</output>
+            </div>
+            <p>
+              Fuller body. Less boxiness. Focused presence, without an airy
+              boost. Start around 30%.
+            </p>
+            <input
+              id="polish"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="0"
+              aria-label="Rich clarity amount"
+            />
+            <div class="range-ends">
+              <span>Untouched</span><span>More definition</span>
+            </div>
+            <button class="text-button" id="clarity-bypass" aria-pressed="true">
+              Clarity on</button
+            ><span class="clarity-note"
+              >Toggle to compare. Input gain stays fixed.</span
+            >
+          </div>
+          <div class="protection-card">
+            <span data-icon="shield"></span>
+            <div>
+              <strong>Room for the unexpected.</strong>
+              <p>
+                Every live bus has a −1.5 dBFS sample-peak limiter. Raw input
+                peaks still need headroom.
+              </p>
+            </div>
+          </div>
+          <button class="check-link" id="go-soundcheck">
+            <span data-icon="wave"></span
+            ><span
+              >Not sure where to start?<strong
+                >Run a quick soundcheck</strong
+              ></span
+            ><span data-icon="arrow"></span>
+          </button>
+        </div>
+        <div id="source-inspector" hidden>
+          <div class="layer-heading">
+            <span class="section-label">SCENE LAYERS</span
+            ><button id="add-source-panel" class="button small">+ Add</button>
+          </div>
+          <p class="fine-print">
+            Top layers appear in front. Click a layer or select it in the
+            preview.
+          </p>
+          <div id="layer-list"></div>
+          <div id="source-properties"></div>
+        </div>
+      </aside>
+    </div>
+    <footer class="statusbar">
+      <span
+        ><i class="status-dot" id="engine-dot"></i
+        ><span id="engine-status">Audio engine idle</span></span
+      ><span id="capture-status">No sources connected</span
+      ><span class="status-spacer"></span
+      ><span id="storage-status">Local recording · no account needed</span
+      ><span class="status-divider"></span
+      ><span id="track-status">Separate tracks</span>
+    </footer>
+    <div class="toast-stack" id="toasts" aria-live="polite"></div>
+    <dialog id="modal">
+      <div class="modal-heading">
+        <div>
+          <div class="eyebrow" id="modal-eyebrow">LATITUDE</div>
+          <h2 id="modal-title"></h2>
+        </div>
+        <button
+          class="icon-button"
+          id="close-modal"
+          aria-label="Close dialog"
+          data-icon="x"
+        ></button>
+      </div>
+      <div id="modal-content"></div>
+    </dialog>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

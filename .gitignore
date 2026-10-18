@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+*.log
+*.wav
+*.webm
+*.mkv
+*.mp4
+*.zip
+.env
+.env.*
+!.env.example
+vendor/ffmpeg.exe
+vendor/ffmpeg
+.DS_Store
