@@ -25,4 +25,12 @@ Get-FileHash .\Latitude-0.3.0-Windows-x64.zip -Algorithm SHA256
 
 The Build Windows package workflow is an on-demand packaging aid. Its artifact is not automatically a public release, and a successful build does not verify hardware capture. The Tests workflow runs the unit and FFmpeg integration suite on source changes.
 
+## Publish through GitHub Actions
+
+The **Publish Windows beta** workflow builds and publishes a prerelease from a reviewed commit on `main`. Run it from Actions, or push a commit whose subject is exactly `Release Latitude vX.Y.Z`, matching the version in package.json and package-lock.json. Ordinary commits do not publish a release. Add the reviewed `docs/releases/X.Y.Z.md` first.
+
+The workflow runs the test suite, builds on a Windows runner, checks the archive and bundled encoder/notices, transfers the package with its checksum, then creates a prerelease attached to that exact commit. Only the final publishing job has repository contents write permission. It refuses to replace an existing release. Build success does not validate microphones, screen capture, or long sessions on real hardware.
+
+The encoder hash in `scripts/verify-release-package.py` deliberately pins the reviewed Windows encoder. If upgrading FFmpeg, review the exact new binary and corresponding notices before updating that hash.
+
 No code-signing certificate or automatic updater is configured. Do not describe a package as signed, hardware-validated, or stable unless those checks were actually completed for that package. Preserve released assets; use a new version for changes to application behavior.

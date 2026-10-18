@@ -1,0 +1,124 @@
+name: Publish Windows beta
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: latitude-release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'Release Latitude v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Validate intentional release and notes
+        id: version
+        shell: bash
+        run: |
+          node --input-type=commonjs <<'NODE'
+          const fs = require('node:fs');
+          const { version } = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          if (!/^\d+\.\d+\.\d+$/.test(version)) throw Error('Expected X.Y.Z version');
+          if (lock.version !== version || lock.packages[''].version !== version) throw Error('Lockfile version mismatch');
+          const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          if (process.env.GITHUB_EVENT_NAME === 'push' && event.head_commit.message.split('\n')[0] !== `Release Latitude v${version}`) throw Error('Release commit must match package version exactly');
+          if (!fs.existsSync(`docs/releases/${version}.md`)) throw Error('Missing reviewed release notes');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
+          NODE
+      - run: npm ci --ignore-scripts
+      - name: Install test encoder and probe
+        run: sudo apt-get update && sudo apt-get install --yes ffmpeg
+      - name: Run audio, scene, storage, and export tests
+        run: npm test
+        env:
+          TAKE_FFMPEG: /usr/bin/ffmpeg
+
+  package:
+    needs: validate
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Prepare encoder and build unsigned Windows package
+        shell: pwsh
+        run: |
+          node scripts/prepare-encoder.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          npm run dist:win -- --x64 --publish never "--config.artifactName=Latitude-$version-Windows-x64.zip"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Check package contents, encoder, notices, and checksum
+        run: python scripts/verify-release-package.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: Latitude-Windows-release
+          path: |
+            dist/Latitude-*-Windows-x64.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  publish:
+    needs: [validate, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: Latitude-Windows-release
+          path: release-assets
+      - name: Verify transferred assets
+        working-directory: release-assets
+        run: sha256sum --check SHA256SUMS.txt
+      - name: Publish a new prerelease without replacing existing assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          LATITUDE_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v${LATITUDE_VERSION}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "A release for $tag already exists; refusing to replace it."
+            exit 1
+          fi
+          gh release create "$tag" \
+            "release-assets/Latitude-${LATITUDE_VERSION}-Windows-x64.zip" \
+            release-assets/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" \
+            --title "Latitude ${LATITUDE_VERSION} — early beta" \
+            --notes-file "docs/releases/${LATITUDE_VERSION}.md" \
+            --prerelease --latest=false
