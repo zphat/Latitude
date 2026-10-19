@@ -43,8 +43,13 @@ export class Compositor {
     this.schedulingReady = true;
     this.schedule();
   }
-  get visible() { return this._visible; }
-  set visible(value) { this._visible = value; if (value && this.schedulingReady) this.invalidate(); }
+  get visible() {
+    return this._visible;
+  }
+  set visible(value) {
+    this._visible = value;
+    if (value && this.schedulingReady) this.invalidate();
+  }
   video() {
     const v = document.createElement("video");
     v.muted = true;
@@ -395,7 +400,10 @@ export class Compositor {
         1080,
       );
     } else {
-      if (this.previous) { this.previous = null; this.pruneImages(); }
+      if (this.previous) {
+        this.previous = null;
+        this.pruneImages();
+      }
       this.renderScene(c, this.scene);
       if (this.stage) {
         this.stage.width = 1;
@@ -434,8 +442,16 @@ export class Compositor {
         this.frames = 0;
         this.counterAt = now;
       }
-      if (active) this.timer = setTimeout(tick, Math.max(1, 1000 / fps - (performance.now() - now)));
-      else { this.measuredFps = 0; this.frames = 0; this.counterAt = now; }
+      if (active)
+        this.timer = setTimeout(
+          tick,
+          Math.max(1, 1000 / fps - (performance.now() - now)),
+        );
+      else {
+        this.measuredFps = 0;
+        this.frames = 0;
+        this.counterAt = now;
+      }
     };
     this.timer = setTimeout(tick, 0);
   }

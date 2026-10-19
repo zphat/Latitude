@@ -99,10 +99,16 @@ const savePreferences = () => {
   config.voices = engine.voiceSettings;
   config.desktopSettings = engine.desktopSettings;
   config.masterSettings = engine.masterSettings;
-  try { localStorage.setItem("latitude-v2", JSON.stringify(config)); }
-  catch { toast("Preferences could not be saved. Check available disk space.", true); }
+  try {
+    localStorage.setItem("latitude-v2", JSON.stringify(config));
+  } catch {
+    toast("Preferences could not be saved. Check available disk space.", true);
+  }
 };
-const persist = () => { clearTimeout(persistTimer); persistTimer = setTimeout(savePreferences, 150); };
+const persist = () => {
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(savePreferences, 150);
+};
 const formatTime = (secs) => {
   const n = Math.max(0, Math.floor(secs));
   return `${String(Math.floor(n / 3600)).padStart(2, "0")}:${String(Math.floor(n / 60) % 60).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
@@ -764,7 +770,11 @@ $("#scene-settings").onclick = () => {
 
 async function record() {
   if (engine.starting) return;
-  if (exporting) { toast("Finish or cancel the export in Takes before recording."); view("recordings"); return; }
+  if (exporting) {
+    toast("Finish or cancel the export in Takes before recording.");
+    view("recordings");
+    return;
+  }
   if (starting) {
     countdownToken++;
     starting = false;
@@ -892,9 +902,20 @@ engine.addEventListener("saving", () => {
 });
 engine.addEventListener("saved", async ({ detail: s }) => {
   lastSavedId = s.id;
-  toast(s.status === "interrupted" ? "Take saved with an interruption. Check it in Takes before using it." : "Take saved. Your original tracks are safe.", s.status === "interrupted");
+  toast(
+    s.status === "interrupted"
+      ? "Take saved with an interruption. Check it in Takes before using it."
+      : "Take saved. Your original tracks are safe.",
+    s.status === "interrupted",
+  );
   view("recordings");
-  if (!quitting && s.status !== "interrupted" && config.autoExport && info.encoder) await doExport(s.id);
+  if (
+    !quitting &&
+    s.status !== "interrupted" &&
+    config.autoExport &&
+    info.encoder
+  )
+    await doExport(s.id);
 });
 setInterval(() => {
   if (document.hidden) return;
@@ -973,7 +994,10 @@ async function doExport(
     editorClips: config.editorClips,
   },
 ) {
-  if (engine.recording || engine.finishing || engine.starting) { toast("Stop and save your current take before exporting."); return; }
+  if (engine.recording || engine.finishing || engine.starting) {
+    toast("Stop and save your current take before exporting.");
+    return;
+  }
   if (exporting) {
     toast("Let the current export finish first.");
     return;
@@ -1019,7 +1043,11 @@ $("#cancel-export").onclick = attempt(async () => {
   $("#export-stage").textContent = "Canceling export · keeping originals";
   await window.take.cancelExport();
 });
-$("#reset-peaks").onclick = () => { clippedInputs.fill(false); clipWarningAt = -Infinity; toast("Input clip warnings reset."); };
+$("#reset-peaks").onclick = () => {
+  clippedInputs.fill(false);
+  clipWarningAt = -Infinity;
+  toast("Input clip warnings reset.");
+};
 $("#refresh-takes").onclick = loadTakes;
 $("#top-folder").onclick = attempt(async () => {
   if (window.take) await window.take.openFolder();
@@ -1179,21 +1207,57 @@ function help() {
 }
 $("#help-button").onclick = help;
 document.addEventListener("visibilitychange", () => {
-  compositor.visible = !document.hidden && $("#page-studio").classList.contains("active");
-  engine.node?.port.postMessage({ type: "visibility", visible: !document.hidden });
+  compositor.visible =
+    !document.hidden && $("#page-studio").classList.contains("active");
+  engine.node?.port.postMessage({
+    type: "visibility",
+    visible: !document.hidden,
+  });
 });
 $("#feedback-button").onclick = attempt(async () => {
-  if (!window.take?.feedback) throw Error("Open github.com/zphat/Latitude/issues to share feedback.");
+  if (!window.take?.feedback)
+    throw Error("Open github.com/zphat/Latitude/issues to share feedback.");
   await window.take.feedback();
 });
 $("#diagnostics-button").onclick = () => {
-  const diagnostics = JSON.stringify({ application: "Latitude", version: info.version || "browser preview", platform: info.platform, runtime: info.runtime,
-    encoderAvailable: !!info.encoder, output: { width: config.width, height: config.height, fps: config.fps, quality: config.quality, codec: config.codec, preview: config.previewMode },
-    audio: { sampleRate: engine.ctx?.sampleRate || 48000, sources: engine.sourceState(), presets: config.preset, delaysMs: [...engine.voiceSettings.map((v) => v.syncMs || 0), engine.desktopSettings.syncMs || 0] },
-    h264Capture: MediaRecorder.isTypeSupported("video/webm;codecs=h264,opus"), shortcutFailures }, null, 2);
-  modal("Share a useful bug report.", `<p>Review these technical details, then copy them into a GitHub issue with what happened and how to reproduce it. No recordings, device names, account information, or folder paths are included. Nothing is uploaded automatically.</p><textarea id="diagnostics-text" readonly rows="14" aria-label="Technical diagnostics">${escape(diagnostics)}</textarea><div class="modal-footer"><button id="copy-diagnostics" class="button primary">Copy diagnostics</button></div>`, "BETA FEEDBACK");
+  const diagnostics = JSON.stringify(
+    {
+      application: "Latitude",
+      version: info.version || "browser preview",
+      platform: info.platform,
+      runtime: info.runtime,
+      encoderAvailable: !!info.encoder,
+      output: {
+        width: config.width,
+        height: config.height,
+        fps: config.fps,
+        quality: config.quality,
+        codec: config.codec,
+        preview: config.previewMode,
+      },
+      audio: {
+        sampleRate: engine.ctx?.sampleRate || 48000,
+        sources: engine.sourceState(),
+        presets: config.preset,
+        delaysMs: [
+          ...engine.voiceSettings.map((v) => v.syncMs || 0),
+          engine.desktopSettings.syncMs || 0,
+        ],
+      },
+      h264Capture: MediaRecorder.isTypeSupported("video/webm;codecs=h264,opus"),
+      shortcutFailures,
+    },
+    null,
+    2,
+  );
+  modal(
+    "Share a useful bug report.",
+    `<p>Review these technical details, then copy them into a GitHub issue with what happened and how to reproduce it. No recordings, device names, account information, or folder paths are included. Nothing is uploaded automatically.</p><textarea id="diagnostics-text" readonly rows="14" aria-label="Technical diagnostics">${escape(diagnostics)}</textarea><div class="modal-footer"><button id="copy-diagnostics" class="button primary">Copy diagnostics</button></div>`,
+    "BETA FEEDBACK",
+  );
   $("#copy-diagnostics").onclick = attempt(async () => {
-    if (window.take?.copyDiagnostics) await window.take.copyDiagnostics(diagnostics);
+    if (window.take?.copyDiagnostics)
+      await window.take.copyDiagnostics(diagnostics);
     else await navigator.clipboard.writeText(diagnostics);
     toast("Diagnostics copied. Paste them into your bug report.");
   });
@@ -1201,7 +1265,14 @@ $("#diagnostics-button").onclick = () => {
 function action(value) {
   if (value === "stop-and-close") {
     quitting = true;
-    attempt(async () => { try { await engine.stop(); await window.take.quit(); } finally { quitting = false; } })();
+    attempt(async () => {
+      try {
+        await engine.stop();
+        await window.take.quit();
+      } finally {
+        quitting = false;
+      }
+    })();
     return;
   }
   if ($("#modal").open && !engine.recording) return;
@@ -1229,7 +1300,15 @@ window.addEventListener("keydown", (e) => {
     engine.marker("Edit point");
     return;
   }
-  if ((!window.take || !config.hotkeys || shortcutFailures.some((key) => key.endsWith(`+${e.code.replace(/^(Key|Digit)/, "")}`))) && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+  if (
+    (!window.take ||
+      !config.hotkeys ||
+      shortcutFailures.some((key) =>
+        key.endsWith(`+${e.code.replace(/^(Key|Digit)/, "")}`),
+      )) &&
+    (e.ctrlKey || e.metaKey) &&
+    e.shiftKey
+  ) {
     const key = e.key.toLowerCase();
     if (key === "r") {
       e.preventDefault();
@@ -1323,7 +1402,8 @@ if (window.take) {
     .then(async (result) => {
       info = result;
       shortcutFailures = result.shortcutFailures || [];
-      $("#app-version").textContent = `Latitude ${result.version} · Windows beta`;
+      $("#app-version").textContent =
+        `Latitude ${result.version} · Windows beta`;
       $("#save-path").textContent = result.root;
       $("#encoder-status").textContent = result.encoder
         ? "● Video and audio encoder ready"

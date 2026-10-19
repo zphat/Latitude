@@ -1,0 +1,53 @@
+{
+  "baselineCommit": "b07ca75ee2c18517e81fd528aba2b00bc07e749a",
+  "updatedVersion": "0.4.0",
+  "method": "Same Linux host, serial runs, Node v24.19.0, five trials per scenario, median for 20 seconds of 48 kHz audio after 1000 warm-up blocks. Excludes capture, IPC, disk, video, UI and operating-system audio drivers.",
+  "baseline": {
+    "node": "v24.19.0",
+    "platform": "linux",
+    "reports": [
+      {
+        "scenario": "idle worklet (before suspension)",
+        "audioSeconds": 20,
+        "medianMs": 457,
+        "realtimePercent": 2.29
+      },
+      {
+        "scenario": "one natural voice",
+        "audioSeconds": 20,
+        "medianMs": 951,
+        "realtimePercent": 4.76
+      },
+      {
+        "scenario": "two podcast voices + desktop",
+        "audioSeconds": 20,
+        "medianMs": 789,
+        "realtimePercent": 3.95
+      }
+    ]
+  },
+  "updated": {
+    "node": "v24.19.0",
+    "platform": "linux",
+    "reports": [
+      {
+        "scenario": "idle worklet (before suspension)",
+        "audioSeconds": 20,
+        "medianMs": 127,
+        "realtimePercent": 0.64
+      },
+      {
+        "scenario": "one natural voice",
+        "audioSeconds": 20,
+        "medianMs": 713,
+        "realtimePercent": 3.56
+      },
+      {
+        "scenario": "two podcast voices + desktop",
+        "audioSeconds": 20,
+        "medianMs": 754,
+        "realtimePercent": 3.77
+      }
+    ]
+  }
+}

@@ -95,3 +95,50 @@ test("Rich clarity bypass converges smoothly to the unenhanced signal", async ()
   }
   assert.ok(error < 1e-8);
 });
+test("invalid settings stay finite at 44.1 and 48 kHz", async () => {
+  const { VoiceProcessor, dbToGain } = await import("../audio/dsp.js");
+  for (const rate of [44100, 48000]) {
+    const p = new VoiceProcessor(rate);
+    p.set({
+      gain: NaN,
+      ratio: 0,
+      attack: 0,
+      release: -5,
+      threshold: Infinity,
+      polish: 300,
+      highpass: -200,
+      body: NaN,
+    });
+    for (let i = 0; i < rate; i++) {
+      const y = p.tick(i % 6000 === 0 ? 5 : Math.sin(i * 0.3) * 0.15);
+      assert.ok(Number.isFinite(y));
+      assert.ok(Math.abs(y) <= dbToGain(-1.5) + 1e-6);
+    }
+  }
+});
+test("disabled Rich clarity sleeps and resumes smoothly", async () => {
+  const { RichClarity } = await import("../audio/dsp.js");
+  const p = new RichClarity(48000);
+  let calls = 0;
+  for (const f of p.filters) {
+    const tick = f.tick.bind(f);
+    f.tick = (x) => {
+      calls++;
+      return tick(x);
+    };
+  }
+  for (let i = 0; i < 1000; i++) assert.equal(p.tick(0.1, 0), 0.1);
+  assert.equal(calls, 0);
+  assert.ok(Math.abs(p.tick(0.1, 0.5) - 0.1) < 0.001);
+});
+test("processing bypass crossfades instead of switching abruptly", async () => {
+  const { VoiceProcessor } = await import("../audio/dsp.js");
+  const p = new VoiceProcessor(48000);
+  p.set({ gain: 0, makeup: 12, gateDepth: 0, ratio: 1, deess: 0 });
+  for (let i = 0; i < 48000; i++) p.tick(Math.sin(i * 0.01) * 0.08);
+  p.set({ bypass: true });
+  p.tick(0.01);
+  assert.ok(p.wet > 0.99 && p.wet < 1);
+  for (let i = 0; i < 12000; i++) p.tick(0);
+  assert.equal(p.wet, 0);
+});

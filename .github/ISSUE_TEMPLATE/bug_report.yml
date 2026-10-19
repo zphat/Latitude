@@ -1,33 +1,29 @@
 name: Bug report
-description: Report a recording, audio, scene, or interface problem.
-title: '[Bug]: '
+description: Help reproduce a Latitude beta problem without private recordings.
+title: "[Bug] "
 body:
-  - type: markdown
+  - type: textarea
+    id: steps
     attributes:
-      value: Please use a short test recording when possible. Do not attach private recordings, credentials, or unredacted personal paths.
-  - type: input
-    id: version
-    attributes:
-      label: Latitude version
-      placeholder: 0.3.0 beta
+      label: What happened, and how can we reproduce it?
+      description: Include what you expected and the exact steps.
     validations:
       required: true
   - type: textarea
-    id: environment
+    id: diagnostics
     attributes:
-      label: Computer and devices
-      description: Windows version, CPU/GPU, microphone or interface, webcam, and recording resolution/frame rate.
+      label: Version and technical details
+      description: Paste Settings → Technical details. Add your Windows version if needed.
+      render: json
     validations:
       required: true
   - type: textarea
-    id: reproduce
+    id: devices
     attributes:
-      label: Steps to reproduce
-      description: What did you do, what did you expect, and what happened?
-    validations:
-      required: true
+      label: Capture devices and recording conditions
+      description: Mic/interface, webcam, screen/window, desktop audio routing, take length, and any other running programs.
   - type: textarea
-    id: evidence
+    id: sample
     attributes:
-      label: Optional evidence
-      description: Error text, screenshots, or a short non-sensitive test. For sync problems, include whether pause/resume or a scene switch occurred.
+      label: Optional screenshot or short sample
+      description: Only share content you are comfortable making public. Never attach private recordings or credentials.

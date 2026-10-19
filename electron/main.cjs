@@ -196,7 +196,14 @@ app.whenReady().then(async () => {
       root,
       encoder,
       shortcutFailures,
-      runtime: { electron: process.versions.electron, chromium: process.versions.chrome, os: os.release(), arch: process.arch, cpuThreads: os.availableParallelism(), memoryGB: Math.round(os.totalmem() / 1024 ** 3) },
+      runtime: {
+        electron: process.versions.electron,
+        chromium: process.versions.chrome,
+        os: os.release(),
+        arch: process.arch,
+        cpuThreads: os.availableParallelism(),
+        memoryGB: Math.round(os.totalmem() / 1024 ** 3),
+      },
     };
   });
   handle("capture:sources", async () =>
@@ -238,7 +245,11 @@ app.whenReady().then(async () => {
     if (id) {
       const s = await store.resolve(id);
       target = s.exports?.at(-1)?.path || s.dir;
-      if (target !== s.dir && !path.resolve(target).startsWith(path.resolve(s.dir) + path.sep)) throw Error("Invalid recording path.");
+      if (
+        target !== s.dir &&
+        !path.resolve(target).startsWith(path.resolve(s.dir) + path.sep)
+      )
+        throw Error("Invalid recording path.");
     }
     await fs.promises.mkdir(target, { recursive: true });
     const error = await shell.openPath(target);
@@ -259,9 +270,12 @@ app.whenReady().then(async () => {
     return true;
   });
   handle("app:shortcuts", (enabled) => registerShortcuts(!!enabled));
-  handle("app:feedback", () => shell.openExternal("https://github.com/zphat/Latitude/issues"));
+  handle("app:feedback", () =>
+    shell.openExternal("https://github.com/zphat/Latitude/issues"),
+  );
   handle("app:copy-diagnostics", (text) => {
-    if (typeof text !== "string" || text.length > 32768) throw Error("Invalid diagnostics.");
+    if (typeof text !== "string" || text.length > 32768)
+      throw Error("Invalid diagnostics.");
     clipboard.writeText(text);
   });
   handle("record:begin", async (opts) => {
@@ -297,40 +311,60 @@ app.whenReady().then(async () => {
   let exportTask;
   handle("record:export", (id, opts) => {
     if (exportTask) throw Error("An export is already running.");
-    exportTask = store.export(id, opts, ffmpeg, (progress) => win?.webContents.send("export:progress", progress)).finally(() => { exportTask = null; });
+    exportTask = store
+      .export(id, opts, ffmpeg, (progress) =>
+        win?.webContents.send("export:progress", progress),
+      )
+      .finally(() => {
+        exportTask = null;
+      });
     return exportTask;
   });
   handle("record:cancel-export", () => store.cancelExport());
-  let closing = false, closePrompt = false;
+  let closing = false,
+    closePrompt = false;
   handle("app:quit", () => {
-    if (store.active || store.exporting || store.beginning) throw Error("Finish saving before closing.");
-    closing = true; win.close();
+    if (store.active || store.exporting || store.beginning)
+      throw Error("Finish saving before closing.");
+    closing = true;
+    win.close();
   });
   win.on("close", async (e) => {
-    if (closing || (!store.active && !store.exporting && !store.beginning)) return;
+    if (closing || (!store.active && !store.exporting && !store.beginning))
+      return;
     e.preventDefault();
     if (closePrompt) return;
     closePrompt = true;
     try {
-    if (store.exporting) {
+      if (store.exporting) {
+        const { response } = await dialog.showMessageBox(win, {
+          message: "An export is in progress.",
+          detail:
+            "Canceling keeps your original recording and removes this unfinished export.",
+          buttons: ["Keep open", "Cancel export and close"],
+          defaultId: 0,
+          cancelId: 0,
+        });
+        if (response === 1) {
+          store.cancelExport();
+          await exportTask?.catch(() => {});
+          closing = true;
+          win.close();
+        }
+        return;
+      }
       const { response } = await dialog.showMessageBox(win, {
-        message: "An export is in progress.",
-        detail: "Canceling keeps your original recording and removes this unfinished export.",
-        buttons: ["Keep open", "Cancel export and close"], defaultId: 0, cancelId: 0,
+        type: "question",
+        message: "A recording is in progress.",
+        detail: "Stop and save the take before closing.",
+        buttons: ["Keep recording", "Save and close"],
+        defaultId: 0,
+        cancelId: 0,
       });
-      if (response === 1) { store.cancelExport(); await exportTask?.catch(() => {}); closing = true; win.close(); }
-      return;
+      if (response === 1) win.webContents.send("action", "stop-and-close");
+    } finally {
+      closePrompt = false;
     }
-    const { response } = await dialog.showMessageBox(win, {
-      type: "question",
-      message: "A recording is in progress.",
-      detail: "Stop and save the take before closing.",
-      buttons: ["Keep recording", "Save and close"],
-      defaultId: 0,
-      cancelId: 0,
-    });
-    if (response === 1) win.webContents.send("action", "stop-and-close");
-    } finally { closePrompt = false; }
   });
   win.webContents.on("render-process-gone", async () => {
     await store
@@ -357,10 +391,16 @@ app.whenReady().then(async () => {
   // Opt-in packaged smoke test; does not request media or upload anything.
   if (process.argv.includes("--smoke-test")) {
     try {
-      const ready = await win.webContents.executeJavaScript(`document.title === 'Latitude' && !!document.querySelector('#record-button') && !!window.take?.desktop && document.querySelector('#scene-list').children.length === 5`);
+      const ready = await win.webContents.executeJavaScript(
+        `document.title === 'Latitude' && !!document.querySelector('#record-button') && !!window.take?.desktop && document.querySelector('#scene-list').children.length === 5`,
+      );
       if (!ready) throw Error("The installed interface did not load.");
-      await runFFmpeg(ffmpeg, ["-version"]); app.exit(0);
-    } catch (error) { console.error(error.message); app.exit(1); }
+      await runFFmpeg(ffmpeg, ["-version"]);
+      app.exit(0);
+    } catch (error) {
+      console.error(error.message);
+      app.exit(1);
+    }
   }
 });
 app.on("will-quit", () => globalShortcut.unregisterAll());

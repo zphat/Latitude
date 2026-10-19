@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 — desktop beta
+
+- Windows installer, desktop/Start menu shortcuts, and uninstall support; recordings and preferences retained.
+- Suspend unused audio contexts, stop static/hidden preview timers, bypass unused DSP/filter work, and debounce preferences.
+- Preserve sync-delay buffers, crossfade processing bypass, and protect headphone monitoring peaks.
+- Serialize initialization/start/finalization, bound capture-stop waits, and detect stalled writes.
+- Cancelable exports, live progress, atomic metadata, bounded video encoding threads, and no export/record overlap.
+- Explicit frame requests after drawing, held clip warnings, Save and close, shortcut fallback, smaller windows, and local diagnostics.
+- Audio/worklet/lifecycle regression tests, browser QA, installer CI, beta feedback templates, and Linux roadmap.
+
 ## 0.3.0 — early beta
 
 - Direct source dragging and resizing, snap guides, layer ordering and locking, and independent crops.

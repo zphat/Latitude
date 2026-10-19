@@ -44,7 +44,11 @@ require("../scripts/preview.cjs");
     if (action === "sessions") return store.list();
     if (action === "event") return store.event(...args);
     if (action === "export")
-      return store.export(args[0], args[1], (process.env.TAKE_FFMPEG || require("ffmpeg-static")));
+      return store.export(
+        args[0],
+        args[1],
+        process.env.TAKE_FFMPEG || require("ffmpeg-static"),
+      );
     if (action === "shortcuts") return [];
     if (action === "sources") return [];
   });
@@ -380,7 +384,7 @@ require("../scripts/preview.cjs");
   );
   const session = (await store.list())[0],
     bytes = execFileSync(
-      (process.env.TAKE_FFMPEG || require("ffmpeg-static")),
+      process.env.TAKE_FFMPEG || require("ffmpeg-static"),
       [
         "-v",
         "error",

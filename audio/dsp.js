@@ -165,7 +165,9 @@ export class Biquad {
     this.z2 = this.b2 * x - this.a2 * y;
     return y;
   }
-  reset() { this.z1 = this.z2 = 0; }
+  reset() {
+    this.z1 = this.z2 = 0;
+  }
 }
 
 export class Delay {
@@ -233,9 +235,12 @@ export class StereoLimiter {
     out[0] = dl * guard;
     out[1] = dr * guard;
   }
-  get reduction() { return -gainToDb(this.gain); }
+  get reduction() {
+    return -gainToDb(this.gain);
+  }
   reset() {
-    this.left.data.fill(0); this.right.data.fill(0);
+    this.left.data.fill(0);
+    this.right.data.fill(0);
     this.left.pos = this.right.pos = this.head = this.tail = this.frame = 0;
     this.gain = 1;
   }
@@ -257,11 +262,14 @@ export class RichClarity {
   }
   tick(input, amount) {
     if (amount === 0 && this.amount < 1e-7) {
-      this.amount = 0; this.sleeping = true; return input;
+      this.amount = 0;
+      this.sleeping = true;
+      return input;
     }
     if (this.sleeping) {
       for (const f of this.filters) f.reset();
-      this.low.reset(); this.sleeping = false;
+      this.low.reset();
+      this.sleeping = false;
     }
     this.amount += (clamp(amount, 0, 1) - this.amount) * this.smoothing;
     let wet = input;
@@ -301,18 +309,44 @@ export class VoiceProcessor {
     const previous = this.p || {};
     this.p = { ...previous, ...p };
     // Restored or imported settings must never poison the audio graph.
-    const bounds = { highpass: [20, 250], body: [-12, 12], mud: [-12, 12], presence: [-12, 12], air: [-12, 12], threshold: [-60, 0], ratio: [1, 20], attack: [0.1, 200], release: [10, 2000], makeup: [-12, 24], gate: [-90, -10], gateDepth: [0, 60], deess: [0, 12], polish: [0, 100], gain: [-60, 24] };
+    const bounds = {
+      highpass: [20, 250],
+      body: [-12, 12],
+      mud: [-12, 12],
+      presence: [-12, 12],
+      air: [-12, 12],
+      threshold: [-60, 0],
+      ratio: [1, 20],
+      attack: [0.1, 200],
+      release: [10, 2000],
+      makeup: [-12, 24],
+      gate: [-90, -10],
+      gateDepth: [0, 60],
+      deess: [0, 12],
+      polish: [0, 100],
+      gain: [-60, 24],
+    };
     for (const [key, [lo, hi]] of Object.entries(bounds))
-      this.p[key] = Number.isFinite(this.p[key]) ? clamp(this.p[key], lo, hi) : PRESETS.natural[key];
+      this.p[key] = Number.isFinite(this.p[key])
+        ? clamp(this.p[key], lo, hi)
+        : PRESETS.natural[key];
     const c = this.p;
-    const bands = [["highpass", "highpass", c.highpass, 0, 0.707], ["body", "lowshelf", 120, c.body, 0.707], ["mud", "peak", 280, c.mud, 0.8], ["presence", "peak", 3000, c.presence, 0.8], ["air", "highshelf", 9500, c.air, 0.707]];
+    const bands = [
+      ["highpass", "highpass", c.highpass, 0, 0.707],
+      ["body", "lowshelf", 120, c.body, 0.707],
+      ["mud", "peak", 280, c.mud, 0.8],
+      ["presence", "peak", 3000, c.presence, 0.8],
+      ["air", "highshelf", 9500, c.air, 0.707],
+    ];
     bands.forEach(([key, type, frequency, gain, q], i) => {
       if (previous[key] !== c[key]) {
         this.filters[i].set(type, frequency, gain, q, this.sr);
         if (gain === 0 && i > 0) this.filters[i].reset();
       }
     });
-    this.activeFilters = this.filters.filter((_, i) => i === 0 || c[bands[i][0]] !== 0);
+    this.activeFilters = this.filters.filter(
+      (_, i) => i === 0 || c[bands[i][0]] !== 0,
+    );
     this.attack = Math.exp(-1 / ((this.sr * c.attack) / 1000));
     this.release = Math.exp(-1 / ((this.sr * c.release) / 1000));
     this.gateAttack = Math.exp(-1 / (this.sr * 0.003));
@@ -320,13 +354,19 @@ export class VoiceProcessor {
     this.trimTarget = dbToGain(c.gain);
     this.makeup = dbToGain(c.makeup);
   }
-  get lastReduction() { return this.p.bypass ? 0 : -gainToDb(this.compGain); }
+  get lastReduction() {
+    return this.p.bypass ? 0 : -gainToDb(this.compGain);
+  }
   reset() {
     for (const f of this.filters) f.reset();
-    this.split.reset(); this.limiter.reset();
+    this.split.reset();
+    this.limiter.reset();
     this.env = this.sibilance = this.clarity.amount = 0;
-    this.clarity.sleeping = true; this.gateGain = this.compGain = 1;
-    this.trim = this.trimTarget; this.muteGain = this.p.mute ? 0 : 1; this.wet = this.p.bypass ? 0 : 1;
+    this.clarity.sleeping = true;
+    this.gateGain = this.compGain = 1;
+    this.trim = this.trimTarget;
+    this.muteGain = this.p.mute ? 0 : 1;
+    this.wet = this.p.bypass ? 0 : 1;
   }
   tick(input) {
     const p = this.p;
@@ -357,9 +397,17 @@ export class VoiceProcessor {
         (this.compGain - comp) *
           (comp < this.compGain ? this.attack : this.release);
       if (p.deess > 0) {
-        const low = this.split.tick(x), high = x - low;
-        this.sibilance += (high * high - this.sibilance) * (high * high > this.sibilance ? 0.02 : 0.001);
-        const deess = dbToGain(-Math.min(p.deess, Math.max(0, gainToDb(Math.sqrt(this.sibilance)) + 30) * 0.5));
+        const low = this.split.tick(x),
+          high = x - low;
+        this.sibilance +=
+          (high * high - this.sibilance) *
+          (high * high > this.sibilance ? 0.02 : 0.001);
+        const deess = dbToGain(
+          -Math.min(
+            p.deess,
+            Math.max(0, gainToDb(Math.sqrt(this.sibilance)) + 30) * 0.5,
+          ),
+        );
         x = low + high * deess;
       }
       x *= this.gateGain * this.compGain * this.makeup;

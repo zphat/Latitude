@@ -1,6 +1,6 @@
 # Latitude
 
-A Windows-first, local screen recorder built around clear podcast audio. Version **0.3.0 — early beta**.
+A Windows-first, local screen recorder built around clear podcast audio. Version **0.4.0 — desktop beta**.
 
 [Windows beta downloads](https://github.com/zphat/Latitude/releases) · [Report a bug](https://github.com/zphat/Latitude/issues) · [Contributing](CONTRIBUTING.md) · [Modding](MODDING.md)
 
@@ -8,11 +8,23 @@ Record your screen, optional facecam, microphones, and desktop audio. Shape your
 
 ## Open the Windows app
 
-1. Extract **the entire Windows ZIP** into a normal folder, such as `Documents\Latitude`.
-2. Open **Latitude.exe** inside that folder. Keep the surrounding files with it.
-3. You do not need Node.js, OBS, an account, or a separate FFmpeg installation for the packaged Windows build.
+1. Download **Latitude-0.4.0-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.4.0).
+2. Double-click it. Latitude installs for your Windows account and creates desktop and Start menu shortcuts.
+3. Open either shortcut. No terminal, source folder, Node.js, OBS, or separate FFmpeg installation is needed.
 
-The application is unsigned, so Windows may identify it as an unknown publisher. It does not require administrator privileges. This is a new build: do a short hardware test before relying on it for an irreplaceable episode.
+Recordings stay in your chosen folder (initially `Videos\Latitude`). Windows Settings → Apps can uninstall Latitude; preferences and recordings are retained. To update, close Latitude and run the newer installer.
+
+The optional ZIP is for portable use. Extract the **whole** ZIP and keep its runtime files together. A shortcut to its Latitude.exe works; moving only the EXE breaks that portable copy. The installer is recommended for everyday use.
+
+The beta is unsigned, so Windows may identify it as an unknown publisher. It installs without administrator privileges. Use [BETA-TESTING.md](BETA-TESTING.md) for your first test and feedback.
+
+## New in Latitude 0.4
+
+- **Normal installation:** desktop/Start menu shortcuts and uninstall support, with recordings kept separately.
+- **Less unused processing:** inactive voice lanes sleep, disabled Rich clarity skips its filters, neutral EQ bands skip processing, meter logarithms run at meter rate, and unused audio contexts suspend. Static/hidden previews stop scheduling. Settings writes are debounced; text caches support all 40 layers within a 32 MiB budget.
+- **Audio and capture fixes:** gain/mute changes preserve unchanged sync-delay buffers; bypass crossfades; headphone monitoring has a limiter. Device setup and recording start/stop are guarded against races. Frames are requested immediately after completed draws under one compositor clock.
+- **Safer exports:** cancel without touching originals or earlier exports; live stage progress; atomic metadata updates; bounded video encoding threads; export and recording run separately to protect capture resources. Stalled writes and capture-stop timeouts finalize interrupted takes.
+- **Daily polish:** held input-clip warnings with Reset peaks, Save and close, focused shortcut fallback, a smaller minimum window, and reviewable diagnostics with a GitHub feedback button. Nothing is uploaded automatically.
 
 ## New in Latitude 0.3
 
@@ -50,7 +62,7 @@ The application is unsigned, so Windows may identify it as an unknown publisher.
 - Monitoring output selection. Software microphone monitoring is for setup; it automatically stops when recording system audio to avoid duplicate capture. Use hardware direct monitoring when possible.
 - Natural, Broadcast, Untreated room, Soft spoken, and Music/clean presets, remembered per input device.
 - High-pass filter; four EQ bands; downward expander; soft-knee compressor; split-band de-esser; optional Rich clarity body/presence processing.
-- Stereo-linked 5 ms lookahead sample-peak limiters on voices, desktop, and the full mix; raw clipping indicators; gain-reduction readout.
+- Stereo-linked 5 ms lookahead sample-peak limiters on voices, desktop, headphone monitoring, and the full mix; raw clipping indicators; gain-reduction readout.
 - Input delay adjustments of 0–500 ms for lip-sync correction when audio arrives early.
 - Pause/resume, countdown with cancellation, scene hotkeys, markers, playback, quick mute-all, and small-window recording controls.
 - Continuous disk writing, low-space stop, bounded write queue, large-file RF64 support, preserved originals, and recovery export for interrupted sessions.
@@ -60,15 +72,15 @@ The application is unsigned, so Windows may identify it as an unknown publisher.
 
 Each **Export** folder contains:
 
-| File | Purpose |
-| --- | --- |
-| `Recording.mp4` | H.264 video. The first audio stream is the full mix. Further streams hold each enabled voice and desktop source. |
-| `Voice 1.wav`, `Voice 2.wav` | Processed, isolated mono voices, when enabled. 24-bit PCM. |
-| `Desktop.wav` | Isolated stereo desktop sound, when enabled. 24-bit PCM. |
-| `Mix.wav` | The final stereo mix, with optional loudness normalization. 24-bit PCM. |
-| `Voice 1 original.wav`, `Voice 2 original.wav` | Floating-point voice backups before gain, EQ, compression, de-essing, and limiting. Source mute still applies. |
-| `Audio report.json` | Measured loudness, true peak, normalization mode, track list, and timing. |
-| `Markers.csv` | Edit markers with times and labels. |
+| File                                           | Purpose                                                                                                          |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `Recording.mp4`                                | H.264 video. The first audio stream is the full mix. Further streams hold each enabled voice and desktop source. |
+| `Voice 1.wav`, `Voice 2.wav`                   | Processed, isolated mono voices, when enabled. 24-bit PCM.                                                       |
+| `Desktop.wav`                                  | Isolated stereo desktop sound, when enabled. 24-bit PCM.                                                         |
+| `Mix.wav`                                      | The final stereo mix, with optional loudness normalization. 24-bit PCM.                                          |
+| `Voice 1 original.wav`, `Voice 2 original.wav` | Floating-point voice backups before gain, EQ, compression, de-essing, and limiting. Source mute still applies.   |
+| `Audio report.json`                            | Measured loudness, true peak, normalization mode, track list, and timing.                                        |
+| `Markers.csv`                                  | Edit markers with times and labels.                                                                              |
 
 CapCut versions differ in how they expose multiple audio streams embedded in one video. This app cannot add a stream selector to CapCut. The reliable editing workflow is to import the MP4 and isolated WAVs, place them at the **same timeline start**, mute the video’s mixed audio, and group/link the clips before cutting. Audio stems are captured on one sample clock and share the same duration.
 
@@ -91,21 +103,21 @@ Do not play all MP4 audio streams together. They contain the full mix plus its c
 
 ## Keyboard shortcuts
 
-| Action | Shortcut |
-| --- | --- |
-| Start / stop | Ctrl + Shift + R |
-| Pause / resume | Ctrl + Shift + P |
-| Mute Voice 1 | Ctrl + Shift + M |
-| Add edit marker | Ctrl + Shift + B; also B while the app is focused |
-| Scenes 1–5 | Ctrl + Shift + 1–5 |
-| Undo / redo edits | Ctrl + Z / Ctrl + Shift + Z (or Ctrl + Y) |
-| Duplicate layer | Ctrl + D |
-| Remove selected layer | Delete / Backspace |
-| Nudge selected layer | Arrows; Shift for 10 output pixels |
-| Temporarily bypass snapping | Alt while dragging |
-| Toggle resize aspect behavior | Shift while dragging a corner |
+| Action                        | Shortcut                                          |
+| ----------------------------- | ------------------------------------------------- |
+| Start / stop                  | Ctrl + Shift + R                                  |
+| Pause / resume                | Ctrl + Shift + P                                  |
+| Mute Voice 1                  | Ctrl + Shift + M                                  |
+| Add edit marker               | Ctrl + Shift + B; also B while the app is focused |
+| Scenes 1–5                    | Ctrl + Shift + 1–5                                |
+| Undo / redo edits             | Ctrl + Z / Ctrl + Shift + Z (or Ctrl + Y)         |
+| Duplicate layer               | Ctrl + D                                          |
+| Remove selected layer         | Delete / Backspace                                |
+| Nudge selected layer          | Arrows; Shift for 10 output pixels                |
+| Temporarily bypass snapping   | Alt while dragging                                |
+| Toggle resize aspect behavior | Shift while dragging a corner                     |
 
-Conflicts with another app are shown in Settings. Global shortcuts can be disabled there.
+Conflicts are shown in Settings; unavailable global bindings still work while Latitude is focused. Global shortcuts can be disabled there.
 
 ## Recovery
 
@@ -117,7 +129,7 @@ If the app crashes, reopen it and look in **Takes** for an interrupted session. 
 
 This build has automated DSP, file-writing, export, and browser recording tests, including pause/resume, source mute, scene changes, synchronized stems, and four embedded audio streams. See `BUILD-REPORT.md` for the exact verification performed.
 
-**Windows hardware capture, your webcam/mic drivers, output-device routing, global shortcuts in other programs, and long-session stability still need testing on your computer.** This environment could not run a Windows desktop session. The app is an early beta, not a claim of OBS-level reliability or commercial DAW mastering quality.
+**Windows hardware capture, your webcam/mic drivers, output-device routing, global shortcuts in other programs, and long-session stability still need testing on your computer.** The Windows pipeline checks install, shortcuts, packaged launch, encoder availability, and uninstall; these do not exercise your real capture devices. The app is a desktop beta, not a claim of OBS-level reliability or commercial DAW mastering quality.
 
 VST/AU hosting, AI restoration, per-application audio capture, simultaneous multiple webcams, independently recorded camera video, custom hotkey remapping, hardware video encoder selection, and automatic echo/latency correction are not included. The five scene slots are independent compositions, with up to 40 layers each. Each layer has its own crop. Templates replace the destination scene and legacy layout defaults. Applying a new template can reveal areas hidden by a previous crop, so review the preview before recording. Linux/macOS source development is possible, but this delivery targets Windows x64. Electron and bundled FFmpeg make the download substantial; no claim that Latitude is smaller or faster than OBS has been benchmarked. Higher recording settings and extra sources use more resources.
 
@@ -139,9 +151,9 @@ npm run preview              # Browser interface preview, not a recording substi
 npm run pack:win             # Builds an unpacked Windows app; needs vendor/ffmpeg.exe
 ```
 
-A Git checkout does not contain the encoder executable. On Windows, run `node scripts/prepare-encoder.cjs` after `npm ci` and before packaging. Run `npm run dist:win -- --publish never` to produce a Windows ZIP. See [RELEASING.md](RELEASING.md) for the release procedure. CI checks source changes on Linux; the optional **Build Windows package** workflow creates a Windows test artifact without publishing a release.
+A Git checkout does not contain the encoder executable. On Windows, run `node scripts/prepare-encoder.cjs` after `npm ci` and before packaging. Run `npm run dist:win -- --publish never` to produce the Windows installer and optional portable ZIP. See [RELEASING.md](RELEASING.md) for the release procedure. CI checks source changes on Linux; the optional **Build Windows package** workflow creates a Windows test artifact without publishing a release.
 
-`tests/ui.cjs` checks the recording/export pipeline; `tests/framing-ui.cjs` checks editing and actual cropped pixels; `tests/quality-ui.cjs` checks resolution, encoded frames, text, and output-provider lifecycle. Install Playwright separately and provide `TAKE_TEST_BROWSER` if its Chromium is not in the usual location. It records synthetic media, checks pause/mute behavior, and verifies actual exports with `ffprobe`. `ffprobe` must be available for the integration tests. `TAKE_FFMPEG` can override the export binary during development.
+`tests/ui.cjs` checks the recording/export pipeline; `tests/framing-ui.cjs` checks editing and actual cropped pixels; `tests/quality-ui.cjs` checks resolution, encoded frames, text, and output-provider lifecycle; `tests/beta-ui.cjs` checks idle suspension, concurrent microphone setup, held clip warnings, diagnostics, and compact windows. Install Playwright separately and provide `TAKE_TEST_BROWSER` if its Chromium is not in the usual location. It records synthetic media, checks pause/mute behavior, and verifies actual exports with `ffprobe`. `ffprobe` must be available for the integration tests. `TAKE_FFMPEG` can override the export binary during development.
 
 Upgrading from Take Studio retains an existing local profile and recording folder when available. The internal `take://app` origin and IPC bridge name remain stable to preserve old preferences; they are not visible branding.
 

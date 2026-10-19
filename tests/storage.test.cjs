@@ -233,3 +233,109 @@ test("failed final metadata write releases the recorder and preserves finalized 
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+test("simultaneous starts create one take and export cannot overlap recording", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "latitude-race-"));
+  const store = new RecordingStore(root);
+  try {
+    const starts = await Promise.allSettled([
+      store.begin({ name: "One" }),
+      store.begin({ name: "Two" }),
+    ]);
+    assert.equal(starts.filter((x) => x.status === "fulfilled").length, 1);
+    await assert.rejects(
+      store.export("another-take", {}, "ffmpeg"),
+      /Stop the recording/,
+    );
+    const [one, two] = await Promise.all([store.end(), store.end()]);
+    assert.equal(one.id, two.id);
+    store.exporting = true;
+    await assert.rejects(
+      store.begin({ name: "While exporting" }),
+      /cancel the export/,
+    );
+  } finally {
+    await store.end();
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+test("canceling export preserves originals and earlier exports", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "latitude-cancel-"));
+  const store = new RecordingStore(root);
+  try {
+    const take = await store.begin({ name: "Cancel test", sampleRate: 48000 });
+    await store.append(take.id, "mix", new Float32Array(96000).buffer);
+    await store.end();
+    const before = await fs.readFile(path.join(take.dir, "mix.wav"));
+    await fs.mkdir(path.join(take.dir, "Export"));
+    await fs.writeFile(
+      path.join(take.dir, "Export", "keep.txt"),
+      "Earlier export",
+    );
+    await assert.rejects(
+      store.export(
+        take.id,
+        {},
+        process.env.TAKE_FFMPEG || require("ffmpeg-static"),
+        () => store.cancelExport(),
+      ),
+      /canceled/,
+    );
+    assert.equal(store.exporting, false);
+    assert.deepEqual(await fs.readFile(path.join(take.dir, "mix.wav")), before);
+    assert.equal(
+      await fs.readFile(path.join(take.dir, "Export", "keep.txt"), "utf8"),
+      "Earlier export",
+    );
+    await assert.rejects(fs.stat(path.join(take.dir, "Export 2")), {
+      code: "ENOENT",
+    });
+    assert.equal((await store.list())[0].status, "recorded");
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+test("cancel waits for the encoder process to close", async () => {
+  const { runFFmpeg } = require("../electron/recording.cjs");
+  const controller = new AbortController();
+  const started = Date.now();
+  const operation = runFFmpeg(
+    process.env.TAKE_FFMPEG || require("ffmpeg-static"),
+    [
+      "-re",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=440",
+      "-t",
+      "60",
+      "-f",
+      "null",
+      "-",
+    ],
+    undefined,
+    controller.signal,
+  );
+  const timer = setTimeout(() => controller.abort(), 150);
+  try {
+    await assert.rejects(operation, /canceled/);
+    assert.ok(Date.now() - started < 5000);
+  } finally {
+    clearTimeout(timer);
+  }
+});
+test("a zero-byte disk write fails instead of looping forever", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "latitude-zero-"));
+  const store = new RecordingStore(root);
+  try {
+    const take = await store.begin({ name: "Disk failure" });
+    store.active.handles.mix.write = async () => ({ bytesWritten: 0 });
+    await assert.rejects(
+      store.append(take.id, "mix", new ArrayBuffer(8)),
+      /stopped accepting/,
+    );
+    assert.equal((await store.end()).status, "interrupted");
+  } finally {
+    await store.end();
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

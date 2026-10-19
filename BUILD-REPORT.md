@@ -1,46 +1,52 @@
-# Latitude 0.3.0 — build and review report
+# Latitude 0.4.0 — beta review
 
-Direct source editing, independent crops, text/gradient/image/color sources, undo/redo, microphone-only onboarding, five themes, 1440p/4K settings, quality controls, and an experimental output-provider seam are implemented. Podcast audio and separate synchronized tracks remain the main workflow.
+## Changes reviewed
 
-## Verification
+A per-user Windows installer replaces the portable ZIP as the recommended download. Desktop/Start menu shortcuts and uninstall support keep runtime files in their installation directory. Recordings and preferences remain separate and survive uninstall.
 
-- **21 automated tests passed.** Tests cover DSP limiter ceilings, stereo linking, mute/bypass, compression, Rich clarity response, exact crop bounds, geometry migration, aspect-preserving resize, snapping, selection order, safe pack validation, readable theme contrast, bitrate scaling, WAV/RF64 writing, interrupted recovery, silence, real FFmpeg exports, and cleanup after failed final metadata writes.
-- The browser AudioWorklet → MediaRecorder → disk writer → FFmpeg test recorded **242,944 aligned audio frames (5.0613 seconds)** with two synthetic microphones and desktop audio. Video duration was **5.0510 seconds**; A/V duration difference was **10.3 ms**.
-- Pause/resume, scene changes, markers, voice presets, microphone setup, mute including original backup, four embedded audio streams, and per-source video copies passed with **zero renderer errors**.
-- The exported synthetic mix measured **-16.03 LUFS / -10.28 dBTP**. These test signals do not predict levels for real speech. The video export used **H.264 stream copy**.
-- Direct editing checks passed: drag/resize, undo, gradient text, font changes, duplicate, visibility, lock, image import, embedded-image pack export/import, independent camera position, circle bounds, two captures, five themes, and output-resolution selection.
-- A requested desktop sound; B requested picture only. An actual decoded frame contained **zero excluded browser/taskbar pixels** after cropping A/B to separate red/blue regions. Stop while paused passed, and disabled mic lanes wrote only empty WAV headers.
-- Graphic-only recording passed both without capture devices and with a connected but unused camera. The intentional graphics scene remained selected.
-- At **1100 × 740**, the mixer ended at y=619, recording controls began at y=630, and the record button ended at y=684: no overlap. The studio and editor screens were visually inspected.
-- Output-provider checks confirmed cloned video/audio tracks; stopping the provider ended its clones while the recorder's original video track stayed live.
-- `npm ci --dry-run --ignore-scripts` passes. The packaged application has no production JavaScript framework dependency. FFmpeg lookup and packaging dependencies are development-only; the Windows app contains the encoder resource.
+The review covered DSP hot paths, audio/video lifecycle, scene scheduling, export resources, fault recovery, ordinary controls, and beta feedback. Unused voice lanes skip processing, disabled Rich clarity sleeps, neutral EQ bands skip filters, and meter logarithms run at meter rate. Idle audio contexts suspend and static/hidden previews stop scheduling. Settings writes are debounced; text caches retain the 32 MiB cap and accommodate 40 layers.
 
-## Recorded video measurements
+Fixes preserve unchanged delay buffers through gain/mute edits, crossfade processing bypass, protect headphone monitoring, keep ducking responsive during bypass, serialize initialization/start/finalization, bound capture-stop waits, detect zero-byte disk writes, and finalize interrupted takes. Export cancellation preserves originals and previous exports, metadata commits atomically, progress advances within stages, and encoding cannot compete with a live take. H.264 picture streams still copy on export. Input clipping warnings hold until reset; save-and-close, shortcut fallback, compact layouts and reviewable local diagnostics were checked.
 
-Synthetic moving 1080p content plus gradient text was captured with the real H.264 encoder. GPU acceleration was disabled in the test browser. Encoded rate below is decoded frames divided by audio duration, including startup/stop. These short checks are not comparative hardware benchmarks.
+## Automated and browser verification
 
-| Requested output | Decoded frames | Audio duration | Encoded frames / second | Compositor rate |
-| --- | ---: | ---: | ---: | ---: |
-| 1080p / 30 fps | 184 | 6.083 s | 30.25 fps | 30.16 fps |
-| 1080p / 60 fps | 365 | 6.075 s | 60.09 fps | 59.93 fps |
-| 2160p / 60 fps | 131 | 6.696 s | 19.56 fps | 20.12 fps |
+- **34 tests passed**: all voice presets, 44.1/48 kHz, invalid settings, sample ceilings, stereo linking, compression, mute/bypass, Rich clarity response/sleep, sync-delay continuity, unused lanes, protected monitor sum, pause/resume sample alignment, reduced hidden meters, initialization/finalization races and timeouts, crop geometry, packs/themes, WAV/RF64, recovery, actual FFmpeg exports, canceled exports and stalled writes.
+- The real browser AudioWorklet → MediaRecorder → disk → FFmpeg pipeline produced **245,888 aligned audio frames (5.1227 s)** across six stems with two synthetic voices and desktop audio. Video lasted **5.141 s**, an **18.3 ms duration difference**. Pause/resume, mute including raw backup, scene changes, markers, four embedded audio streams and optional per-track video copies passed. Renderer errors: **0**.
+- The synthetic exported mix measured **−16.01 LUFS / −12.53 dBTP**, with H.264 stream-copy video. These generated tones do not predict how real speech will sound.
+- Drag/resize, undo, text gradients, image packs, independent crops/camera position, and two views passed. Decoded recorded frames contained **zero excluded crop pixels**. Stop-while-paused and graphic-only recording passed.
+- Idle scheduling tests verified no compositor timer for a static scene and a suspended audio context after both microphones disconnect. Concurrent microphone setup, held/reset clip warnings, reviewable diagnostics, and 1100/960-pixel layouts passed with **0** renderer errors. The 1100×740 studio and diagnostics were visually reviewed; recording controls do not overlap the mixer.
+- Installed-app configuration validates against the pinned electron-builder schema. No new runtime framework or DSP dependency was added.
 
-The compositor owns frame pacing; removing a redundant capture-rate timer fixed dropped frames at 1080p. Requested 4K dimensions and gradient text were verified, but **this host did not sustain 4K/60**. Encoder, GPU, CPU, source format, and scene complexity determine real performance. The live indicator measures compositing, not guaranteed saved FPS.
+## Video measurements
 
-## Resource and usability review
+Real H.264 recording of synthetic moving content plus gradient text, with GPU acceleration disabled in Chromium 153. Encoded rate is decoded frame count / audio duration, including startup and shutdown. The final 1080p/30 check followed restoration of the reviewed source; the higher-format checks were performed during the same polish pass.
 
-Balanced/Economy previews use up to 720p; Detailed preview uses up to 1080p. Recording uses the selected full resolution. Static scenes redraw on changes; inactive pages stop live preview updates. Text raster caches are capped at 32 MiB; images unused by current scenes/transitions are released. Image imports are bounded, layers share captures, transition buffers are temporary, and disabled audio lanes do not send PCM copies. Gain conversions are cached outside the per-sample loop. H.264 export copies video instead of encoding it again.
+| Requested  | Frames | Audio duration | Encoded fps | Compositor fps |
+| ---------- | -----: | -------------: | ----------: | -------------: |
+| 1080p / 30 |    183 |        6.072 s |       30.14 |          30.02 |
+| 1080p / 60 |    348 |        6.192 s |       56.20 |          58.92 |
+| 2160p / 60 |     83 |        7.707 s |       10.77 |          15.35 |
 
-Final fixes cover imported source IDs, refreshing cached images after pack import, keeping image bytes out of preferences, voice/source inspector navigation, auto-lock during recording, late source-connection races, 2 MiB video IPC chunks, recording cleanup after final write failure, and unwanted camera-driven scene switching. Source is formatted for contributors. MODDING.md documents settings packs and the experimental code-level output seam.
+Explicit frame requests after completed draws fixed a capture-pacing issue observed at 1080p/30. This CPU-only host **does not sustain 4K/60**. Those dimensions/settings are supported, but saved FPS depends on capture devices, CPU/GPU, encoder and scene complexity. The live FPS indicator measures compositing, not guaranteed encoded FPS.
 
-## Windows package verification
+## Audio processing comparison
 
-The Windows x64 build completed successfully. **23 packaged files** match the working source byte-for-byte. Executable product name is **Latitude**, version **0.3.0.0**, with **6 icon resolutions**. Embedded ASAR header integrity matches its SHA-256. The packaged encoder matches the supplied binary; README and third-party notices match their sources. ZIP integrity and packaged EXE/ASAR bytes are checked before delivery.
+`npm run bench:audio`: 48 kHz, 20 seconds of audio, median of five trials after warm-up, serial runs on the same host / Node 24.19.0. Baseline is commit b07ca75 (0.3.0). Raw results are in docs/qa/audio-benchmark-0.4.0.json.
 
-## Remaining hardware checks and limits
+| Worklet scenario                | 0.3 time | 0.4 time |                Change |
+| ------------------------------- | -------: | -------: | --------------------: |
+| Idle, before context suspension |   457 ms |   127 ms | 72% less worklet time |
+| One natural voice               |   951 ms |   713 ms | 25% less worklet time |
+| Two podcast voices + desktop    |   789 ms |   754 ms |  4% less worklet time |
 
-The packaged app could not be run in a Windows desktop session here. Actual monitor/window capture, system loopback endpoints, webcam/mic drivers, monitoring output selection, global shortcuts in other programs, and long-session stability still need a Windows hardware test. Generated signals and mocked capture selection do not verify those OS paths.
+These are microbenchmarks, **not whole-app CPU, memory or OBS comparisons**. Different scenarios exercise different optimized paths and cannot be compared as CPU scaling predictions. In the application an unused context subsequently suspends altogether. Capture/encoding can dominate total resource use, especially with software 4K encoding. The Electron/FFmpeg runtime size is not materially reduced by these code changes.
 
-One webcam and two screen/window capture sources are supported. Multiple physical webcams, separate camera-video recording, VST/AU hosting, AI restoration, per-app audio isolation, custom global-hotkey remapping, and explicit hardware-encoder selection are not implemented. The output API requires local recording and is not a finished streaming mod. Rich clarity cannot repair hardware clipping or remove noise underneath speech.
+## Windows release gate
 
-This is an unsigned beta. Electron and FFmpeg make the download substantial; no claim that Latitude is smaller or faster than OBS has been benchmarked. Application code is MIT licensed, with separate runtime/encoder licenses. This report records verification before GitHub publication; repository and release setup are separate from the application build.
+The release workflow builds the installer and portable ZIP on Windows, verifies package contents, pinned encoder hash and licenses, installs under a disposable account, verifies desktop/Start menu shortcut targets, launches the packaged renderer and encoder from an unrelated working directory, and uninstalls while preserving a user-data marker. Both asset checksums are verified after transfer before publication. **Publishing is gated on these checks**; a failed gate prevents the release.
+
+## Remaining beta work
+
+Real Windows monitor/window capture, system loopback routing, microphone/webcam drivers, external global shortcuts, long takes and real-world listening still need user hardware feedback. The pipeline's installed-app smoke test is not a physical-device test. Start with the short procedure in BETA-TESTING.md before an important episode.
+
+The app remains unsigned. One webcam is supported; multi-webcam capture, separate camera video, VST/AU hosting, AI restoration, per-app audio capture, explicit hardware-encoder selection and a finished streaming mod are not included. Live limiters guard sample peaks; they cannot repair hardware clipping. Linux packaging and platform capture validation are the next milestone, documented in ROADMAP.md. No claim of best-in-class audio or smaller/faster-than-OBS performance is made without comparative hardware/listening evidence.

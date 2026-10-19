@@ -45,26 +45,33 @@ class StudioProcessor extends AudioWorkletProcessor {
       if (data.type === "voice") {
         if (![0, 1].includes(data.index)) return;
         this.voices[data.index].set(data.settings);
-        if (Number.isFinite(data.settings.syncMs)) this.setDelay(data.index, data.settings.syncMs);
+        if (Number.isFinite(data.settings.syncMs))
+          this.setDelay(data.index, data.settings.syncMs);
       }
       if (data.type === "desktop") {
         this.desktop = { ...this.desktop, ...data.settings };
-        this.desktop.gain = Number.isFinite(this.desktop.gain) ? Math.max(-60, Math.min(12, this.desktop.gain)) : -6;
+        this.desktop.gain = Number.isFinite(this.desktop.gain)
+          ? Math.max(-60, Math.min(12, this.desktop.gain))
+          : -6;
         this.deskTarget = this.desktop.mute ? 0 : dbToGain(this.desktop.gain);
         if (Number.isFinite(data.settings.syncMs)) {
-          this.setDelay(2, data.settings.syncMs); this.setDelay(3, data.settings.syncMs);
+          this.setDelay(2, data.settings.syncMs);
+          this.setDelay(3, data.settings.syncMs);
         }
       }
       if (data.type === "master") {
         this.master = { ...this.master, ...data.settings };
-        this.master.gain = Number.isFinite(this.master.gain) ? Math.max(-60, Math.min(12, this.master.gain)) : 0;
+        this.master.gain = Number.isFinite(this.master.gain)
+          ? Math.max(-60, Math.min(12, this.master.gain))
+          : 0;
         this.masterTarget = this.master.mute ? 0 : dbToGain(this.master.gain);
       }
       if (data.type === "monitor") {
         this.monitorEnabled = !!data.enabled;
         if (!this.monitorEnabled) this.monitorLimiter.reset();
       }
-      if (data.type === "visibility") this.meterInterval = data.visible ? 2400 : sampleRate;
+      if (data.type === "visibility")
+        this.meterInterval = data.visible ? 2400 : sampleRate;
       if (data.type === "start") {
         this.enabled = data.enabled || Array(6).fill(true);
         this.resetBuffers();
@@ -85,9 +92,12 @@ class StudioProcessor extends AudioWorkletProcessor {
     };
   }
   setDelay(index, ms) {
-    const samples = Math.round(Math.max(0, Math.min(500, ms)) * sampleRate / 1000);
+    const samples = Math.round(
+      (Math.max(0, Math.min(500, ms)) * sampleRate) / 1000,
+    );
     // Preserve buffered audio when gain/mute changes resend the same delay.
-    if (this.syncDelay[index].samples !== samples) this.syncDelay[index] = new Delay(samples);
+    if (this.syncDelay[index].samples !== samples)
+      this.syncDelay[index] = new Delay(samples);
   }
   resetBuffers() {
     this.buffers = [1, 1, 2, 2, 1, 1].map((n) => new Float32Array(4096 * n));
@@ -119,8 +129,10 @@ class StudioProcessor extends AudioWorkletProcessor {
     for (let v = 0; v < 2; v++) {
       const connected = (v ? v2 : v1).length > 0;
       if (this.connected[v] && !connected) {
-        this.voices[v].reset(); this.syncDelay[v].data.fill(0);
-        this.dryDelay[v].data.fill(0); this.alignment[v].data.fill(0);
+        this.voices[v].reset();
+        this.syncDelay[v].data.fill(0);
+        this.dryDelay[v].data.fill(0);
+        this.alignment[v].data.fill(0);
       }
       this.connected[v] = connected;
     }
@@ -173,7 +185,12 @@ class StudioProcessor extends AudioWorkletProcessor {
       master[0][i] = this.out[0];
       master[1][i] = this.out[1];
       // Mic-only monitor output avoids replaying desktop loopback into itself.
-      if (this.monitorEnabled) this.monitorLimiter.process(aligned[0] + aligned[1], aligned[0] + aligned[1], this.monitorOut);
+      if (this.monitorEnabled)
+        this.monitorLimiter.process(
+          aligned[0] + aligned[1],
+          aligned[0] + aligned[1],
+          this.monitorOut,
+        );
       outputs[1][0][i] = this.monitorEnabled ? this.monitorOut[0] : 0;
       outputs[1][1][i] = this.monitorEnabled ? this.monitorOut[1] : 0;
       const values = this.values;

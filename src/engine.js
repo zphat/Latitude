@@ -29,17 +29,27 @@ export class StudioEngine extends EventTarget {
     this.dispatchEvent(new CustomEvent(type, { detail }));
   }
   async init() {
-    if (!this.initializing) this.initializing = this.initialize().catch(async (error) => {
-      await this.ctx?.close().catch(() => {});
-      this.ctx = this.node = this.initializing = null;
-      throw error;
-    });
-    await this.initializing; await this.ctx.resume(); this.updateIdle();
+    if (!this.initializing)
+      this.initializing = this.initialize().catch(async (error) => {
+        await this.ctx?.close().catch(() => {});
+        this.ctx = this.node = this.initializing = null;
+        throw error;
+      });
+    await this.initializing;
+    await this.ctx.resume();
+    this.updateIdle();
   }
   updateIdle() {
     clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(() => {
-      if (this.ctx?.state === "running" && !this.recording && !this.finishing && !this.starting && !this.monitored && !Object.keys(this.nodes).length)
+      if (
+        this.ctx?.state === "running" &&
+        !this.recording &&
+        !this.finishing &&
+        !this.starting &&
+        !this.monitored &&
+        !Object.keys(this.nodes).length
+      )
         this.ctx.suspend().catch(() => {});
     }, 200);
   }
@@ -141,7 +151,10 @@ export class StudioEngine extends EventTarget {
       otherSettings = otherStream?.getAudioTracks()[0]?.getSettings(),
       other = otherSettings?.deviceId;
     const stream =
-      other && deviceId && deviceId === other && !!otherSettings.noiseSuppression === noiseSuppression
+      other &&
+      deviceId &&
+      deviceId === other &&
+      !!otherSettings.noiseSuppression === noiseSuppression
         ? otherStream.clone()
         : await navigator.mediaDevices.getUserMedia({
             audio: {
@@ -341,7 +354,10 @@ export class StudioEngine extends EventTarget {
     if (!this.session) return;
     this.pendingBytes += buffer.byteLength;
     const id = this.session.id;
-    if (this.pendingBytes + (this.pendingBlobBytes || 0) > 64 * 1024 * 1024 && !this.ioFailed) {
+    if (
+      this.pendingBytes + (this.pendingBlobBytes || 0) > 64 * 1024 * 1024 &&
+      !this.ioFailed
+    ) {
       this.ioFailed = true;
       this.emit(
         "error",
@@ -365,8 +381,12 @@ export class StudioEngine extends EventTarget {
   async start(options) {
     if (this.recording || this.finishing || this.starting) return;
     this.starting = true;
-    try { return await this.startRecording(options); }
-    finally { this.starting = false; this.updateIdle(); }
+    try {
+      return await this.startRecording(options);
+    } finally {
+      this.starting = false;
+      this.updateIdle();
+    }
   }
   async startRecording(options) {
     if (!window.take)
@@ -473,9 +493,15 @@ export class StudioEngine extends EventTarget {
       this.recorder.ondataavailable = (e) => {
         if (e.data.size) {
           this.pendingBlobBytes += e.data.size;
-          if (this.pendingBlobBytes + this.pendingBytes > 64 * 1024 * 1024 && !this.ioFailed) {
+          if (
+            this.pendingBlobBytes + this.pendingBytes > 64 * 1024 * 1024 &&
+            !this.ioFailed
+          ) {
             this.ioFailed = true;
-            this.emit("error", "Video storage cannot keep up. Stopping to preserve this take.");
+            this.emit(
+              "error",
+              "Video storage cannot keep up. Stopping to preserve this take.",
+            );
             queueMicrotask(() => this.stop().catch(() => {}));
           }
           this.blobQueue = this.blobQueue
@@ -485,9 +511,13 @@ export class StudioEngine extends EventTarget {
                 this.enqueue("video", data.slice(i, i + 2 * 1024 * 1024));
             })
             .catch((error) => {
-              this.ioFailed = true; this.emit("error", error.message);
+              this.ioFailed = true;
+              this.emit("error", error.message);
               queueMicrotask(() => this.stop().catch(() => {}));
-            }).finally(() => { this.pendingBlobBytes -= e.data.size; });
+            })
+            .finally(() => {
+              this.pendingBlobBytes -= e.data.size;
+            });
         }
       };
       this.recorder.onerror = (e) => {
@@ -554,43 +584,78 @@ export class StudioEngine extends EventTarget {
   stop() {
     if (this.stopping) return this.stopping;
     if (!this.recording) return Promise.resolve();
-    this.stopping = this.finishRecording().finally(() => { this.stopping = null; });
+    this.stopping = this.finishRecording().finally(() => {
+      this.stopping = null;
+    });
     return this.stopping;
   }
   async finishRecording() {
     this.finishing = true;
-    const outputsStopped = this.outputs.stopAll().catch((e) => this.emit("error", e.message));
-    this.elapsed = this.time(); this.recording = false; this.emit("saving", true);
+    const outputsStopped = this.outputs
+      .stopAll()
+      .catch((e) => this.emit("error", e.message));
+    this.elapsed = this.time();
+    this.recording = false;
+    this.emit("saving", true);
     const timers = [];
     let failure, result;
     const bounded = (operation, ms, label) => {
       let timer;
-      return Promise.race([operation, new Promise((resolve) => {
-        timer = setTimeout(() => { failure = `${label} did not finish in time. Review or recover this take before using it.`; resolve(); }, ms);
-        timers.push(timer);
-      })]).finally(() => clearTimeout(timer));
+      return Promise.race([
+        operation,
+        new Promise((resolve) => {
+          timer = setTimeout(() => {
+            failure = `${label} did not finish in time. Review or recover this take before using it.`;
+            resolve();
+          }, ms);
+          timers.push(timer);
+        }),
+      ]).finally(() => clearTimeout(timer));
     };
     try {
-      const audioStopped = new Promise((resolve) => { this.stopResolve = resolve; });
-      this.node.port.postMessage({ type: "stop", frame: Math.round(this.ctx.currentTime * this.ctx.sampleRate) });
+      const audioStopped = new Promise((resolve) => {
+        this.stopResolve = resolve;
+      });
+      this.node.port.postMessage({
+        type: "stop",
+        frame: Math.round(this.ctx.currentTime * this.ctx.sampleRate),
+      });
       const videoStopped = new Promise((resolve) => {
         if (this.recorder.state === "inactive") return resolve();
-        this.recorder.onstop = resolve; this.recorder.stop();
+        this.recorder.onstop = resolve;
+        this.recorder.stop();
       });
-      await Promise.all([bounded(audioStopped, 2500, "Audio capture"), bounded(videoStopped, 5000, "Video capture")]);
+      await Promise.all([
+        bounded(audioStopped, 2500, "Audio capture"),
+        bounded(videoStopped, 5000, "Video capture"),
+      ]);
       for (const timer of timers) clearTimeout(timer);
       this.stopResolve = null;
-      await this.blobQueue; await this.queue; await outputsStopped;
-    } catch (error) { failure = error.message; }
-    finally {
+      await this.blobQueue;
+      await this.queue;
+      await outputsStopped;
+    } catch (error) {
+      failure = error.message;
+    } finally {
       for (const timer of timers) clearTimeout(timer);
       this.stopResolve = null;
-      try { result = await window.take.end({ error: failure || (this.ioFailed ? "Storage could not keep up; inspect the take before using it." : undefined) }); }
-      finally {
+      try {
+        result = await window.take.end({
+          error:
+            failure ||
+            (this.ioFailed
+              ? "Storage could not keep up; inspect the take before using it."
+              : undefined),
+        });
+      } finally {
         this.compositor.captureTrack = null;
         this.canvasStream?.getTracks().forEach((t) => t.stop());
-        this.session = null; this.compositor.setRecording(false); this.finishing = false; this.paused = false;
-        this.updateIdle(); this.emit("recording", false);
+        this.session = null;
+        this.compositor.setRecording(false);
+        this.finishing = false;
+        this.paused = false;
+        this.updateIdle();
+        this.emit("recording", false);
       }
     }
     if (failure) this.emit("error", failure);

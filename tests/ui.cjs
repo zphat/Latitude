@@ -44,7 +44,11 @@ require("../scripts/preview.cjs");
     if (action === "sessions") return store.list();
     if (action === "event") return store.event(...args);
     if (action === "export")
-      return store.export(args[0], args[1], (process.env.TAKE_FFMPEG || require("ffmpeg-static")));
+      return store.export(
+        args[0],
+        args[1],
+        process.env.TAKE_FFMPEG || require("ffmpeg-static"),
+      );
     if (action === "shortcuts") return [];
     if (action === "sources") return [];
   });
