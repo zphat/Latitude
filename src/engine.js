@@ -29,10 +29,21 @@ export class StudioEngine extends EventTarget {
     this.dispatchEvent(new CustomEvent(type, { detail }));
   }
   async init() {
-    if (this.ctx) {
-      await this.ctx.resume();
-      return;
-    }
+    if (!this.initializing) this.initializing = this.initialize().catch(async (error) => {
+      await this.ctx?.close().catch(() => {});
+      this.ctx = this.node = this.initializing = null;
+      throw error;
+    });
+    await this.initializing; await this.ctx.resume(); this.updateIdle();
+  }
+  updateIdle() {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => {
+      if (this.ctx?.state === "running" && !this.recording && !this.finishing && !this.starting && !this.monitored && !Object.keys(this.nodes).length)
+        this.ctx.suspend().catch(() => {});
+    }, 200);
+  }
+  async initialize() {
     this.ctx = new AudioContext({
       sampleRate: 48000,
       latencyHint: "interactive",
@@ -81,6 +92,7 @@ export class StudioEngine extends EventTarget {
     this.setDesktop(this.desktopSettings);
     this.setMaster(this.masterSettings);
     this.ctx.onstatechange = () => {
+      this.emit("sources", this.sourceState());
       if (this.recording && this.ctx.state !== "running") {
         this.emit(
           "error",
@@ -107,6 +119,8 @@ export class StudioEngine extends EventTarget {
         if (this.streams[key] === stream) {
           delete this.streams[key];
           this.nodes[key]?.disconnect();
+          delete this.nodes[key];
+          this.updateIdle();
           this.emit("sources", this.sourceState());
           this.emit(
             "error",
@@ -117,16 +131,17 @@ export class StudioEngine extends EventTarget {
     this.emit("sources", this.sourceState());
   }
   async mic(index, deviceId, noiseSuppression = false) {
-    if (this.recording || this.finishing)
+    if (this.recording || this.finishing || this.starting)
       throw Error("Change input devices between takes.");
     if (deviceId === "off") {
       this.remove(`mic${index + 1}`);
       return;
     }
     const otherStream = this.streams[`mic${index === 0 ? 2 : 1}`],
-      other = otherStream?.getAudioTracks()[0]?.getSettings().deviceId;
+      otherSettings = otherStream?.getAudioTracks()[0]?.getSettings(),
+      other = otherSettings?.deviceId;
     const stream =
-      other && deviceId && deviceId === other
+      other && deviceId && deviceId === other && !!otherSettings.noiseSuppression === noiseSuppression
         ? otherStream.clone()
         : await navigator.mediaDevices.getUserMedia({
             audio: {
@@ -139,7 +154,7 @@ export class StudioEngine extends EventTarget {
             },
             video: false,
           });
-    if (this.recording || this.finishing) {
+    if (this.recording || this.finishing || this.starting) {
       stream.getTracks().forEach((t) => t.stop());
       throw Error(
         "Recording started while the device was connecting. Try again between takes.",
@@ -152,11 +167,12 @@ export class StudioEngine extends EventTarget {
     this.streams[key]?.getTracks().forEach((t) => t.stop());
     delete this.streams[key];
     delete this.nodes[key];
+    this.updateIdle();
     this.emit("sources", this.sourceState());
   }
   async screen(source, desktopMode = "system", slot = "a") {
     const key = slot === "b" ? "screenB" : "screen";
-    if (this.recording || this.finishing)
+    if (this.recording || this.finishing || this.starting)
       throw Error("Change capture devices between takes.");
     await this.init();
     if (window.take && source) await window.take.chooseSource(source);
@@ -169,7 +185,7 @@ export class StudioEngine extends EventTarget {
       audio: slot === "a" && desktopMode === "system",
       systemAudio: "include",
     });
-    if (this.recording || this.finishing) {
+    if (this.recording || this.finishing || this.starting) {
       stream.getTracks().forEach((t) => t.stop());
       throw Error(
         "Recording started while the screen was connecting. Try again between takes.",
@@ -207,7 +223,7 @@ export class StudioEngine extends EventTarget {
     this.emit("sources", this.sourceState());
   }
   async desktopInput(deviceId) {
-    if (this.recording || this.finishing)
+    if (this.recording || this.finishing || this.starting)
       throw Error("Change desktop audio devices between takes.");
     if (deviceId === "off") {
       this.remove("desktop");
@@ -224,7 +240,7 @@ export class StudioEngine extends EventTarget {
       },
       video: false,
     });
-    if (this.recording || this.finishing) {
+    if (this.recording || this.finishing || this.starting) {
       stream.getTracks().forEach((t) => t.stop());
       throw Error(
         "Recording started while the device was connecting. Try again between takes.",
@@ -234,7 +250,7 @@ export class StudioEngine extends EventTarget {
     this.desktopMode = "input";
   }
   async camera(deviceId) {
-    if (this.recording || this.finishing)
+    if (this.recording || this.finishing || this.starting)
       throw Error("Change camera devices between takes.");
     if (deviceId === "off") {
       this.streams.camera?.getTracks().forEach((t) => t.stop());
@@ -252,7 +268,7 @@ export class StudioEngine extends EventTarget {
       },
       audio: false,
     });
-    if (this.recording || this.finishing) {
+    if (this.recording || this.finishing || this.starting) {
       stream.getTracks().forEach((t) => t.stop());
       throw Error(
         "Recording started while the camera was connecting. Try again between takes.",
@@ -317,13 +333,15 @@ export class StudioEngine extends EventTarget {
       await this.monitor.play();
     } else this.monitor.pause();
     this.monitored = enabled;
+    this.node.port.postMessage({ type: "monitor", enabled });
+    this.updateIdle();
     this.emit("monitor", enabled);
   }
   enqueue(key, buffer) {
     if (!this.session) return;
     this.pendingBytes += buffer.byteLength;
     const id = this.session.id;
-    if (this.pendingBytes > 64 * 1024 * 1024 && !this.ioFailed) {
+    if (this.pendingBytes + (this.pendingBlobBytes || 0) > 64 * 1024 * 1024 && !this.ioFailed) {
       this.ioFailed = true;
       this.emit(
         "error",
@@ -345,7 +363,12 @@ export class StudioEngine extends EventTarget {
       });
   }
   async start(options) {
-    if (this.recording || this.finishing) return;
+    if (this.recording || this.finishing || this.starting) return;
+    this.starting = true;
+    try { return await this.startRecording(options); }
+    finally { this.starting = false; this.updateIdle(); }
+  }
+  async startRecording(options) {
     if (!window.take)
       throw Error(
         "Recording to disk is available in the desktop app. This browser preview is for setup and interface testing.",
@@ -383,7 +406,8 @@ export class StudioEngine extends EventTarget {
     try {
       this.compositor.setRecording(true);
       this.compositor.draw(); // The compositor owns pacing. A second capture timer can miss completed frames.
-      this.canvasStream = this.canvas.captureStream();
+      this.canvasStream = this.canvas.captureStream(0);
+      this.compositor.captureTrack = this.canvasStream.getVideoTracks()[0];
       const combined = new MediaStream([
         ...this.canvasStream.getVideoTracks(),
         ...this.mixDestination.stream.getAudioTracks(),
@@ -445,15 +469,26 @@ export class StudioEngine extends EventTarget {
       this.queue = Promise.resolve();
       this.blobQueue = Promise.resolve();
       this.ioFailed = false;
+      this.pendingBlobBytes = 0;
       this.recorder.ondataavailable = (e) => {
-        if (e.data.size)
+        if (e.data.size) {
+          this.pendingBlobBytes += e.data.size;
+          if (this.pendingBlobBytes + this.pendingBytes > 64 * 1024 * 1024 && !this.ioFailed) {
+            this.ioFailed = true;
+            this.emit("error", "Video storage cannot keep up. Stopping to preserve this take.");
+            queueMicrotask(() => this.stop().catch(() => {}));
+          }
           this.blobQueue = this.blobQueue
             .then(async () => {
               const data = await e.data.arrayBuffer();
               for (let i = 0; i < data.byteLength; i += 2 * 1024 * 1024)
                 this.enqueue("video", data.slice(i, i + 2 * 1024 * 1024));
             })
-            .catch((error) => this.emit("error", error.message));
+            .catch((error) => {
+              this.ioFailed = true; this.emit("error", error.message);
+              queueMicrotask(() => this.stop().catch(() => {}));
+            }).finally(() => { this.pendingBlobBytes -= e.data.size; });
+        }
       };
       this.recorder.onerror = (e) => {
         this.emit("error", e.error?.message || "The video encoder stopped.");
@@ -475,6 +510,7 @@ export class StudioEngine extends EventTarget {
       this.recording = true;
       this.emit("recording", true);
     } catch (e) {
+      this.compositor.captureTrack = null;
       this.canvasStream?.getTracks().forEach((t) => t.stop());
       this.compositor.setRecording(false);
       if (this.session) await window.take.end({ error: e.message });
@@ -494,7 +530,7 @@ export class StudioEngine extends EventTarget {
       : this.elapsed;
   }
   pause() {
-    if (!this.recording || this.finishing) return;
+    if (!this.recording || this.finishing || this.starting) return;
     if (!this.paused) {
       this.recorder.pause();
       this.pauseAt = this.ctx.currentTime;
@@ -515,50 +551,51 @@ export class StudioEngine extends EventTarget {
     }
     this.emit("paused", this.paused);
   }
-  async stop() {
-    if (!this.recording || this.finishing) return;
+  stop() {
+    if (this.stopping) return this.stopping;
+    if (!this.recording) return Promise.resolve();
+    this.stopping = this.finishRecording().finally(() => { this.stopping = null; });
+    return this.stopping;
+  }
+  async finishRecording() {
     this.finishing = true;
-    const outputsStopped = this.outputs.stopAll();
-    this.elapsed = this.time();
-    this.recording = false;
-    this.emit("saving", true);
-    let timeout;
+    const outputsStopped = this.outputs.stopAll().catch((e) => this.emit("error", e.message));
+    this.elapsed = this.time(); this.recording = false; this.emit("saving", true);
+    const timers = [];
+    let failure, result;
+    const bounded = (operation, ms, label) => {
+      let timer;
+      return Promise.race([operation, new Promise((resolve) => {
+        timer = setTimeout(() => { failure = `${label} did not finish in time. Review or recover this take before using it.`; resolve(); }, ms);
+        timers.push(timer);
+      })]).finally(() => clearTimeout(timer));
+    };
     try {
-      const audioStopped = new Promise((resolve) => {
-        this.stopResolve = resolve;
-        timeout = setTimeout(resolve, 2500);
-      });
-      this.node.port.postMessage({
-        type: "stop",
-        frame: Math.round(this.ctx.currentTime * this.ctx.sampleRate),
-      });
+      const audioStopped = new Promise((resolve) => { this.stopResolve = resolve; });
+      this.node.port.postMessage({ type: "stop", frame: Math.round(this.ctx.currentTime * this.ctx.sampleRate) });
       const videoStopped = new Promise((resolve) => {
         if (this.recorder.state === "inactive") return resolve();
-        this.recorder.onstop = resolve;
-        this.recorder.stop();
+        this.recorder.onstop = resolve; this.recorder.stop();
       });
-      await Promise.all([audioStopped, videoStopped]);
-      clearTimeout(timeout);
-      await this.blobQueue;
-      await this.queue;
-      await outputsStopped;
-      const result = await window.take.end({
-        error: this.ioFailed
-          ? "Storage could not keep up; inspect the take before using it."
-          : undefined,
-      });
-      this.session = null;
-      this.canvasStream?.getTracks().forEach((t) => t.stop());
-      this.emit("saved", result);
-      return result;
-    } finally {
-      this.canvasStream?.getTracks().forEach((t) => t.stop());
-      this.session = null;
-      this.compositor.setRecording(false);
-      this.finishing = false;
-      this.paused = false;
-      this.emit("recording", false);
+      await Promise.all([bounded(audioStopped, 2500, "Audio capture"), bounded(videoStopped, 5000, "Video capture")]);
+      for (const timer of timers) clearTimeout(timer);
+      this.stopResolve = null;
+      await this.blobQueue; await this.queue; await outputsStopped;
+    } catch (error) { failure = error.message; }
+    finally {
+      for (const timer of timers) clearTimeout(timer);
+      this.stopResolve = null;
+      try { result = await window.take.end({ error: failure || (this.ioFailed ? "Storage could not keep up; inspect the take before using it." : undefined) }); }
+      finally {
+        this.compositor.captureTrack = null;
+        this.canvasStream?.getTracks().forEach((t) => t.stop());
+        this.session = null; this.compositor.setRecording(false); this.finishing = false; this.paused = false;
+        this.updateIdle(); this.emit("recording", false);
+      }
     }
+    if (failure) this.emit("error", failure);
+    if (result) this.emit("saved", result);
+    return result;
   }
   async marker(label = "Marker") {
     if (!this.recording) return;

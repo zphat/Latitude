@@ -40,8 +40,11 @@ export class Compositor {
     this.dirty = true;
     this.outputWidth = 1920;
     this.outputHeight = 1080;
+    this.schedulingReady = true;
     this.schedule();
   }
+  get visible() { return this._visible; }
+  set visible(value) { this._visible = value; if (value && this.schedulingReady) this.invalidate(); }
   video() {
     const v = document.createElement("video");
     v.muted = true;
@@ -115,11 +118,7 @@ export class Compositor {
   invalidate() {
     this.pruneImages();
     this.dirty = true;
-    if (!this.recording && !this.invalidation)
-      this.invalidation = requestAnimationFrame(() => {
-        this.invalidation = null;
-        if (this.dirty && this.visible) this.draw();
-      });
+    if (this.schedulingReady) this.schedule();
   }
   getLayers(scene = this.scene) {
     return this.documents[scene] || [];
@@ -309,7 +308,7 @@ export class Compositor {
       }
       while (
         this.textBytes + bytes > 32 * 1024 * 1024 ||
-        this.textCache.size >= 12
+        this.textCache.size >= 40
       ) {
         const [id, old] = this.textCache.entries().next().value;
         this.textCache.delete(id);
@@ -396,8 +395,7 @@ export class Compositor {
         1080,
       );
     } else {
-      this.previous = null;
-      this.pruneImages();
+      if (this.previous) { this.previous = null; this.pruneImages(); }
       this.renderScene(c, this.scene);
       if (this.stage) {
         this.stage.width = 1;
@@ -407,11 +405,14 @@ export class Compositor {
     }
     c.restore();
     this.drawMs = performance.now() - started;
+    this.captureTrack?.requestFrame();
     this.dirty = false;
     this.frames++;
   }
   schedule() {
+    if (this.timer != null || this.destroyed) return;
     const tick = () => {
+      this.timer = null;
       const now = performance.now(),
         live = this.getLayers().some(
           (l) =>
@@ -427,20 +428,19 @@ export class Compositor {
             : this.previewMode === "detail"
               ? 30
               : 15;
-      if (this.dirty || active) this.draw(now);
+      if ((this.dirty && this.visible) || active) this.draw(now);
       if (now - this.counterAt >= 1000) {
         this.measuredFps = (this.frames * 1000) / (now - this.counterAt);
         this.frames = 0;
         this.counterAt = now;
       }
-      this.timer = setTimeout(
-        tick,
-        active ? Math.max(1, 1000 / fps - (performance.now() - now)) : 100,
-      );
+      if (active) this.timer = setTimeout(tick, Math.max(1, 1000 / fps - (performance.now() - now)));
+      else { this.measuredFps = 0; this.frames = 0; this.counterAt = now; }
     };
-    tick();
+    this.timer = setTimeout(tick, 0);
   }
   destroy() {
+    this.destroyed = true;
     clearTimeout(this.timer);
     cancelAnimationFrame(this.invalidation);
     for (const img of this.images.values()) img?.close();
