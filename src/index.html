@@ -27,7 +27,7 @@
         /><span class="local-badge">LOCAL</span>
       </div>
       <div class="top-actions">
-        <span class="beta">DESKTOP BETA · 0.3</span
+        <span class="beta">DESKTOP BETA · 0.4</span
         ><button
           class="icon-button"
           id="help-button"
@@ -196,7 +196,7 @@
               ><span class="quiet">Each source. Its own track.</span>
             </div>
             <div class="mixer-actions">
-              <button class="text-button" id="mute-all">Mute all</button
+              <button class="text-button" id="reset-peaks" title="Clear held microphone clipping warnings">Reset peaks</button><button class="text-button" id="mute-all">Mute all</button
               ><button class="text-button" id="audio-setup">
                 <span data-icon="sliders"></span> Inputs & outputs
               </button>
@@ -323,7 +323,7 @@
               <strong id="export-stage">Preparing export</strong>
               <div class="progress-track"><i id="export-bar"></i></div>
             </div>
-            <b id="export-percent">0%</b>
+            <b id="export-percent">0%</b><button class="button small" id="cancel-export">Cancel export</button>
           </div>
           <div id="takes-list" class="takes-list"></div>
         </section>
@@ -462,6 +462,8 @@
                 recordings appear in Takes so you can attempt recovery.
               </p>
               <div class="encoder-status" id="encoder-status"></div>
+              <p id="app-version">Latitude · desktop beta</p>
+              <div class="feedback-actions"><button class="button small" id="feedback-button">Report a bug / idea</button><button class="button small" id="diagnostics-button">Technical details</button></div>
             </article>
             <article class="settings-card">
               <h3><span data-icon="keyboard"></span> Global shortcuts</h3>

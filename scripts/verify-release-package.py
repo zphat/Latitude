@@ -43,10 +43,17 @@ with zipfile.ZipFile(archive) as package:
     if package.getinfo(prefix + "resources/app.asar").file_size < 100000:
         raise RuntimeError("Application archive is unexpectedly small")
 
-with archive.open("rb") as stream:
-    digest = hashlib.file_digest(stream, "sha256").hexdigest()
-(archive.parent / "SHA256SUMS.txt").write_text(
-    f"{digest}  {archive.name}\n", encoding="utf-8", newline="\n"
-)
-print(f"Verified package, runtime, encoder, and notices: {archive.name}")
-print(f"SHA256 {digest}")
+installer = archive.with_name(f"Latitude-{version}-Windows-x64-Setup.exe")
+if not installer.is_file() or installer.stat().st_size < 50_000_000:
+    raise RuntimeError("Windows installer is missing or unexpectedly small")
+with installer.open("rb") as stream:
+    if stream.read(2) != b"MZ":
+        raise RuntimeError("Installer is not a Windows executable")
+checksums = []
+for artifact in [installer, archive]:
+    with artifact.open("rb") as stream:
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
+    checksums.append(f"{digest}  {artifact.name}\n")
+    print(f"SHA256 {digest}  {artifact.name}")
+(archive.parent / "SHA256SUMS.txt").write_text("".join(checksums), encoding="utf-8", newline="\n")
+print("Verified portable contents, runtime, encoder, notices, and installer presence.")

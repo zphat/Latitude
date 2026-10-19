@@ -3220,3 +3220,7 @@ dialog {
   white-space: nowrap;
   font-size: 9px;
 }
+
+.feedback-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#diagnostics-text { width: 100%; resize: vertical; min-height: 220px; padding: 12px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; font: 12px/1.5 monospace; }
+#cancel-export { flex-shrink: 0; }

@@ -56,26 +56,32 @@ async function repairWav(file, channels, rate) {
   }
   return bytes / (channels * 4);
 }
-function runFFmpeg(binary, args, onProgress) {
+function runFFmpeg(binary, args, onProgress, signal) {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(Error("Export canceled."));
     const child = spawn(binary, ["-hide_banner", "-nostdin", ...args], {
       windowsHide: true,
+      stdio: ["ignore", "ignore", "pipe"],
     });
+    const abort = () => child.kill();
+    signal?.addEventListener("abort", abort, { once: true });
     let log = "";
     child.stderr.on("data", (d) => {
       log = (log + d.toString()).slice(-12000);
       if (onProgress) onProgress(d.toString());
     });
-    child.on("error", reject);
-    child.on("close", (code) =>
+    child.on("error", (error) => { signal?.removeEventListener("abort", abort); reject(error); });
+    child.on("close", (code) => {
+      signal?.removeEventListener("abort", abort);
+      if (signal?.aborted) return reject(Error("Export canceled."));
       code === 0
         ? resolve(log)
         : reject(
             new Error(
               `Audio/video export failed (${code}). ${log.slice(-1600)}`,
             ),
-          ),
-    );
+          );
+    });
   });
 }
 function parseLoudness(text) {
@@ -95,7 +101,13 @@ class RecordingStore {
     this.exporting = false;
   }
   async begin(options) {
-    if (this.active) throw Error("A session is already recording.");
+    if (this.active || this.beginning) throw Error("A session is already recording.");
+    if (this.exporting) throw Error("Finish or cancel the export before recording.");
+    this.beginning = true;
+    try { return await this.beginSession(options); }
+    finally { this.beginning = false; }
+  }
+  async beginSession(options) {
     await fsp.mkdir(this.root, { recursive: true });
     const stat = await fsp.statfs(this.root);
     if (Number(stat.bavail) * Number(stat.bsize) < 1024 ** 3)
@@ -177,6 +189,7 @@ class RecordingStore {
             offset,
             data.length - offset,
           );
+          if (!bytesWritten) throw Error("Storage stopped accepting data.");
           offset += bytesWritten;
         }
         a.bytes[key] += data.length;
@@ -201,7 +214,11 @@ class RecordingStore {
       });
     await this.saveManifest();
   }
-  async end(extra = {}) {
+  end(extra = {}) {
+    if (!this.ending) this.ending = this.endSession(extra).finally(() => { this.ending = null; });
+    return this.ending;
+  }
+  async endSession(extra = {}) {
     const a = this.active;
     if (!a) return null;
     await a.chain.catch(() => {});
@@ -257,9 +274,31 @@ class RecordingStore {
   }
   async export(id, options, binary, progress = () => {}) {
     if (this.exporting) throw Error("An export is already running.");
-    if (this.active?.manifest.id === id)
-      throw Error("Stop the recording before exporting.");
+    if (this.active || this.beginning) throw Error("Stop the recording before exporting.");
     this.exporting = true;
+    this.exportController = new AbortController();
+    const signal = this.exportController.signal;
+    let exportDuration = 0, stage = "Preparing export", stageStart = 0, stageEnd = 0, lastPercent = -1;
+    const notify = (update) => {
+      stage = update.stage; stageStart = lastPercent = update.percent;
+      stageEnd = stageStart === 8 ? 18 : stageStart === 20 ? 29 : stageStart === 65 ? 84 : stageStart === 85 ? 92 : stageStart === 94 ? 99 : stageStart + 4;
+      if (!signal.aborted) progress(update);
+    };
+    const encode = (args) => {
+      let pending = "";
+      return runFFmpeg(binary, ["-filter_threads", "1", "-filter_complex_threads", "1", "-progress", "pipe:2", "-nostats", ...args], (chunk) => {
+        pending += chunk;
+        const lines = pending.split("\n"); pending = lines.pop().slice(-1000);
+        for (const line of lines) {
+          const match = line.match(/^out_time_us=(\d+)$/);
+          if (!match || !exportDuration || signal.aborted) continue;
+          const fraction = Math.min(1, Number(match[1]) / 1e6 / exportDuration);
+          const percent = Math.floor(stageStart + fraction * (stageEnd - stageStart));
+          if (percent > lastPercent) { lastPercent = percent; progress({ stage, percent }); }
+        }
+      }, signal);
+    };
+    let output;
     try {
       const m = await this.resolve(id),
         dir = m.dir;
@@ -272,12 +311,14 @@ class RecordingStore {
       const frames =
         ((await fsp.stat(path.join(dir, "mix.wav"))).size - 80) / 8;
       const duration = frames / m.sampleRate;
+      exportDuration = duration;
       if (duration < 0.1)
         throw Error("This session has no recorded audio frames.");
-      let output = path.join(dir, "Export");
+      output = path.join(dir, "Export");
       for (let n = 2; fs.existsSync(output); n++)
         output = path.join(dir, `Export ${n}`);
       await fsp.mkdir(output);
+      await fsp.writeFile(path.join(output, "INCOMPLETE.txt"), "This export has not finished. Your original recording is in the parent folder.\n");
       const target = [-14, -16, -18, -20].includes(Number(options.target))
         ? Number(options.target)
         : -16;
@@ -285,9 +326,9 @@ class RecordingStore {
         report = null;
       let filter = "anull";
       if (options.normalize !== false) {
-        progress({ stage: "Measuring loudness", percent: 8 });
+        notify({ stage: "Measuring loudness", percent: 8 });
         analysis = parseLoudness(
-          await runFFmpeg(binary, [
+          await encode([
             "-i",
             path.join(dir, "mix.wav"),
             "-af",
@@ -309,10 +350,10 @@ class RecordingStore {
         )
           filter = `loudnorm=I=${target}:TP=-1.5:LRA=11:measured_I=${analysis.input_i}:measured_TP=${analysis.input_tp}:measured_LRA=${analysis.input_lra}:measured_thresh=${analysis.input_thresh}:offset=${analysis.target_offset}:linear=true:print_format=json`;
         else
-          progress({ stage: "Silent mix · preserving silence", percent: 15 });
+          notify({ stage: "Silent mix · preserving silence", percent: 15 });
       }
-      progress({ stage: "Writing the mastered mix", percent: 20 });
-      const mixLog = await runFFmpeg(binary, [
+      notify({ stage: "Writing the mastered mix", percent: 20 });
+      const mixLog = await encode([
         "-y",
         "-i",
         path.join(dir, "mix.wav"),
@@ -344,7 +385,7 @@ class RecordingStore {
         raw2: "Voice 2 original.wav",
       };
       for (const [i, t] of stems.entries()) {
-        progress({ stage: `Writing ${t.name}`, percent: 30 + i * 5 });
+        notify({ stage: `Writing ${t.name}`, percent: 30 + i * 5 });
         // Originals remain floating point. Processed editing stems use PCM 24-bit.
         if (t.id.startsWith("raw"))
           await fsp.copyFile(
@@ -352,7 +393,7 @@ class RecordingStore {
             path.join(output, names[t.id]),
           );
         else
-          await runFFmpeg(binary, [
+          await encode([
             "-y",
             "-i",
             path.join(dir, `${t.id}.wav`),
@@ -369,7 +410,7 @@ class RecordingStore {
           .filter((t) => !t.id.startsWith("raw"))
           .map((t) => ({ file: names[t.id], name: t.name })),
       ];
-      progress({
+      notify({
         stage: "Encoding the video and separate audio tracks",
         percent: 65,
       });
@@ -394,7 +435,7 @@ class RecordingStore {
                 : 21,
           ),
           "-pix_fmt",
-          "yuv420p",
+          "yuv420p", "-threads:v", "4",
         );
       args.push("-c:a", "aac", "-b:a", "256k", "-ar", String(m.sampleRate));
       for (let i = 0; i < tracks.length; i++)
@@ -416,14 +457,14 @@ class RecordingStore {
         "+faststart",
         path.join(output, "Recording.mp4"),
       );
-      await runFFmpeg(binary, args);
+      await encode(args);
       if (options.editorClips) {
         for (let i = 1; i < tracks.length; i++) {
-          progress({
+          notify({
             stage: `Making ${tracks[i].name} editor clip`,
             percent: 85,
           });
-          await runFFmpeg(binary, [
+          await encode([
             "-y",
             "-i",
             path.join(output, "Recording.mp4"),
@@ -441,10 +482,10 @@ class RecordingStore {
           ]);
         }
       }
-      progress({ stage: "Measuring the exported mix", percent: 94 });
+      notify({ stage: "Measuring the exported mix", percent: 94 });
       // Measure the actual encoded first audio track; AAC can alter true peaks.
       const verified = parseLoudness(
-        await runFFmpeg(binary, [
+        await encode([
           "-i",
           path.join(output, "Recording.mp4"),
           "-map",
@@ -514,16 +555,19 @@ class RecordingStore {
           },
         ],
       });
-      await fsp.writeFile(
-        path.join(dir, "session.json"),
-        JSON.stringify(manifest, null, 2),
-      );
-      progress({ stage: "Ready to edit", percent: 100 });
+      if (signal.aborted) throw Error("Export canceled.");
+      await fsp.writeFile(path.join(dir, "session.json.tmp"), JSON.stringify(manifest, null, 2));
+      await fsp.rename(path.join(dir, "session.json.tmp"), path.join(dir, "session.json"));
+      await fsp.unlink(path.join(output, "INCOMPLETE.txt"));
+      notify({ stage: "Ready to edit", percent: 100 });
       return { dir: output, report: exportReport };
-    } finally {
-      this.exporting = false;
-    }
+    } catch (error) {
+      // Remove only this attempt's incomplete export, never originals or earlier exports.
+      if (signal.aborted && output) await fsp.rm(output, { recursive: true, force: true }).catch(() => {});
+      throw error;
+    } finally { this.exporting = false; this.exportController = null; }
   }
+  cancelExport() { this.exportController?.abort(); }
 }
 module.exports = {
   RecordingStore,
