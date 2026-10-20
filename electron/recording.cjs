@@ -64,18 +64,28 @@ function runFFmpeg(binary, args, onProgress, signal) {
       windowsHide: true,
       stdio: ["ignore", "ignore", "pipe"],
     });
-    const abort = () => child.kill();
+    let killTimer;
+    const abort = () => {
+      child.kill();
+      // Some static Linux encoder builds ignore an early SIGTERM. Keep cancel
+      // bounded, but wait for close before removing any partial export files.
+      killTimer = setTimeout(() => child.kill("SIGKILL"), 2000);
+      killTimer.unref();
+    };
     signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) abort();
     let log = "";
     child.stderr.on("data", (d) => {
       log = (log + d.toString()).slice(-12000);
       if (onProgress) onProgress(d.toString());
     });
     child.on("error", (error) => {
+      clearTimeout(killTimer);
       signal?.removeEventListener("abort", abort);
       reject(error);
     });
     child.on("close", (code) => {
+      clearTimeout(killTimer);
       signal?.removeEventListener("abort", abort);
       if (signal?.aborted) return reject(Error("Export canceled."));
       code === 0

@@ -21,7 +21,8 @@ const { RecordingStore, runFFmpeg } = require("./recording.cjs");
 const { LinuxAudio } = require("./linux-audio.cjs");
 const { capturePlatform, selectedCapture } = require("./capture-platform.cjs");
 const capture = capturePlatform();
-if (process.platform === "linux") app.setDesktopName("studio.latitude.recorder.desktop");
+if (process.platform === "linux")
+  app.setDesktopName("studio.latitude.recorder.desktop");
 // Retain the prior profile on upgrade, including device preferences and origin storage.
 const legacyProfile = path.join(app.getPath("appData"), "Take Studio");
 if (!fs.existsSync(app.getPath("userData")) && fs.existsSync(legacyProfile))
@@ -50,10 +51,23 @@ let win,
   configFile,
   ffmpeg;
 const allowedRoot = path.join(__dirname, "..");
-const linuxAudio = process.platform === "linux" ? new LinuxAudio(
-  path.join(app.isPackaged ? process.resourcesPath : path.join(allowedRoot, "vendor"), "latitude-audio"),
-  { onDisconnect: message => { if (!win?.isDestroyed()) win?.webContents.send("audio:disconnected", message); } },
-) : null;
+const linuxAudio =
+  process.platform === "linux"
+    ? new LinuxAudio(
+        path.join(
+          app.isPackaged
+            ? process.resourcesPath
+            : path.join(allowedRoot, "vendor"),
+          "latitude-audio",
+        ),
+        {
+          onDisconnect: (message) => {
+            if (!win?.isDestroyed())
+              win?.webContents.send("audio:disconnected", message);
+          },
+        },
+      )
+    : null;
 const trusted = (e) =>
   e.sender === win?.webContents && e.senderFrame?.url.startsWith("take://app/");
 function handle(name, fn) {
@@ -216,26 +230,35 @@ app.whenReady().then(async () => {
     };
   });
   handle("capture:sources", async () =>
-    capture.picker === "portal" ? [{ id: "portal", name: "Choose a screen or window with your desktop…", thumbnail: "" }] : (
-      await desktopCapturer.getSources({
-        types: ["screen", "window"],
-        thumbnailSize: { width: 320, height: 180 },
-      })
-    ).map((s) => ({
-      id: s.id,
-      name: s.name,
-      thumbnail: s.thumbnail.toDataURL(),
-    })),
+    capture.picker === "portal"
+      ? [
+          {
+            id: "portal",
+            name: "Choose a screen or window with your desktop…",
+            thumbnail: "",
+          },
+        ]
+      : (
+          await desktopCapturer.getSources({
+            types: ["screen", "window"],
+            thumbnailSize: { width: 320, height: 180 },
+          })
+        ).map((s) => ({
+          id: s.id,
+          name: s.name,
+          thumbnail: s.thumbnail.toDataURL(),
+        })),
   );
   handle("capture:choose", async (id) => {
     if (typeof id !== "string" || id.length > 512)
       throw Error("Invalid screen source.");
     selectedSource = id;
   });
-  handle("audio:outputs", () => linuxAudio ? linuxAudio.outputs() : []);
+  handle("audio:outputs", () => (linuxAudio ? linuxAudio.outputs() : []));
   handle("audio:connect", (sink) => {
     if (!linuxAudio) throw Error("Desktop audio bridge is Linux only.");
-    if (store.active || store.beginning) throw Error("Change audio devices between takes.");
+    if (store.active || store.beginning)
+      throw Error("Change audio devices between takes.");
     return linuxAudio.connect(sink);
   });
   handle("audio:disconnect", () => linuxAudio?.stop());
@@ -409,6 +432,25 @@ app.whenReady().then(async () => {
       if (exportFormat("mkv").audio !== "flac")
         throw Error("Packaged format registry is missing.");
       await runFFmpeg(ffmpeg, ["-version"]);
+      if (
+        process.platform === "linux" &&
+        process.argv.includes("--audio-smoke-test")
+      ) {
+        const audio = await win.webContents.executeJavaScript(`(async () => {
+          const { StudioEngine } = await import('./engine.js');
+          const engine = new StudioEngine(document.createElement('canvas'), {});
+          const peaks = [];
+          engine.addEventListener('meters', e => peaks.push(e.detail.peaks[2]));
+          try {
+            await engine.linuxDesktopInput('system');
+            await new Promise(resolve => setTimeout(resolve, 2500));
+            if (!peaks.some(peak => peak > 0.001)) throw Error('No desktop audio reached the renderer worklet');
+            return { sampleRate: engine.ctx.sampleRate, meterMessages: peaks.length, peak: Math.max(...peaks) };
+          } finally { engine.remove('desktop'); await engine.ctx?.close(); }
+        })()`);
+        console.log("LINUX_AUDIO_SMOKE " + JSON.stringify(audio));
+        await linuxAudio.stop();
+      }
       app.exit(0);
     } catch (error) {
       console.error(error.message);

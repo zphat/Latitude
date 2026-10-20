@@ -116,6 +116,16 @@ static void sink_info(pa_context *c, const pa_sink_info *info, int end, void *da
 static void server_info(pa_context *c, const pa_server_info *info, void *data) {
     (void)data;
     if (!info) { fail("Cannot read audio server"); return; }
+    /* Older PipeWire accepted .monitor masters but never linked their ports.
+     * Refuse that silent-success case; PulseAudio itself is unaffected. */
+    const char *pw = info->server_name ? strstr(info->server_name, "PipeWire ") : NULL;
+    unsigned int major = 0, minor = 0, patch = 0;
+    if (!listing && pw && sscanf(pw + 9, "%u.%u.%u", &major, &minor, &patch) == 3 &&
+        major == 0 && (minor < 3 || (minor == 3 && patch < 65))) {
+        fprintf(stderr, "Desktop audio requires PipeWire 0.3.65 or newer. Update your distribution's audio service, or choose a separate loopback input.\n");
+        api->quit(api, 1);
+        return;
+    }
     default_sink = info->default_sink_name ? strdup(info->default_sink_name) : NULL;
     pa_operation *op;
     if (listing) { putchar('['); op = pa_context_get_sink_info_list(c, sink_info, NULL); }

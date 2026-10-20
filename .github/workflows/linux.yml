@@ -11,25 +11,33 @@ permissions:
 
 jobs:
   audio:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        server: [pulseaudio, pipewire]
+        include:
+          - server: pulseaudio
+            os: ubuntu-22.04
+          - server: pipewire
+            os: ubuntu-24.04
+          - server: pipewire
+            os: ubuntu-22.04
+            legacy: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
       - run: sudo apt-get update && sudo apt-get install -y libpulse-dev pulseaudio pulseaudio-utils pipewire pipewire-pulse wireplumber
       - run: npm run build:linux-audio
       - name: Test real audio routing and cleanup
         env:
           LATITUDE_AUDIO_SERVER: ${{ matrix.server }}
+          LATITUDE_LEGACY_PIPEWIRE: ${{ matrix.legacy }}
         run: dbus-run-session -- bash scripts/test-linux-audio.sh
 
   package:
@@ -41,7 +49,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
       - name: Install build and test tools
         run: sudo apt-get update && sudo apt-get install -y libpulse-dev pulseaudio pulseaudio-utils flatpak flatpak-builder libarchive-tools elfutils xvfb appstream desktop-file-utils libfuse2 ffmpeg

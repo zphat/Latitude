@@ -199,7 +199,10 @@ export class StudioEngine extends EventTarget {
         height: { ideal: this.compositor.outputHeight },
         frameRate: { ideal: this.compositor.fps, max: this.compositor.fps },
       },
-      audio: window.take?.platform !== "linux" && slot === "a" && desktopMode === "system",
+      audio:
+        window.take?.platform !== "linux" &&
+        slot === "a" &&
+        desktopMode === "system",
       systemAudio: "include",
     });
     if (this.recording || this.finishing || this.starting) {
@@ -211,10 +214,18 @@ export class StudioEngine extends EventTarget {
     this.streams[key]?.getTracks().forEach((t) => t.stop());
     this.streams[key] = stream;
     this.compositor.setScreen(stream, slot);
-    const linuxSystem = window.take?.platform === "linux" && (desktopMode === "system" || desktopMode.startsWith("linux:"));
+    const linuxSystem =
+      window.take?.platform === "linux" &&
+      (desktopMode === "system" || desktopMode.startsWith("linux:"));
     if (slot === "a" && linuxSystem) {
-      try { await this.linuxDesktopInput(desktopMode); }
-      catch (error) { this.emit("error", `Screen connected, but desktop audio is unavailable. ${error.message}`); }
+      try {
+        await this.linuxDesktopInput(desktopMode);
+      } catch (error) {
+        this.emit(
+          "error",
+          `Screen connected, but desktop audio is unavailable. ${error.message}`,
+        );
+      }
     }
     if (slot === "a" && !linuxSystem) this.desktopMode = desktopMode;
     if (slot === "a" && desktopMode === "system" && !linuxSystem) {
@@ -247,41 +258,65 @@ export class StudioEngine extends EventTarget {
   async linuxDesktopInput(selection = "system") {
     if (this.recording || this.finishing || this.starting)
       throw Error("Change desktop audio devices between takes.");
-    if (this.connectingDesktop) throw Error("Desktop audio is already connecting.");
+    if (this.connectingDesktop)
+      throw Error("Desktop audio is already connecting.");
     if (this.linuxDesktop === selection && this.streams.desktop?.active) return;
     this.connectingDesktop = true;
     let stream;
     try {
       this.remove("desktop");
-      const { label } = await window.take.connectDesktopAudio(selection === "system" ? "default" : selection.slice(6));
-      if (!(await this.devices()).some(d => d.kind === "audioinput" && d.label)) {
-        const permission = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        permission.getTracks().forEach(t => t.stop());
+      const { label } = await window.take.connectDesktopAudio(
+        selection === "system" ? "default" : selection.slice(6),
+      );
+      if (
+        !(await this.devices()).some((d) => d.kind === "audioinput" && d.label)
+      ) {
+        const permission = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: false,
+        });
+        permission.getTracks().forEach((t) => t.stop());
       }
       // Chromium can cache its device list briefly after the server adds a source.
       let device;
       const until = performance.now() + 6000;
       do {
-        device = (await this.devices()).find(d => d.kind === "audioinput" && d.label === label);
+        device = (await this.devices()).find(
+          (d) => d.kind === "audioinput" && d.label === label,
+        );
         if (device) break;
-        await new Promise(resolve => setTimeout(resolve, 150));
+        await new Promise((resolve) => setTimeout(resolve, 150));
       } while (performance.now() < until);
-      if (!device) throw Error("The desktop audio input did not appear. Check microphone permission and the PipeWire/PulseAudio service, then reconnect.");
+      if (!device)
+        throw Error(
+          "The desktop audio input did not appear. Check microphone permission and the PipeWire/PulseAudio service, then reconnect.",
+        );
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: { exact: device.deviceId }, echoCancellation: false, autoGainControl: false, noiseSuppression: false, channelCount: 2, sampleRate: { ideal: 48000 } },
+        audio: {
+          deviceId: { exact: device.deviceId },
+          echoCancellation: false,
+          autoGainControl: false,
+          noiseSuppression: false,
+          channelCount: 2,
+          sampleRate: { ideal: 48000 },
+        },
         video: false,
       });
       if (this.recording || this.finishing || this.starting)
-        throw Error("Recording started while desktop audio was connecting. Reconnect between takes.");
+        throw Error(
+          "Recording started while desktop audio was connecting. Reconnect between takes.",
+        );
       await this.attach("desktop", stream, 2);
       this.linuxDesktop = selection;
       this.desktopMode = "system";
     } catch (error) {
-      stream?.getTracks().forEach(t => t.stop());
+      stream?.getTracks().forEach((t) => t.stop());
       await window.take.disconnectDesktopAudio().catch(() => {});
       this.linuxDesktop = null;
       throw error;
-    } finally { this.connectingDesktop = false; }
+    } finally {
+      this.connectingDesktop = false;
+    }
   }
   async desktopInput(deviceId) {
     if (this.recording || this.finishing || this.starting)
@@ -429,7 +464,8 @@ export class StudioEngine extends EventTarget {
   }
   async start(options) {
     if (this.recording || this.finishing || this.starting) return;
-    if (this.connectingDesktop) throw Error("Wait for desktop audio to finish connecting.");
+    if (this.connectingDesktop)
+      throw Error("Wait for desktop audio to finish connecting.");
     this.starting = true;
     try {
       return await this.startRecording(options);

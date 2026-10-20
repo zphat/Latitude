@@ -588,7 +588,11 @@ async function chooseScreen(slot = "a") {
   $("#disconnect-screen").onclick = () => {
     engine.remove(slot === "b" ? "screenB" : "screen");
     compositor.setScreen(null, slot);
-    if (slot === "a" && engine.desktopMode === "system" && window.take?.platform !== "linux")
+    if (
+      slot === "a" &&
+      engine.desktopMode === "system" &&
+      window.take?.platform !== "linux"
+    )
       engine.remove("desktop");
     closeModal();
     refreshSources(engine.sourceState());
@@ -652,14 +656,27 @@ function deviceOptions(
 }
 async function audioSetup() {
   const devices = await engine.devices();
-  let linuxOutputs = [], outputError = "";
+  let linuxOutputs = [],
+    outputError = "";
   if (window.take?.platform === "linux") {
-    try { linuxOutputs = await window.take.audioOutputs(); }
-    catch { outputError = "Desktop sound is unavailable. Check that PipeWire/PulseAudio is running. Microphone recording still works."; }
+    try {
+      linuxOutputs = await window.take.audioOutputs();
+    } catch {
+      outputError =
+        "Desktop sound is unavailable. Check that PipeWire/PulseAudio is running. Microphone recording still works.";
+    }
   }
   let desktopOptions = `<option value="system" ${config.desktop === "system" ? "selected" : ""}>System playback · default output</option>`;
-  desktopOptions += linuxOutputs.map(o => `<option value="linux:${escape(o.name)}" ${config.desktop === `linux:${o.name}` ? "selected" : ""}>Output: ${escape(o.description)}${o.isDefault ? " (default)" : ""}</option>`).join("");
-  if (config.desktop.startsWith("linux:") && !linuxOutputs.some(o => config.desktop === `linux:${o.name}`))
+  desktopOptions += linuxOutputs
+    .map(
+      (o) =>
+        `<option value="linux:${escape(o.name)}" ${config.desktop === `linux:${o.name}` ? "selected" : ""}>Output: ${escape(o.description)}${o.isDefault ? " (default)" : ""}</option>`,
+    )
+    .join("");
+  if (
+    config.desktop.startsWith("linux:") &&
+    !linuxOutputs.some((o) => config.desktop === `linux:${o.name}`)
+  )
     desktopOptions += `<option value="${escape(config.desktop)}" selected>Saved output unavailable · choose another</option>`;
   desktopOptions += deviceOptions(devices, "audioinput", config.desktop, null);
   modal(
@@ -726,17 +743,32 @@ async function audioSetup() {
         persistProfile(i);
       }
       const desktop = $("#setup-desktop").value;
-      if (window.take?.platform === "linux" && (desktop === "system" || desktop.startsWith("linux:"))) {
+      if (
+        window.take?.platform === "linux" &&
+        (desktop === "system" || desktop.startsWith("linux:"))
+      ) {
         // Explicit reconnect also refreshes what the system-default output points to.
         if (desktop === "system") engine.remove("desktop");
         await engine.linuxDesktopInput(desktop);
       } else {
-        if (desktop !== "system" && (desktop !== config.desktop || !engine.streams.desktop))
+        if (
+          desktop !== "system" &&
+          (desktop !== config.desktop || !engine.streams.desktop)
+        )
           await engine.desktopInput(desktop);
-        if (desktop === "system" && (config.desktop !== "system" || !engine.streams.desktop)) {
-          const tracks = engine.streams.screen?.getAudioTracks().filter(t => t.readyState === "live");
-          if (tracks?.length) await engine.attach("desktop", new MediaStream(tracks), 2);
-          else { engine.remove("desktop"); toast("Choose your screen again to enable system audio."); }
+        if (
+          desktop === "system" &&
+          (config.desktop !== "system" || !engine.streams.desktop)
+        ) {
+          const tracks = engine.streams.screen
+            ?.getAudioTracks()
+            .filter((t) => t.readyState === "live");
+          if (tracks?.length)
+            await engine.attach("desktop", new MediaStream(tracks), 2);
+          else {
+            engine.remove("desktop");
+            toast("Choose your screen again to enable system audio.");
+          }
           engine.desktopMode = "system";
         }
       }
@@ -1487,7 +1519,6 @@ if (window.take) {
       if (result.shortcutFailures.length)
         $("#hotkey-note").textContent =
           `Unavailable shortcuts: ${result.shortcutFailures.join(", ")}`;
-
     })
     .catch((e) => toast(e.message, true));
 } else {
