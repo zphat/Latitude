@@ -43,7 +43,7 @@ If capture fails, check desktop sharing permission and the desktop portal; if au
 
 ## Build from source
 
-On Linux, install Node 24, a C compiler, pkg-config, libpulse development headers, Flatpak and flatpak-builder. Install matching Freedesktop Platform/SDK and Electron2 BaseApp **25.08** from Flathub, then:
+On Linux, install Node 24, a C compiler, pkg-config, libpulse development headers, Flatpak and flatpak-builder **1.4 or newer**. Older builders call an AppStream tool that is no longer included in the 25.08 SDK. Install matching Freedesktop Platform/SDK and Electron2 BaseApp **25.08** from Flathub, then:
 
 ```sh
 npm ci
