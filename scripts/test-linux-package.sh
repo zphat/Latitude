@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 version=$(node -p 'require("./package.json").version')
-package="dist/Latitude-${version}-Linux-x64.flatpak"
+package="dist/Latitude-${version}-Linux-x86_64.flatpak"
 test -s "$package"
 flatpak install --user -y --noninteractive "$package"
 app=studio.latitude.recorder
@@ -31,5 +31,5 @@ trap 'kill "$player" 2>/dev/null || true; pactl unload-module "$sink_module" || 
 cd /tmp
 xvfb-run -a timeout 60s flatpak run --env=XDG_SESSION_TYPE=x11 "$app" --smoke-test --audio-smoke-test
 cd "$GITHUB_WORKSPACE/dist"
-sha256sum "Latitude-${version}-Linux-x64.flatpak" | tee SHA256SUMS-Linux.txt
+sha256sum "Latitude-${version}-Linux-x86_64.flatpak" | tee SHA256SUMS-Linux.txt
 flatpak uninstall --user -y "$app"

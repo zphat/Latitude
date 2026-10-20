@@ -12,3 +12,9 @@ Use small changes with a concrete reproduction, expected behavior, and the check
 Before promoting a beta to a stable release, run a real Windows test with microphones, loopback, multiple windows, camera disconnect/reconnect, external hotkeys, output device selection, pause/resume, and a long take. Report issues without uploading private recordings by default. See RELEASING.md for packaging, verification, and publication.
 
 The CI workflow runs the automated test suite for pushes and pull requests. Its FFmpeg integration tests use the runner's system FFmpeg; that does not replace testing the packaged Windows encoder. The manual Build Windows package workflow creates an unsigned test artifact, not a published release. GitHub workflow permissions are read-only, and third-party action revisions are pinned.
+
+## Linux development
+
+See [docs/LINUX.md](docs/LINUX.md). The Linux audio bridge is built from `native/linux-audio.c`, links libpulse, and controls a temporary monitor source; it never transports PCM through Node. Keep platform-specific code in the capture adapter and helper rather than forking the DSP or compositor. Run `tests/linux-ui.cjs` for the Linux routing UI. `tests/linux-native.cjs` runs against a disposable real audio server; do not run it against your everyday session because its test fixtures change defaults temporarily. The CI shell harness creates an isolated session.
+
+The Linux preview workflow tests PulseAudio, supported PipeWire, and explicit rejection of older PipeWire, then builds and installs a Flatpak and verifies real desktop audio reaches the packaged renderer worklet. Hardware capture and sustained-performance checks remain separate manual gates. The build workflow runs on a normal GitHub-hosted runner; it does not weaken the application sandbox.

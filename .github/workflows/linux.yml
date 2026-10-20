@@ -65,6 +65,8 @@ jobs:
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
           flatpak install --user -y --noninteractive flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08 org.electronjs.Electron2.BaseApp//25.08
       - name: Build installable Linux desktop package
+        env:
+          DEBUG: "@malept/flatpak-bundler"
         run: npm run dist:linux -- --x64 --publish never
       - name: Verify installation, launch, and bundled tools
         run: bash scripts/test-linux-package.sh
@@ -72,7 +74,7 @@ jobs:
         with:
           name: Latitude-Linux-release
           path: |
-            dist/Latitude-*-Linux-x64.flatpak
+            dist/Latitude-*-Linux-x86_64.flatpak
             dist/SHA256SUMS-Linux.txt
           if-no-files-found: error
           compression-level: 0

@@ -1,4 +1,4 @@
-# Latitude after the Windows beta
+# Latitude desktop roadmap
 
 ## Beta exit criteria
 
@@ -7,22 +7,20 @@
 - Listen to unprocessed and processed speech at matched loudness on headphones and speakers. Preserve consonants and word tails; measure gain reduction, clipping and encoded loudness. Keep enhancements optional.
 - Compare identical workloads with OBS before claiming performance leadership. Profile capture/encoding separately from the worklet; retain H.264 stream copy and shared sources. If those dominate, investigate a native capture/encoding adapter rather than adding heavier UI frameworks.
 
-## Start Linux after the format milestone
+## Linux preview in 0.6
 
-Begin the Linux platform work after 0.5's export regression and Windows packaging checks pass. Do not wait for every optional feature or for Windows to leave beta. Keep the shared scene, audio, recording and export contracts steady while real Windows users provide long-session feedback. Fix data-loss, sync, capture and export blockers before distributing either platform.
+The first x86-64 Flatpak shares the compositor, audio engine, recording store, and format registry with Windows. Platform capture selection, native desktop-audio control, desktop identity, and packaging are isolated. Automated tests cover audio-server routing and installed renderer audio, with explicit older-PipeWire failure handling.
 
-The 0.5 format registry has no platform dependencies, and the exporter already runs in Linux CI. That does not make desktop capture or system audio Linux-ready. The first Linux deliverable is a working capture/audio vertical slice on real Fedora KDE/Wayland and Ubuntu desktops, then packaging; not an untested installer around the Windows routing code.
+The release is a **Linux preview**, not certification of a full Linux support matrix. Validate next, in order:
 
-Defer VST hosting, multi-camera recording, a streaming mod, and additional legacy codecs until the two platform paths are dependable. New features remain separate from the capture adapter and output-provider contracts.
+1. Fedora KDE on Wayland: screen/window sharing, two sources, default/specific output audio, webcam, global shortcuts, install/update/uninstall, and user-selected storage.
+2. Ubuntu GNOME Wayland and Mint/X11: portal and output differences, input/output changes, disconnect recovery, and two channels of one interface.
+3. Bazzite KDE and SteamOS Desktop Mode: Flatpak integration, controller/keyboard access, game capture during a desktop session, GPU load, and audio-device changes.
+4. At least one long take per desktop/backend, measuring timestamps, memory, CPU, actual frame rate, disk pressure, and recovery. Check 1080p/30 before 60 fps or 4K.
+5. Only after those checks, promote Linux from preview to beta and consider Flathub submission. SteamOS Gaming Mode is a separate capture/UX/performance project, not implied by Desktop Mode support.
 
-## Linux milestone
-
-1. Isolate platform capture selection, desktop-audio routing, shortcuts and packaging from the shared compositor/DSP/storage contracts.
-2. Validate screen/window selection, PipeWire/Wayland portals and monitor-audio routing on Fedora KDE and Ubuntu, plus an X11 test. Provide clear feedback for unavailable system audio and shortcut registration.
-3. Verify input/output selection, disconnect recovery, two inputs on one interface, pause and timestamp alignment on those systems.
-4. Add Linux packaging/CI, desktop-file icons, install/uninstall checks and codec/license verification. Choose the distribution formats after testing the platform adapter.
-5. Reuse the audio, storage, scene and browser tests; publish a separate Linux beta only after real desktop capture checks.
+Defer VST hosting, multi-camera recording, a streaming mod, and more codecs until both platform paths are dependable. Profile real capture and encoding before choosing a native adapter or promising lower resource use than OBS.
 
 ## Extension boundaries
 
-Keep scene/theme packs data-only. The experimental output-provider seam is documented in MODDING.md. A streaming mod should own its network configuration, credentials, buffering and reconnect behavior; streaming failures must not stop local recording. Native audio plugins would need a separate isolated host and performance budget. Neither is included in 0.5.
+Keep scene/theme packs data-only. The experimental output-provider seam is documented in MODDING.md. A streaming mod should own its network configuration, credentials, buffering and reconnect behavior; streaming failures must not stop local recording. Native audio plugins would need a separate isolated host and performance budget. Neither is included in 0.6.

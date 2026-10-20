@@ -1,14 +1,14 @@
 # Latitude
 
-A Windows-first, local screen recorder built around clear podcast audio. Version **0.5.0 — desktop beta**.
+A local screen recorder built around clear podcast audio. Version **0.6.0 — Windows beta and Linux preview**.
 
-[Windows beta downloads](https://github.com/zphat/Latitude/releases) · [Report a bug](https://github.com/zphat/Latitude/issues) · [Contributing](CONTRIBUTING.md) · [Modding](MODDING.md)
+[Desktop downloads](https://github.com/zphat/Latitude/releases) · [Report a bug](https://github.com/zphat/Latitude/issues) · [Contributing](CONTRIBUTING.md) · [Modding](MODDING.md)
 
 Record your screen, optional facecam, microphones, and desktop audio. Shape your voice in a focused audio studio, arrange sources directly in the preview, and export synchronized isolated tracks for editing. No account or streaming setup is required to record.
 
 ## Open the Windows app
 
-1. Download **Latitude-0.5.0-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.5.0).
+1. Download **Latitude-0.6.0-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.6.0).
 2. Double-click it. Latitude installs for your Windows account and creates desktop and Start menu shortcuts.
 3. Open either shortcut. No terminal, source folder, Node.js, OBS, or separate FFmpeg installation is needed.
 
@@ -17,6 +17,20 @@ Recordings stay in your chosen folder (initially `Videos\Latitude`). Windows Set
 The optional ZIP is for portable use. Extract the **whole** ZIP and keep its runtime files together. A shortcut to its Latitude.exe works; moving only the EXE breaks that portable copy. The installer is recommended for everyday use.
 
 The beta is unsigned, so Windows may identify it as an unknown publisher. It installs without administrator privileges. Use [BETA-TESTING.md](BETA-TESTING.md) for your first test and feedback.
+
+## Open the Linux app
+
+Download **Latitude-0.6.0-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.6.0), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
+
+The first Linux preview targets Fedora KDE/GNOME, Ubuntu/Mint with Flatpak, Bazzite, and SteamOS **Desktop Mode**. Gaming Mode and real-device performance remain unverified. Wayland uses the desktop screen-sharing portal; desktop audio uses PulseAudio or PipeWire 0.3.65+ with its PulseAudio service. The initial runtime download is shared with other Flatpak apps. Latitude is not on Flathub yet; preview updates come from GitHub Releases.
+
+## New in Latitude 0.6
+
+- Linux application-menu integration and a Flatpak installer, including its encoder and a small native desktop-audio bridge.
+- Wayland portal selection without a second source-picker request; X11 keeps thumbnail selection.
+- Linux default or specific output capture, independent of screen capture, using the existing audio processor and synchronized separate tracks. It leaves system defaults/volumes unchanged and removes its temporary input on disconnect or exit.
+- Clear handling of older unsupported PipeWire versions, failed connections, and output changes. Windows loopback behavior remains available.
+- Bounded encoder cancellation on Linux, plus tests against real PulseAudio/PipeWire servers and the installed app's audio path. These automated checks do not certify every distro, GPU, or capture device.
 
 ## New in Latitude 0.4
 
@@ -42,7 +56,7 @@ The beta is unsigned, so Windows may identify it as an unknown publisher. It ins
 ## Your first recording
 
 1. Name the session in the top bar.
-2. Click **Choose a screen**, then select a monitor or window. Windows desktop capture uses playback from the **default Windows output device**. Play something and verify the Desktop meter.
+2. Click **Choose a screen**, then select a monitor or window. Windows captures the default playback output. Linux captures the output selected in Inputs & outputs. Play something and verify the Desktop meter.
 3. Open **Inputs & outputs**. Choose your microphone under Voice 1, and leave Voice 2 off unless needed. Click **Connect selected devices**.
 4. If you want a facecam, click **Camera**, choose your webcam, and apply it. Its microphone is not automatically added. Camera is optional.
 5. Open **Check** for a 12-second soundcheck. Stay quiet for three seconds, then speak naturally. Apply the suggestion if appropriate.
@@ -58,7 +72,7 @@ The beta is unsigned, so Windows may identify it as an unknown publisher. It ins
 - Cut, dissolve, and slide transitions; configurable transition duration; independently positioned/cropped sources; text and image overlays.
 - Two microphone lanes, each with independent gain, mute, settings, and a mono isolated track.
 - Left/right selection for stereo interfaces. Assign the same interface to both lanes with different channels for two microphones.
-- Windows system loopback or a selected virtual-cable/loopback audio input; stereo desktop gain/mute; optional speech-triggered ducking in the full mix.
+- Windows system loopback, Linux selected-output monitoring, or a selected virtual-cable/loopback audio input; stereo desktop gain/mute; optional speech-triggered ducking in the full mix.
 - Monitoring output selection. Software microphone monitoring is for setup; it automatically stops when recording system audio to avoid duplicate capture. Use hardware direct monitoring when possible.
 - Natural, Broadcast, Untreated room, Soft spoken, and Music/clean presets, remembered per input device.
 - High-pass filter; four EQ bands; downward expander; soft-knee compressor; split-band de-esser; optional Rich clarity body/presence processing.
@@ -154,7 +168,9 @@ This build has automated DSP, file-writing, export, and browser recording tests,
 
 **Windows hardware capture, your webcam/mic drivers, output-device routing, global shortcuts in other programs, and long-session stability still need testing on your computer.** The Windows pipeline checks install, shortcuts, packaged launch, encoder availability, and uninstall; these do not exercise your real capture devices. The app is a desktop beta, not a claim of OBS-level reliability or commercial DAW mastering quality.
 
-VST/AU hosting, AI restoration, per-application audio capture, simultaneous multiple webcams, independently recorded camera video, custom hotkey remapping, hardware video encoder selection, and automatic echo/latency correction are not included. The five scene slots are independent compositions, with up to 40 layers each. Each layer has its own crop. Templates replace the destination scene and legacy layout defaults. Applying a new template can reveal areas hidden by a previous crop, so review the preview before recording. Linux/macOS source development is possible, but this delivery targets Windows x64. Electron and bundled FFmpeg make the download substantial; no claim that Latitude is smaller or faster than OBS has been benchmarked. Higher recording settings and extra sources use more resources.
+VST/AU hosting, AI restoration, per-application audio capture, simultaneous multiple webcams, independently recorded camera video, custom hotkey remapping, hardware video encoder selection, and automatic echo/latency correction are not included. The five scene slots are independent compositions, with up to 40 layers each. Each layer has its own crop. Templates replace the destination scene and legacy layout defaults. Applying a new template can reveal areas hidden by a previous crop, so review the preview before recording. The Linux x86-64 Flatpak is a preview; Fedora/Ubuntu real-device testing and SteamOS Desktop Mode testing are still needed. There is no macOS package. Electron and bundled FFmpeg make the download substantial; no claim that Latitude is smaller or faster than OBS has been benchmarked. Higher recording settings and extra sources use more resources.
+
+For Linux-specific prerequisites, permissions, limitations, and build steps, see [the Linux guide](docs/LINUX.md).
 
 ## Run or modify the source
 

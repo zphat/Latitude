@@ -3278,3 +3278,15 @@ dialog {
     grid-template-columns: 1fr;
   }
 }
+
+.source-option .portal-picker-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  color: var(--accent);
+}
+.source-option .portal-picker-icon svg {
+  width: 32px;
+  height: 32px;
+}
