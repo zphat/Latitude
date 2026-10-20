@@ -127,11 +127,7 @@ export class StudioEngine extends EventTarget {
     for (const t of stream.getAudioTracks())
       t.onended = () => {
         if (this.streams[key] === stream) {
-          delete this.streams[key];
-          this.nodes[key]?.disconnect();
-          delete this.nodes[key];
-          this.updateIdle();
-          this.emit("sources", this.sourceState());
+          this.remove(key);
           this.emit(
             "error",
             `${key === "desktop" ? "Desktop audio" : key === "mic1" ? "Voice 1" : "Voice 2"} disconnected. Its track will contain silence until reconnected.`,

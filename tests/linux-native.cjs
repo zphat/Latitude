@@ -149,6 +149,12 @@ async function main() {
   child.stdin.end();
   assert.equal(await exited, 0);
   assert.ok(!pactl("list", "short", "sources").includes(label));
+  const stopped = new Promise(resolve => { bridge.onDisconnect = resolve; });
+  const unplugged = await bridge.connect("latitude_test_b");
+  pactl("unload-module", modules.pop());
+  let disconnectTimer;
+  await Promise.race([stopped, new Promise((_, reject) => { disconnectTimer = setTimeout(() => reject(Error("Output disconnect was not reported")), 5000); })]).finally(() => clearTimeout(disconnectTimer));
+  assert.ok(!pactl("list", "short", "sources").includes(unplugged.label), "Output removal releases the bridge");
   console.log(
     JSON.stringify({
       passed: true,

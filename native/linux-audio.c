@@ -1,6 +1,8 @@
 /* Latitude, MIT. A control-only PulseAudio/PipeWire bridge. Audio stays in the
  * audio server and Chromium; no PCM is copied through Electron IPC. */
 #include <pulse/pulseaudio.h>
+#include <pulse/mainloop-signal.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +16,7 @@ static pa_time_event *deadline;
 static const char *sink_name, *source_name;
 static char *default_sink;
 static uint32_t module_id = PA_INVALID_INDEX;
+static uint32_t selected_sink = PA_INVALID_INDEX;
 static int listing, first = 1, stopping, loading, ready;
 
 static void json_string(const char *s) {
@@ -50,6 +53,19 @@ static void stdin_event(pa_mainloop_api *a, pa_io_event *e, int fd,
     char discard[32];
     if (read(fd, discard, sizeof(discard)) <= 0) {
         a->io_free(e);
+        stop();
+    }
+}
+static void quit_signal(pa_mainloop_api *a, pa_signal_event *e, int sig, void *data) {
+    (void)a; (void)e; (void)sig; (void)data;
+    stop();
+}
+static void subscription(pa_context *c, pa_subscription_event_type_t type, uint32_t index, void *data) {
+    (void)c; (void)data;
+    if ((type & PA_SUBSCRIPTION_EVENT_FACILITY_MASK) == PA_SUBSCRIPTION_EVENT_SINK &&
+        (type & PA_SUBSCRIPTION_EVENT_TYPE_MASK) == PA_SUBSCRIPTION_EVENT_REMOVE &&
+        index == selected_sink && !stopping) {
+        fprintf(stderr, "The selected audio output disconnected. Choose an output again in Inputs & outputs.\n");
         stop();
     }
 }
@@ -99,6 +115,7 @@ static void sink_info(pa_context *c, const pa_sink_info *info, int end, void *da
     }
     if (stopping) { stop(); return; }
     if (!info->monitor_source_name) { fail("Audio output has no monitor"); return; }
+    selected_sink = info->index;
     char *master = quote(info->monitor_source_name);
     if (!master) { fail("Out of memory"); return; }
     size_t length = strlen(master) + strlen(source_name) * 2 + 512;
@@ -141,6 +158,10 @@ static void state_changed(pa_context *c, void *data) {
     switch (pa_context_get_state(c)) {
     case PA_CONTEXT_READY: {
         if (stopping) { stop(); return; }
+        if (!listing) {
+            pa_operation *subscribe = pa_context_subscribe(c, PA_SUBSCRIPTION_MASK_SINK, NULL, NULL);
+            if (subscribe) pa_operation_unref(subscribe);
+        }
         pa_operation *op = pa_context_get_server_info(c, server_info, NULL);
         if (op) pa_operation_unref(op); else fail("Cannot query audio server");
         break;
@@ -161,9 +182,14 @@ int main(int argc, char **argv) {
     loop = pa_mainloop_new();
     if (!loop) return 1;
     api = pa_mainloop_get_api(loop);
+    signal(SIGPIPE, SIG_IGN);
+    pa_signal_init(api);
+    pa_signal_new(SIGTERM, quit_signal, NULL);
+    pa_signal_new(SIGINT, quit_signal, NULL);
     context = pa_context_new(api, "Latitude desktop audio");
     if (!context) { pa_mainloop_free(loop); return 1; }
     pa_context_set_state_callback(context, state_changed, NULL);
+    pa_context_set_subscribe_callback(context, subscription, NULL);
     struct timeval timeout;
     gettimeofday(&timeout, NULL); timeout.tv_sec += 10;
     deadline = api->time_new(api, &timeout, timed_out, NULL);
@@ -172,7 +198,7 @@ int main(int argc, char **argv) {
     if (pa_context_connect(context, NULL, PA_CONTEXT_NOAUTOSPAWN, NULL) < 0)
         fprintf(stderr, "Cannot connect to PipeWire/PulseAudio: %s\n", pa_strerror(pa_context_errno(context)));
     else pa_mainloop_run(loop, &result);
-    pa_context_disconnect(context); pa_context_unref(context); pa_mainloop_free(loop);
+    pa_context_disconnect(context); pa_context_unref(context); pa_signal_done(); pa_mainloop_free(loop);
     free(default_sink);
     return result;
 }
