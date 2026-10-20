@@ -1,7 +1,7 @@
 {
   "name": "latitude",
   "productName": "Latitude",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "A local-first screen recorder with a podcast-focused audio studio.",
   "main": "electron/main.cjs",
   "private": true,
@@ -22,7 +22,10 @@
     "pack:win": "electron-builder --win dir",
     "dist:win": "electron-builder --win nsis zip",
     "setup": "node node_modules/electron/install.js",
-    "bench:audio": "node scripts/benchmark-audio.mjs"
+    "bench:audio": "node scripts/benchmark-audio.mjs",
+    "build:linux-audio": "node scripts/build-linux-audio.cjs",
+    "pack:linux": "electron-builder --linux dir",
+    "dist:linux": "electron-builder --linux flatpak"
   },
   "devDependencies": {
     "electron": "44.8.0",
@@ -50,24 +53,12 @@
     ],
     "extraResources": [
       {
-        "from": "vendor/ffmpeg.exe",
-        "to": "ffmpeg.exe"
-      },
-      {
         "from": "README.md",
         "to": "README.md"
       },
       {
         "from": "THIRD-PARTY-NOTICES.md",
         "to": "THIRD-PARTY-NOTICES.md"
-      },
-      {
-        "from": "vendor/FFmpeg-LICENSE.txt",
-        "to": "FFmpeg-LICENSE.txt"
-      },
-      {
-        "from": "vendor/FFmpeg-README.txt",
-        "to": "FFmpeg-README.txt"
       }
     ],
     "win": {
@@ -79,6 +70,20 @@
       "icon": "assets/icon.ico",
       "electronLanguages": [
         "en-US"
+      ],
+      "extraResources": [
+        {
+          "from": "vendor/ffmpeg.exe",
+          "to": "ffmpeg.exe"
+        },
+        {
+          "from": "vendor/FFmpeg-LICENSE.txt",
+          "to": "FFmpeg-LICENSE.txt"
+        },
+        {
+          "from": "vendor/FFmpeg-README.txt",
+          "to": "FFmpeg-README.txt"
+        }
       ]
     },
     "directories": {
@@ -94,7 +99,72 @@
       "uninstallDisplayName": "Latitude",
       "deleteAppDataOnUninstall": false,
       "artifactName": "Latitude-${version}-Windows-${arch}-Setup.${ext}"
+    },
+    "linux": {
+      "target": [
+        "flatpak"
+      ],
+      "category": "AudioVideo",
+      "icon": "assets/icon.png",
+      "executableName": "latitude",
+      "artifactName": "Latitude-${version}-Linux-${arch}.${ext}",
+      "electronLanguages": [
+        "en-US"
+      ],
+      "extraResources": [
+        {
+          "from": "vendor/ffmpeg",
+          "to": "ffmpeg"
+        },
+        {
+          "from": "vendor/latitude-audio",
+          "to": "latitude-audio"
+        },
+        {
+          "from": "vendor/linux/FFmpeg-LICENSE.txt",
+          "to": "FFmpeg-LICENSE.txt"
+        },
+        {
+          "from": "vendor/linux/FFmpeg-README.txt",
+          "to": "FFmpeg-README.txt"
+        },
+        {
+          "from": "docs/LINUX.md",
+          "to": "LINUX.md"
+        }
+      ]
+    },
+    "flatpak": {
+      "runtime": "org.freedesktop.Platform",
+      "runtimeVersion": "25.08",
+      "sdk": "org.freedesktop.Sdk",
+      "base": "org.electronjs.Electron2.BaseApp",
+      "baseVersion": "25.08",
+      "branch": "beta",
+      "finishArgs": [
+        "--socket=wayland",
+        "--socket=fallback-x11",
+        "--share=ipc",
+        "--socket=pulseaudio",
+        "--device=all",
+        "--filesystem=xdg-videos:create"
+      ],
+      "desktop": {
+        "entry": {
+          "Name": "Latitude",
+          "Comment": "Record your screen with a podcast audio studio",
+          "Categories": "AudioVideo;Audio;Video;",
+          "StartupWMClass": "Latitude"
+        }
+      },
+      "files": [
+        [
+          "packaging/studio.latitude.recorder.metainfo.xml",
+          "/share/metainfo/studio.latitude.recorder.metainfo.xml"
+        ]
+      ]
     }
   },
-  "type": "module"
+  "type": "module",
+  "desktopName": "studio.latitude.recorder.desktop"
 }

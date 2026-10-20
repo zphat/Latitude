@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>studio.latitude.recorder</id>
+  <name>Latitude</name>
+  <summary>Record your screen with a podcast audio studio</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="studio.latitude"><name>Latitude contributors</name></developer>
+  <description>
+    <p>Record screens, windows, a camera, and up to two microphones. Shape your voice with EQ, compression, a de-esser, and a limiter. Keep microphones and desktop audio on synchronized, separate tracks for editing.</p>
+    <p>This Linux preview uses your desktop's screen-sharing picker on Wayland and PipeWire or PulseAudio for desktop sound. It targets desktop sessions, including SteamOS Desktop Mode.</p>
+  </description>
+  <launchable type="desktop-id">studio.latitude.recorder.desktop</launchable>
+  <url type="homepage">https://github.com/zphat/Latitude</url>
+  <url type="bugtracker">https://github.com/zphat/Latitude/issues</url>
+  <url type="help">https://github.com/zphat/Latitude/blob/main/docs/LINUX.md</url>
+  <content_rating type="oars-1.1"/>
+  <releases><release version="0.6.0" date="2026-10-20" type="development"/></releases>
+</component>

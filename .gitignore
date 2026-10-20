@@ -13,3 +13,7 @@ coverage/
 vendor/ffmpeg.exe
 vendor/ffmpeg
 .DS_Store
+
+vendor/latitude-audio
+vendor/linux/
+*.flatpak

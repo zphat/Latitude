@@ -2,6 +2,15 @@ const { contextBridge, ipcRenderer } = require("electron");
 const call = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
 contextBridge.exposeInMainWorld("take", {
   desktop: true,
+  platform: process.platform,
+  audioOutputs: () => call("audio:outputs"),
+  connectDesktopAudio: (sink) => call("audio:connect", sink),
+  disconnectDesktopAudio: () => call("audio:disconnect"),
+  onAudioDisconnect: (fn) => {
+    const cb = (_, message) => fn(message);
+    ipcRenderer.on("audio:disconnected", cb);
+    return () => ipcRenderer.removeListener("audio:disconnected", cb);
+  },
   info: () => call("app:info"),
   sources: () => call("capture:sources"),
   chooseSource: (id) => call("capture:choose", id),

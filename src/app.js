@@ -584,11 +584,11 @@ async function chooseScreen(slot = "a") {
   );
   const sources = await window.take.sources();
   $("#modal-content").innerHTML =
-    `<div class="source-grid">${sources.map((s) => `<button class="source-option" data-source="${escape(s.id)}"><img alt="" src="${escape(s.thumbnail)}"><span>${escape(s.name)}</span></button>`).join("")}</div><p class="notice">System audio captures Windows playback from the default output, including sounds from other apps. Choose a loopback input in Inputs & outputs for a separately routed device.</p><div class="modal-footer"><button class="button" id="disconnect-screen" ${engine.streams[slot === "b" ? "screenB" : "screen"] ? "" : "disabled"}>Disconnect screen ${slot.toUpperCase()}</button></div>`;
+    `<div class="source-grid">${sources.map((s) => `<button class="source-option" data-source="${escape(s.id)}">${s.thumbnail ? `<img alt="" src="${escape(s.thumbnail)}">` : `<span class="portal-picker-icon">${icon("monitor")}</span>`}<span>${escape(s.name)}</span></button>`).join("")}</div><p class="notice">${window.take?.platform === "linux" ? "Your desktop controls screen-sharing permission. Desktop sound captures the output selected in Inputs & outputs, including other apps playing through it. Choose Screen B separately for two sources." : "System audio captures Windows playback from the default output, including sounds from other apps. Choose a loopback input in Inputs & outputs for a separately routed device."}</p><div class="modal-footer"><button class="button" id="disconnect-screen" ${engine.streams[slot === "b" ? "screenB" : "screen"] ? "" : "disabled"}>Disconnect screen ${slot.toUpperCase()}</button></div>`;
   $("#disconnect-screen").onclick = () => {
     engine.remove(slot === "b" ? "screenB" : "screen");
     compositor.setScreen(null, slot);
-    if (slot === "a" && engine.desktopMode === "system")
+    if (slot === "a" && engine.desktopMode === "system" && window.take?.platform !== "linux")
       engine.remove("desktop");
     closeModal();
     refreshSources(engine.sourceState());
@@ -639,6 +639,7 @@ function deviceOptions(
       .filter(
         (d) =>
           d.kind === kind &&
+          !d.label.startsWith("latitude_desktop_") &&
           d.deviceId !== "default" &&
           d.deviceId !== "communications",
       )
@@ -651,9 +652,19 @@ function deviceOptions(
 }
 async function audioSetup() {
   const devices = await engine.devices();
+  let linuxOutputs = [], outputError = "";
+  if (window.take?.platform === "linux") {
+    try { linuxOutputs = await window.take.audioOutputs(); }
+    catch { outputError = "Desktop sound is unavailable. Check that PipeWire/PulseAudio is running. Microphone recording still works."; }
+  }
+  let desktopOptions = `<option value="system" ${config.desktop === "system" ? "selected" : ""}>System playback · default output</option>`;
+  desktopOptions += linuxOutputs.map(o => `<option value="linux:${escape(o.name)}" ${config.desktop === `linux:${o.name}` ? "selected" : ""}>Output: ${escape(o.description)}${o.isDefault ? " (default)" : ""}</option>`).join("");
+  if (config.desktop.startsWith("linux:") && !linuxOutputs.some(o => config.desktop === `linux:${o.name}`))
+    desktopOptions += `<option value="${escape(config.desktop)}" selected>Saved output unavailable · choose another</option>`;
+  desktopOptions += deviceOptions(devices, "audioinput", config.desktop, null);
   modal(
     "Your inputs. Your outputs.",
-    `<div class="modal-grid">${[0, 1].map((i) => `<section class="modal-section"><h3>Voice ${i + 1} <span class="tag">Separate mono track</span></h3><label>Microphone / interface<select id="setup-mic${i + 1}">${deviceOptions(devices, "audioinput", config[`mic${i + 1}`])}</select></label><label>Input channel<select id="setup-channel${i}"><option value="left">Left / mono</option><option value="right">Right</option><option value="mix">Blend left + right</option></select></label><label>Audio delay · milliseconds<input id="setup-delay${i}" type="number" min="0" max="500" step="1" value="${engine.voiceSettings[i].syncMs || 0}"></label><label class="toggle-row"><span>Browser noise suppression</span><input type="checkbox" id="setup-noise${i}" ${config.noise[i] ? "checked" : ""}></label><p>Leave suppression off for the cleanest source. It can help a noisy room, but may affect voice detail.</p></section>`).join("")}<section class="modal-section"><h3>Desktop sound</h3><label>Capture from<select id="setup-desktop"><option value="system" ${config.desktop === "system" ? "selected" : ""}>Windows system playback</option>${deviceOptions(devices, "audioinput", config.desktop, null)}</select></label><label>Desktop delay · milliseconds<input id="setup-desktop-delay" type="number" min="0" max="500" value="${engine.desktopSettings.syncMs || 0}"></label><label class="toggle-row"><span>Lower desktop sound while speaking</span><input type="checkbox" id="setup-duck" ${engine.desktopSettings.duck ? "checked" : ""}></label><p>Ducking only affects the full mix. The isolated Desktop track keeps its own level.</p></section><section class="modal-section"><h3>Headphones / monitoring</h3><label>Listen through<select id="setup-output">${deviceOptions(devices, "audiooutput", config.output, "System default", false)}</select></label><button class="button" id="monitor-button"><span data-icon="headphones"></span> ${engine.monitored ? "Stop listening" : "Listen to microphones"}</button><p>Use headphones. Monitoring automatically stops when recording system audio to prevent your voice being captured twice. Interface direct monitoring avoids this.</p></section></div><div class="notice">If device names are hidden, connect the default microphone once, then reopen this panel. Device choices and voice settings are remembered. New devices start with Natural voice.</div><div class="modal-footer"><button class="button primary" id="apply-devices">Connect selected devices <span data-icon="arrow"></span></button></div>`,
+    `<div class="modal-grid">${[0, 1].map((i) => `<section class="modal-section"><h3>Voice ${i + 1} <span class="tag">Separate mono track</span></h3><label>Microphone / interface<select id="setup-mic${i + 1}">${deviceOptions(devices, "audioinput", config[`mic${i + 1}`])}</select></label><label>Input channel<select id="setup-channel${i}"><option value="left">Left / mono</option><option value="right">Right</option><option value="mix">Blend left + right</option></select></label><label>Audio delay · milliseconds<input id="setup-delay${i}" type="number" min="0" max="500" step="1" value="${engine.voiceSettings[i].syncMs || 0}"></label><label class="toggle-row"><span>Browser noise suppression</span><input type="checkbox" id="setup-noise${i}" ${config.noise[i] ? "checked" : ""}></label><p>Leave suppression off for the cleanest source. It can help a noisy room, but may affect voice detail.</p></section>`).join("")}<section class="modal-section"><h3>Desktop sound</h3><label>Capture from<select id="setup-desktop">${desktopOptions}</select></label>${outputError ? `<p class="notice">${escape(outputError)}</p>` : window.take?.platform === "linux" ? `<p>Captures everything playing through this output. If you change speakers or headphones, reconnect here. Screen sharing and desktop sound can be connected independently.</p>` : ""}<label>Desktop delay · milliseconds<input id="setup-desktop-delay" type="number" min="0" max="500" value="${engine.desktopSettings.syncMs || 0}"></label><label class="toggle-row"><span>Lower desktop sound while speaking</span><input type="checkbox" id="setup-duck" ${engine.desktopSettings.duck ? "checked" : ""}></label><p>Ducking only affects the full mix. The isolated Desktop track keeps its own level.</p></section><section class="modal-section"><h3>Headphones / monitoring</h3><label>Listen through<select id="setup-output">${deviceOptions(devices, "audiooutput", config.output, "System default", false)}</select></label><button class="button" id="monitor-button"><span data-icon="headphones"></span> ${engine.monitored ? "Stop listening" : "Listen to microphones"}</button><p>Use headphones. Monitoring automatically stops when recording system audio to prevent your voice being captured twice. Interface direct monitoring avoids this.</p></section></div><div class="notice">If device names are hidden, connect the default microphone once, then reopen this panel. Device choices and voice settings are remembered. New devices start with Natural voice.</div><div class="modal-footer"><button class="button primary" id="apply-devices">Connect selected devices <span data-icon="arrow"></span></button></div>`,
     "AUDIO ROUTING",
   );
   for (let i = 0; i < 2; i++) {
@@ -715,22 +726,19 @@ async function audioSetup() {
         persistProfile(i);
       }
       const desktop = $("#setup-desktop").value;
-      if (
-        desktop !== "system" &&
-        (desktop !== config.desktop || !engine.streams.desktop)
-      )
-        await engine.desktopInput(desktop);
-      if (desktop === "system" && config.desktop !== "system") {
-        const tracks = engine.streams.screen
-          ?.getAudioTracks()
-          .filter((t) => t.readyState === "live");
-        if (tracks?.length)
-          await engine.attach("desktop", new MediaStream(tracks), 2);
-        else {
-          engine.remove("desktop");
-          toast("Choose your screen again to enable system audio.");
+      if (window.take?.platform === "linux" && (desktop === "system" || desktop.startsWith("linux:"))) {
+        // Explicit reconnect also refreshes what the system-default output points to.
+        if (desktop === "system") engine.remove("desktop");
+        await engine.linuxDesktopInput(desktop);
+      } else {
+        if (desktop !== "system" && (desktop !== config.desktop || !engine.streams.desktop))
+          await engine.desktopInput(desktop);
+        if (desktop === "system" && (config.desktop !== "system" || !engine.streams.desktop)) {
+          const tracks = engine.streams.screen?.getAudioTracks().filter(t => t.readyState === "live");
+          if (tracks?.length) await engine.attach("desktop", new MediaStream(tracks), 2);
+          else { engine.remove("desktop"); toast("Choose your screen again to enable system audio."); }
+          engine.desktopMode = "system";
         }
-        engine.desktopMode = "system";
       }
       config.desktop = desktop;
       engine.setDesktop({
@@ -1247,7 +1255,7 @@ $("#choose-folder").onclick = attempt(async () => {
 function help() {
   modal(
     "Your first great take.",
-    `<div class="guide"><h3>1. Connect your sources</h3><p>Choose a screen or window. Open Camera for your facecam, then Inputs & outputs to select your microphone, desktop sound, and monitoring output.</p><h3>Arrange your scene</h3><p>Click any source in the preview to move it. Drag a corner to resize; hold Alt to bypass snapping. Scene layers has exact position, crop, visibility, lock, and layer order. Add text, gradients, images, and color panels with Add source. Ctrl Z undoes an edit; Ctrl D duplicates a layer. Preview editing locks automatically during recording.</p><h3>2. Get your voice comfortable</h3><p>Run Soundcheck. Pick Natural voice or Podcast broadcast. Start with subtle processing and watch for INPUT CLIP warnings. The left/right selector is useful for a microphone plugged into one side of a stereo interface.</p><h3>3. Make a short test</h3><p>Clap once, talk, play a desktop clip, and switch scenes. Check the result before a long session. Drivers and webcams can introduce different delays; use the audio delay controls if speech arrives early.</p><h3>4. Record, then edit</h3><p>Use Ctrl Shift R to record, Ctrl Shift P to pause/resume, Ctrl Shift M to mute Voice 1, Ctrl Shift B for markers, and Ctrl Shift 1–5 for scenes. Stop to save. Settings → Recording & export format chooses what automatic export creates after you stop. MP4 is the default. Choose MKV or MOV for lossless audio inside video, WebM for the open web, or an audio-only podcast file. Each choice explains its size and compatibility.</p><h3>5. CapCut: keep the tracks separate</h3><p>Keep microphone and desktop sources separate is on by default. In video files, the first track is the full mix. If your editor does not expose the other embedded tracks, import the WAV stems, align everything at the same timeline start, mute the video’s mix, and group/link the clips. Enable WAV editing files or optional audio-specific video copies to choose mic-only or desktop-only audio on each clip instance.</p><h3>Practical limits</h3><p>This is an early desktop build, not a replacement for a thoroughly tested production recorder yet. Windows default-output loopback is the primary desktop-audio path. Hardware routing and long-session performance need testing on your computer. There is no VST hosting or AI voice restoration. Recording is local; no account or upload is required.</p></div>`,
+    `<div class="guide"><h3>1. Connect your sources</h3><p>Choose a screen or window. Open Camera for your facecam, then Inputs & outputs to select your microphone, desktop sound, and monitoring output.</p><h3>Arrange your scene</h3><p>Click any source in the preview to move it. Drag a corner to resize; hold Alt to bypass snapping. Scene layers has exact position, crop, visibility, lock, and layer order. Add text, gradients, images, and color panels with Add source. Ctrl Z undoes an edit; Ctrl D duplicates a layer. Preview editing locks automatically during recording.</p><h3>2. Get your voice comfortable</h3><p>Run Soundcheck. Pick Natural voice or Podcast broadcast. Start with subtle processing and watch for INPUT CLIP warnings. The left/right selector is useful for a microphone plugged into one side of a stereo interface.</p><h3>3. Make a short test</h3><p>Clap once, talk, play a desktop clip, and switch scenes. Check the result before a long session. Drivers and webcams can introduce different delays; use the audio delay controls if speech arrives early.</p><h3>4. Record, then edit</h3><p>Use Ctrl Shift R to record, Ctrl Shift P to pause/resume, Ctrl Shift M to mute Voice 1, Ctrl Shift B for markers, and Ctrl Shift 1–5 for scenes. Stop to save. Settings → Recording & export format chooses what automatic export creates after you stop. MP4 is the default. Choose MKV or MOV for lossless audio inside video, WebM for the open web, or an audio-only podcast file. Each choice explains its size and compatibility.</p><h3>5. CapCut: keep the tracks separate</h3><p>Keep microphone and desktop sources separate is on by default. In video files, the first track is the full mix. If your editor does not expose the other embedded tracks, import the WAV stems, align everything at the same timeline start, mute the video’s mix, and group/link the clips. Enable WAV editing files or optional audio-specific video copies to choose mic-only or desktop-only audio on each clip instance.</p><h3>Practical limits</h3><p>This is an early desktop build, not a replacement for a thoroughly tested production recorder yet. Windows captures the default playback output. Linux uses PipeWire/PulseAudio output monitoring; Wayland uses your desktop’s screen-sharing picker. SteamOS support targets Desktop Mode; Gaming Mode has not been validated. Hardware routing and long-session performance need testing on your computer. There is no VST hosting or AI voice restoration. Recording is local; no account or upload is required.</p></div>`,
     "QUICK GUIDE",
   );
 }
@@ -1271,6 +1279,7 @@ $("#diagnostics-button").onclick = () => {
       application: "Latitude",
       version: info.version || "browser preview",
       platform: info.platform,
+      capture: info.capture,
       runtime: info.runtime,
       encoderAvailable: !!info.encoder,
       output: {
@@ -1436,6 +1445,10 @@ if (!config.onboarded)
   studioTools.onboard().catch((e) => toast(e.message, true));
 if (window.take) {
   window.take.onAction(action);
+  window.take.onAudioDisconnect?.((message) => {
+    engine.remove("desktop");
+    toast(message, true);
+  });
   window.take.onProgress((p) => {
     $("#export-stage").textContent = p.stage;
     $("#export-bar").style.width = `${p.percent}%`;
@@ -1451,7 +1464,7 @@ if (window.take) {
       info = result;
       shortcutFailures = result.shortcutFailures || [];
       $("#app-version").textContent =
-        `Latitude ${result.version} · Windows beta`;
+        `Latitude ${result.version} · ${result.platform === "linux" ? "Linux preview" : "Windows beta"}`;
       $("#save-path").textContent = result.root;
       $("#encoder-status").textContent = result.encoder
         ? "● Video and audio encoder ready"
@@ -1474,10 +1487,7 @@ if (window.take) {
       if (result.shortcutFailures.length)
         $("#hotkey-note").textContent =
           `Unavailable shortcuts: ${result.shortcutFailures.join(", ")}`;
-      if (result.platform !== "win32")
-        toast(
-          "On this platform, choose a loopback / virtual-audio input for desktop sound.",
-        );
+
     })
     .catch((e) => toast(e.message, true));
 } else {

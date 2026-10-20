@@ -18,6 +18,10 @@ const path = require("node:path");
 const os = require("node:os");
 const { pathToFileURL } = require("node:url");
 const { RecordingStore, runFFmpeg } = require("./recording.cjs");
+const { LinuxAudio } = require("./linux-audio.cjs");
+const { capturePlatform, selectedCapture } = require("./capture-platform.cjs");
+const capture = capturePlatform();
+if (process.platform === "linux") app.setDesktopName("studio.latitude.recorder.desktop");
 // Retain the prior profile on upgrade, including device preferences and origin storage.
 const legacyProfile = path.join(app.getPath("appData"), "Take Studio");
 if (!fs.existsSync(app.getPath("userData")) && fs.existsSync(legacyProfile))
@@ -46,6 +50,10 @@ let win,
   configFile,
   ffmpeg;
 const allowedRoot = path.join(__dirname, "..");
+const linuxAudio = process.platform === "linux" ? new LinuxAudio(
+  path.join(app.isPackaged ? process.resourcesPath : path.join(allowedRoot, "vendor"), "latitude-audio"),
+  { onDisconnect: message => { if (!win?.isDestroyed()) win?.webContents.send("audio:disconnected", message); } },
+) : null;
 const trusted = (e) =>
   e.sender === win?.webContents && e.senderFrame?.url.startsWith("take://app/");
 function handle(name, fn) {
@@ -169,7 +177,7 @@ app.whenReady().then(async () => {
           types: ["screen", "window"],
           thumbnailSize: { width: 0, height: 0 },
         });
-        const source = sources.find((s) => s.id === selectedSource);
+        const source = selectedCapture(sources, selectedSource, capture);
         if (!source) return callback({});
         callback({
           video: source,
@@ -192,6 +200,7 @@ app.whenReady().then(async () => {
     }
     return {
       platform: process.platform,
+      capture,
       version: app.getVersion(),
       root,
       encoder,
@@ -207,7 +216,7 @@ app.whenReady().then(async () => {
     };
   });
   handle("capture:sources", async () =>
-    (
+    capture.picker === "portal" ? [{ id: "portal", name: "Choose a screen or window with your desktop…", thumbnail: "" }] : (
       await desktopCapturer.getSources({
         types: ["screen", "window"],
         thumbnailSize: { width: 320, height: 180 },
@@ -223,6 +232,13 @@ app.whenReady().then(async () => {
       throw Error("Invalid screen source.");
     selectedSource = id;
   });
+  handle("audio:outputs", () => linuxAudio ? linuxAudio.outputs() : []);
+  handle("audio:connect", (sink) => {
+    if (!linuxAudio) throw Error("Desktop audio bridge is Linux only.");
+    if (store.active || store.beginning) throw Error("Change audio devices between takes.");
+    return linuxAudio.connect(sink);
+  });
+  handle("audio:disconnect", () => linuxAudio?.stop());
   handle("folder:choose", async () => {
     if (store.active || store.exporting)
       throw Error(
@@ -360,6 +376,7 @@ app.whenReady().then(async () => {
     }
   });
   win.webContents.on("render-process-gone", async () => {
+    await linuxAudio?.stop().catch(() => {});
     await store
       .end({
         error: "The recording window closed unexpectedly.",
@@ -399,7 +416,13 @@ app.whenReady().then(async () => {
     }
   }
 });
-app.on("will-quit", () => globalShortcut.unregisterAll());
+app.on("will-quit", (event) => {
+  globalShortcut.unregisterAll();
+  if (linuxAudio?.active) {
+    event.preventDefault();
+    linuxAudio.stop().finally(() => app.quit());
+  }
+});
 app.on("second-instance", () => {
   if (win) {
     if (win.isMinimized()) win.restore();

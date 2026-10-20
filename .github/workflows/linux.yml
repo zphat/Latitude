@@ -1,0 +1,71 @@
+name: Linux preview
+
+on:
+  push:
+    branches: [linux/port]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  audio:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        server: [pulseaudio, pipewire]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: sudo apt-get update && sudo apt-get install -y libpulse-dev pulseaudio pulseaudio-utils pipewire pipewire-pulse wireplumber
+      - run: npm run build:linux-audio
+      - name: Test real audio routing and cleanup
+        env:
+          LATITUDE_AUDIO_SERVER: ${{ matrix.server }}
+        run: dbus-run-session -- bash scripts/test-linux-audio.sh
+
+  package:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install build and test tools
+        run: sudo apt-get update && sudo apt-get install -y libpulse-dev pulseaudio pulseaudio-utils flatpak flatpak-builder libarchive-tools elfutils xvfb appstream desktop-file-utils libfuse2 ffmpeg
+      - run: npm ci
+      - run: npm run build:linux-audio
+      - run: node scripts/prepare-encoder.cjs
+      - name: Test shared application and every bundled encoder format
+        run: npm test
+      - name: Validate application metadata
+        run: appstreamcli validate --no-net packaging/studio.latitude.recorder.metainfo.xml
+      - name: Install matching Flatpak runtimes
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08 org.electronjs.Electron2.BaseApp//25.08
+      - name: Build installable Linux desktop package
+        run: npm run dist:linux -- --x64 --publish never
+      - name: Verify installation, launch, and bundled tools
+        run: bash scripts/test-linux-package.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: Latitude-Linux-release
+          path: |
+            dist/Latitude-*-Linux-x64.flatpak
+            dist/SHA256SUMS-Linux.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
