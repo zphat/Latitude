@@ -33,7 +33,7 @@ export function mountExportControls(host, prefix, values, onChange = () => {}) {
       <label class="toggle-row"><span>A video copy for each isolated source</span><input id="${prefix}-copies" type="checkbox"></label>
       <p>For choosing mic-only or desktop-only audio on each clip in CapCut. Choose MP4 for this workflow. Each copy duplicates the video on disk.</p>
     </div>
-    <p class="format-footnote">File size mostly comes from video quality, duration, and extra copies. Turning off WAV files and video copies saves export space. Original tracks stay in the take folder.</p>`;
+    <p class="format-footnote" id="${prefix}-footnote"></p>`;
   const el = (key) => host.querySelector(`#${prefix}-${key}`);
   el("format").value = EXPORT_FORMATS.some((f) => f.id === values.format)
     ? values.format
@@ -59,6 +59,9 @@ export function mountExportControls(host, prefix, values, onChange = () => {}) {
         ? "The video contains Full mix plus a named track for each recorded mic and desktop source. Players usually play the mix; your editor must support alternate tracks."
         : "The mix and each recorded source are saved as separate files in this format. WAV or FLAC is best for precise editing; these audio formats do not hold selectable source tracks in one file."
       : "Exports the full mix only. Your original isolated tracks remain available if you change your mind.";
+    el("footnote").textContent = video
+      ? "File size mostly comes from video quality, duration, and extra copies. Turning off WAV files and video copies saves export space. Original tracks stay in the take folder."
+      : "Audio-only exports leave out the picture. The recorded video and original audio remain in the take folder for another export later.";
     el("video-options").hidden = !video;
     el("copies").disabled = !video || !separate;
     el("wav-note").textContent = separate

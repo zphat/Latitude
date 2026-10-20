@@ -447,7 +447,14 @@ class RecordingStore {
           "-",
         ]),
       );
+      const mediaSizes = await Promise.all(
+        [media.file, ...media.sidecars].map(
+          async (file) => (await fsp.stat(path.join(output, file))).size,
+        ),
+      );
       const exportReport = {
+        fileBytes: mediaSizes[0],
+        mediaBytes: mediaSizes.reduce((sum, size) => sum + size, 0),
         format: format.id,
         file: media.file,
         codecs: format.codecs,

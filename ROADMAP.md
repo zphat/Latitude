@@ -7,6 +7,14 @@
 - Listen to unprocessed and processed speech at matched loudness on headphones and speakers. Preserve consonants and word tails; measure gain reduction, clipping and encoded loudness. Keep enhancements optional.
 - Compare identical workloads with OBS before claiming performance leadership. Profile capture/encoding separately from the worklet; retain H.264 stream copy and shared sources. If those dominate, investigate a native capture/encoding adapter rather than adding heavier UI frameworks.
 
+## Start Linux after the format milestone
+
+Begin the Linux platform work after 0.5's export regression and Windows packaging checks pass. Do not wait for every optional feature or for Windows to leave beta. Keep the shared scene, audio, recording and export contracts steady while real Windows users provide long-session feedback. Fix data-loss, sync, capture and export blockers before distributing either platform.
+
+The 0.5 format registry has no platform dependencies, and the exporter already runs in Linux CI. That does not make desktop capture or system audio Linux-ready. The first Linux deliverable is a working capture/audio vertical slice on real Fedora KDE/Wayland and Ubuntu desktops, then packaging; not an untested installer around the Windows routing code.
+
+Defer VST hosting, multi-camera recording, a streaming mod, and additional legacy codecs until the two platform paths are dependable. New features remain separate from the capture adapter and output-provider contracts.
+
 ## Linux milestone
 
 1. Isolate platform capture selection, desktop-audio routing, shortcuts and packaging from the shared compositor/DSP/storage contracts.
@@ -17,4 +25,4 @@
 
 ## Extension boundaries
 
-Keep scene/theme packs data-only. The experimental output-provider seam is documented in MODDING.md. A streaming mod should own its network configuration, credentials, buffering and reconnect behavior; streaming failures must not stop local recording. Native audio plugins would need a separate isolated host and performance budget. Neither is included in 0.4.
+Keep scene/theme packs data-only. The experimental output-provider seam is documented in MODDING.md. A streaming mod should own its network configuration, credentials, buffering and reconnect behavior; streaming failures must not stop local recording. Native audio plugins would need a separate isolated host and performance budget. Neither is included in 0.5.

@@ -1,6 +1,6 @@
 # Latitude
 
-A Windows-first, local screen recorder built around clear podcast audio. Version **0.4.0 — desktop beta**.
+A Windows-first, local screen recorder built around clear podcast audio. Version **0.5.0 — desktop beta**.
 
 [Windows beta downloads](https://github.com/zphat/Latitude/releases) · [Report a bug](https://github.com/zphat/Latitude/issues) · [Contributing](CONTRIBUTING.md) · [Modding](MODDING.md)
 
@@ -8,7 +8,7 @@ Record your screen, optional facecam, microphones, and desktop audio. Shape your
 
 ## Open the Windows app
 
-1. Download **Latitude-0.4.0-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.4.0).
+1. Download **Latitude-0.5.0-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.5.0).
 2. Double-click it. Latitude installs for your Windows account and creates desktop and Start menu shortcuts.
 3. Open either shortcut. No terminal, source folder, Node.js, OBS, or separate FFmpeg installation is needed.
 
@@ -66,11 +66,34 @@ The beta is unsigned, so Windows may identify it as an unknown publisher. It ins
 - Input delay adjustments of 0–500 ms for lip-sync correction when audio arrives early.
 - Pause/resume, countdown with cancellation, scene hotkeys, markers, playback, quick mute-all, and small-window recording controls.
 - Continuous disk writing, low-space stop, bounded write queue, large-file RF64 support, preserved originals, and recovery export for interrupted sessions.
-- Two-pass loudness normalization of the final mix, with a report measuring the encoded MP4’s actual loudness and true peak.
+- Two-pass loudness normalization of the final mix, with a report measuring the delivered mix’s actual loudness and true peak.
+
+## Recording and export formats
+
+Choose a preferred format in **Settings → Recording & export format**. Automatic export creates it after you stop. Live capture first saves recoverable MKV/WebM video and separate float WAV originals. It does not encode eight formats at once or put an expensive VP9 conversion in the live recording path.
+
+**Keep microphone and desktop sources separate** defaults to on. Video outputs contain the full mix followed by named tracks for each recorded mic and desktop source. Audio-only outputs put the mix and each source in separate files. Turn it off for a mix-only delivery; the originals stay available.
+
+| Format              | Good for                                      | Audio separation                 | Space and processing                                                            |
+| ------------------- | --------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------- |
+| **MP4 · suggested** | Everyday recording, CapCut and broad playback | Embedded AAC tracks              | Compact audio; H.264 picture copies without re-encoding when available          |
+| **MKV · suggested** | Archive with lossless 24-bit audio            | Embedded FLAC tracks             | Audio larger than AAC, smaller than typical PCM; some editors require re-export |
+| **MOV · suggested** | Editors needing uncompressed audio            | Embedded 24-bit PCM tracks       | Largest audio among the video choices; H.264 picture, not ProRes                |
+| WebM                | Open web video                                | Embedded Opus tracks             | VP9 can save video space but conversion takes more CPU/time; size varies        |
+| WAV                 | Audio editing                                 | One 24-bit PCM file per source   | About 1.04 GB/hour for a 48 kHz stereo mix; RF64 for large files                |
+| FLAC                | Lossless audio masters                        | One 24-bit FLAC file per source  | Same decoded 24-bit samples as WAV, usually smaller for speech                  |
+| MP3                 | Podcast delivery                              | One 192 kbps file per source     | About 86 MB/hour per file; lossy, broadly supported                             |
+| M4A                 | Listening on phones/players                   | One 192 kbps AAC file per source | Roughly 86 MB/hour per file; lossy, check your host accepts it                  |
+
+Video bitrate and duration matter more than the filename extension. Choose **Efficient** recording quality to reduce future capture size; MP4/MKV/MOV copy an existing H.264 recording at its existing quality. WebM conversion may reduce size, with a CPU/time cost and another lossy video generation. No format is always the smallest for every scene.
+
+Turn off **Also save WAV editing files** and per-source video copies for a smaller export folder. That skips duplicate files and, when WAVs are off, normalizes directly into the final output without a temporary WAV. A new export never replaces older exports. Takes shows the last format, track/file count and total media size. The Play button opens the correct video or audio file, including old MP4 exports.
+
+See [format details and technical references](docs/FORMATS.md). In-app notes describe each choice. The export dialog can remember a choice for future recordings or apply it to just one take.
 
 ## Editing in CapCut
 
-Each **Export** folder contains:
+With the default MP4, separate-sources and WAV editing choices, each **Export** folder contains:
 
 | File                                           | Purpose                                                                                                          |
 | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -84,14 +107,14 @@ Each **Export** folder contains:
 
 CapCut versions differ in how they expose multiple audio streams embedded in one video. This app cannot add a stream selector to CapCut. The reliable editing workflow is to import the MP4 and isolated WAVs, place them at the **same timeline start**, mute the video’s mixed audio, and group/link the clips before cutting. Audio stems are captured on one sample clock and share the same duration.
 
-For your preferred “different audio on each instance of the same clip” workflow, enable **Separate video copies for each audio track** on export. The export adds `Voice 1 only.mp4`, `Voice 2 only.mp4`, and `Desktop only.mp4` as applicable. Each uses the same encoded video and one isolated soundtrack, so you can choose the version you want for each clip. This duplicates video storage but does not re-encode the picture.
+For your preferred “different audio on each instance of the same clip” workflow, enable **A video copy for each isolated source** on export. The export adds `Voice 1 only.mp4`, `Voice 2 only.mp4`, and `Desktop only.mp4` as applicable. Each uses the same encoded video and one isolated soundtrack, so you can choose the version you want for each clip. This duplicates video storage but does not re-encode the picture.
 
 Do not play all MP4 audio streams together. They contain the full mix plus its components. Use the mix **or** the isolated sources.
 
 ## Sound and routing notes
 
 - Input gain starts at 0 dB. Aim for raw voice peaks around −12 to −6 dBFS. If the interface/microphone already clipped, lowering a software fader cannot restore it. Lower hardware gain.
-- The live limiters protect **sample peaks** at −1.5 dBFS. They are not advertised as oversampled true-peak limiters. The final mix export uses FFmpeg’s loudness/true-peak processing and measures the encoded result. If AAC overshoots the intended margin, the app flags it.
+- The live limiters protect **sample peaks** at −1.5 dBFS. They are not advertised as oversampled true-peak limiters. The final mix export uses FFmpeg’s loudness/true-peak processing and measures the encoded result. If the encoded mix overshoots the intended margin, the app flags it.
 - The default final mix target is −16 LUFS. This is an adjustable starting point, not a guarantee of ideal loudness for every show. Silent material remains silent. Isolated stems are not separately normalized, preserving their relative balance for editing.
 - Original voice backups cannot recover clipping that happened in hardware. Float storage preserves the captured samples; it does not turn a conventional mic/interface into a 32-bit-float recorder.
 - A downward expander quiets gaps. It does not remove background sound while you speak. Optional browser noise suppression may help, but can alter the voice.
@@ -153,7 +176,7 @@ npm run pack:win             # Builds an unpacked Windows app; needs vendor/ffmp
 
 A Git checkout does not contain the encoder executable. On Windows, run `node scripts/prepare-encoder.cjs` after `npm ci` and before packaging. Run `npm run dist:win -- --publish never` to produce the Windows installer and optional portable ZIP. See [RELEASING.md](RELEASING.md) for the release procedure. CI checks source changes on Linux; the optional **Build Windows package** workflow creates a Windows test artifact without publishing a release.
 
-`tests/ui.cjs` checks the recording/export pipeline; `tests/framing-ui.cjs` checks editing and actual cropped pixels; `tests/quality-ui.cjs` checks resolution, encoded frames, text, and output-provider lifecycle; `tests/beta-ui.cjs` checks idle suspension, concurrent microphone setup, held clip warnings, diagnostics, and compact windows. Install Playwright separately and provide `TAKE_TEST_BROWSER` if its Chromium is not in the usual location. It records synthetic media, checks pause/mute behavior, and verifies actual exports with `ffprobe`. `ffprobe` must be available for the integration tests. `TAKE_FFMPEG` can override the export binary during development.
+`tests/ui.cjs` checks the recording/export pipeline; `tests/framing-ui.cjs` checks editing and actual cropped pixels; `tests/quality-ui.cjs` checks resolution, encoded frames, text, and output-provider lifecycle; `tests/formats-ui.cjs` checks format guidance, separate-source controls, saved defaults and per-export overrides; `tests/beta-ui.cjs` checks idle suspension, concurrent microphone setup, held clip warnings, diagnostics, and compact windows. Install Playwright separately and provide `TAKE_TEST_BROWSER` if its Chromium is not in the usual location. It records synthetic media, checks pause/mute behavior, and verifies actual exports with `ffprobe`. `ffprobe` must be available for the integration tests. `TAKE_FFMPEG` can override the export binary during development.
 
 Upgrading from Take Studio retains an existing local profile and recording folder when available. The internal `take://app` origin and IPC bridge name remain stable to preserve old preferences; they are not visible branding.
 

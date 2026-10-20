@@ -1,4 +1,4 @@
-# Trying Latitude 0.4 beta
+# Trying Latitude 0.5 beta
 
 Install the Windows x64 **Setup.exe**, then open Latitude from the desktop or Start menu. To update, close the old copy first and run the newer installer. Keep existing takes; uninstalling does not remove recordings or preferences.
 
@@ -10,6 +10,15 @@ Install the Windows x64 **Setup.exe**, then open Latitude from the desktop or St
 4. Record a one-minute take at 1080p/30. Clap for sync, speak, play a clip, pause/resume, mute/unmute, switch scenes, and add a marker. Stop and let export finish.
 5. Play the export. Check picture smoothness, lip sync, final words, audio quality, and the isolated WAVs. All stems should have the same duration. In CapCut, align the WAVs and video at the same start, mute the video's full mix, and group/link before editing. Optional per-track video copies give each clip instance a different soundtrack.
 6. Try canceling a second export. Your originals and earlier export must remain. Close/reopen Latitude and verify settings. Confirm the desktop shortcut works without opening an application folder.
+
+## Try the new format choices
+
+- Settings → Recording & export format starts with MP4 and separate sources on. Read each format note; MP4, MKV and MOV are suggested video choices.
+- Export the same short take once with separate sources on and once off. In a player/editor that supports audio selection, the first should have Full mix, Voice 1, Voice 2 (if recorded) and Desktop (if recorded). The second should have just Full mix.
+- For CapCut, use MP4 plus WAV editing files. If your version does not expose embedded tracks, align the WAVs with the video or enable a video copy for each isolated source.
+- Try WAV or FLAC for audio-only editing: the mix and each source are separate files. Try MP3/M4A for listening. Check the final words and sync with your editor; lossy decoder delay handling can vary.
+- Disable WAV editing files and video copies, then compare the export folder size. Original recordings are retained separately. Changing just the container does not automatically reduce captured video size.
+- Use Play after each export. Try a one-off format, then remember a different choice and restart the app. Your preference should persist. Cancel an export and verify earlier exports and originals remain.
 
 ## Before sharing a long episode
 

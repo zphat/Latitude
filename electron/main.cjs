@@ -385,9 +385,12 @@ app.whenReady().then(async () => {
   if (process.argv.includes("--smoke-test")) {
     try {
       const ready = await win.webContents.executeJavaScript(
-        `document.title === 'Latitude' && !!document.querySelector('#record-button') && !!window.take?.desktop && document.querySelector('#scene-list').children.length === 5`,
+        `document.title === 'Latitude' && !!document.querySelector('#record-button') && !!window.take?.desktop && document.querySelector('#scene-list').children.length === 5 && document.querySelectorAll('#default-format option').length === 8`,
       );
       if (!ready) throw Error("The installed interface did not load.");
+      const { exportFormat } = await import("../src/export-formats.js");
+      if (exportFormat("mkv").audio !== "flac")
+        throw Error("Packaged format registry is missing.");
       await runFFmpeg(ffmpeg, ["-version"]);
       app.exit(0);
     } catch (error) {

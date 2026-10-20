@@ -85,3 +85,9 @@ await engine.outputs.stop("my-output");
 Stopping a provider ends its cloned tracks while the recorder's original streams remain live. Recorder shutdown stops all providers with a bounded wait. Providers must clean up resources they allocate, including failed starts.
 
 Standalone streaming, network/credential UI, protocols, permissions, backpressure, pause semantics, and independent output start/stop need additional work. Version 1 requires local recording and is not a completed RTMP/WebRTC implementation. Settings packs cannot execute code or register providers. Keep networking opt-in; native plugins require a separately isolated host and crash handling.
+
+## Export formats
+
+`src/export-formats.js` is a platform-independent registry shared by the interface and the Node export worker. It defines each format's codecs, guidance, supported flags and safe option normalization. `src/export-ui.js` builds the settings/dialog controls from that registry. `electron/export-media.cjs` owns file creation, while the recording store owns cancellation, loudness measurement and atomic manifest commits.
+
+A new format needs a registry entry, compatible encoder/container flags, plain size/compatibility notes, and real encode/decode coverage in `tests/formats.test.cjs`. Verify both separate-source and mix-only modes, duration, playback, raw-original retention and the exact bundled Windows encoder. Do not accept arbitrary command-line flags from imported packs. Keep slow export conversion outside the live capture/output-provider path. Adding a format does not require a new UI framework or DSP dependency.

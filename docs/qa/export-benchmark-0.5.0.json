@@ -1,0 +1,66 @@
+{
+  "seconds": 30,
+  "sampleRate": 48000,
+  "video": "320×180 synthetic H.264",
+  "note": "Export-only, generated tones; wall time depends on hardware and cache. Both variants keep four embedded audio tracks. Excludes retained original recordings.",
+  "modes": [
+    {
+      "editingFiles": true,
+      "medianMs": 11816,
+      "mediaBytes": 40512003,
+      "audioTracks": 4,
+      "videoMode": "H.264 stream copy"
+    },
+    {
+      "editingFiles": false,
+      "medianMs": 11665,
+      "mediaBytes": 3071759,
+      "audioTracks": 4,
+      "videoMode": "H.264 stream copy"
+    }
+  ],
+  "runs": [
+    {
+      "editingFiles": true,
+      "elapsedMs": 12113,
+      "mediaBytes": 40512003,
+      "videoMode": "H.264 stream copy",
+      "audioTracks": 4
+    },
+    {
+      "editingFiles": false,
+      "elapsedMs": 12085,
+      "mediaBytes": 3071759,
+      "videoMode": "H.264 stream copy",
+      "audioTracks": 4
+    },
+    {
+      "editingFiles": false,
+      "elapsedMs": 11665,
+      "mediaBytes": 3071759,
+      "videoMode": "H.264 stream copy",
+      "audioTracks": 4
+    },
+    {
+      "editingFiles": true,
+      "elapsedMs": 11816,
+      "mediaBytes": 40512003,
+      "videoMode": "H.264 stream copy",
+      "audioTracks": 4
+    },
+    {
+      "editingFiles": true,
+      "elapsedMs": 11643,
+      "mediaBytes": 40512003,
+      "videoMode": "H.264 stream copy",
+      "audioTracks": 4
+    },
+    {
+      "editingFiles": false,
+      "elapsedMs": 11135,
+      "mediaBytes": 3071759,
+      "videoMode": "H.264 stream copy",
+      "audioTracks": 4
+    }
+  ]
+}

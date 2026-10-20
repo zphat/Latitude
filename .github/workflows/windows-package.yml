@@ -19,6 +19,8 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
+      - name: Verify every format with the bundled Windows encoder
+        run: node --test tests/formats.test.cjs
       - name: Prepare the Windows encoder
         run: node scripts/prepare-encoder.cjs
       - name: Build unsigned test package

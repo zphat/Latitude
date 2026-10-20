@@ -63,6 +63,8 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
+      - name: Verify every format with the bundled Windows encoder
+        run: node --test tests/formats.test.cjs
       - name: Prepare encoder and build unsigned Windows package
         shell: pwsh
         run: |
