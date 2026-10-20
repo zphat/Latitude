@@ -1,6 +1,8 @@
-# Trying Latitude 0.5 beta
+# Trying Latitude 0.6 — Windows beta and Linux preview
 
 Install the Windows x64 **Setup.exe**, then open Latitude from the desktop or Start menu. To update, close the old copy first and run the newer installer. Keep existing takes; uninstalling does not remove recordings or preferences.
+
+On Linux x86-64, open the **.flatpak** in Discover or another Flatpak-capable software center and install, then launch Latitude from the application menu. See the [Linux guide](docs/LINUX.md) for prerequisites, terminal installation, permissions, and preview limits. SteamOS testing is for **Desktop Mode**; Gaming Mode is not supported.
 
 ## First ten minutes
 
@@ -9,7 +11,15 @@ Install the Windows x64 **Setup.exe**, then open Latitude from the desktop or St
 3. Select a screen/window, play desktop audio, and check its meter. Facecam is optional. Drag sources, crop browser tabs/taskbar, add text if wanted, and try a scene hotkey.
 4. Record a one-minute take at 1080p/30. Clap for sync, speak, play a clip, pause/resume, mute/unmute, switch scenes, and add a marker. Stop and let export finish.
 5. Play the export. Check picture smoothness, lip sync, final words, audio quality, and the isolated WAVs. All stems should have the same duration. In CapCut, align the WAVs and video at the same start, mute the video's full mix, and group/link before editing. Optional per-track video copies give each clip instance a different soundtrack.
-6. Try canceling a second export. Your originals and earlier export must remain. Close/reopen Latitude and verify settings. Confirm the desktop shortcut works without opening an application folder.
+6. Try canceling a second export. Your originals and earlier export must remain. Close/reopen Latitude and verify settings. Confirm the desktop shortcut or application-menu entry works without opening an application folder.
+
+## Linux checks
+
+- On Wayland, choose a screen/window in your desktop's permission dialog. Cancel once and verify Latitude stays usable. Try Screen B separately and check that desktop audio is not doubled.
+- In Inputs & outputs, choose your playback output. Verify the Desktop meter responds while your microphone is muted. Disconnect screen sharing and confirm desktop audio still works.
+- Between takes, change headphones/speakers and reconnect desktop audio. Test an unplug during a short recording: the app should report the lost source and keep the other sources recording. Reconnect between takes.
+- Close Latitude and confirm its temporary `latitude_desktop_…` input disappears from system audio settings. Your default microphone/output and volume should stay unchanged.
+- Test your webcam, global scene shortcuts, and playback in your editor. Start with Videos/Latitude; if you choose another folder, verify it remains writable after restarting.
 
 ## Try the new format choices
 
@@ -22,10 +32,10 @@ Install the Windows x64 **Setup.exe**, then open Latitude from the desktop or St
 
 ## Before sharing a long episode
 
-Try a 60–90 minute take with your normal sources and background applications. Watch frame rate, disk space, CPU/RAM in Task Manager, and playback near the beginning and end. Exercise a device disconnect, an external shortcut, and save-and-close. Higher formats are optional: 4K/60 is not guaranteed on every machine. Start with a short test before important work.
+Try a 60–90 minute take with your normal sources and background applications. Watch frame rate, disk space, CPU/RAM in Task Manager or your Linux system monitor, and playback near the beginning and end. Exercise a device disconnect, an external shortcut, and save-and-close. Higher formats are optional: 4K/60 is not guaranteed on every machine. Start with a short test before important work.
 
 ## Share feedback
 
-Settings → **Technical details** shows a report you can review and copy. **Report a bug / idea** opens GitHub issues. Include what you expected, what happened, steps, version, Windows version, devices, recording settings, and a short public sample only if useful. Do not attach private recordings. The app does not upload diagnostics automatically.
+Join [Latitude's Discord](https://discord.gg/EnPRdDutAn) for feedback, questions, and updates. Settings → **Technical details** shows a report you can review and copy. **Report a bug / idea** opens GitHub issues for structured reports. Include what you expected, what happened, steps, app version, operating system, devices, and recording settings. On Linux, also include your distro/version, desktop, and Wayland or X11. Do not attach private recordings. The app does not upload diagnostics automatically.
 
-See [BUILD-REPORT.md](BUILD-REPORT.md) for automated evidence and [ROADMAP.md](ROADMAP.md) for Linux and performance work. This unsigned beta still needs real-device feedback; it is not yet a production-reliability guarantee.
+See [BUILD-REPORT.md](BUILD-REPORT.md) for earlier automated evidence, [the Linux guide](docs/LINUX.md) for current Linux checks, and [ROADMAP.md](ROADMAP.md) for hardware testing and performance work. These preview builds still need real-device feedback.

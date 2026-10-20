@@ -130,25 +130,27 @@ async function main() {
   const again = await bridge.connect("default");
   await bridge.stop();
   assert.ok(!pactl("list", "short", "sources").includes(again.label));
-  // Killing the parent closes stdin; simulate that separately from normal stop.
-  const label = "latitude_desktop_crashtest";
-  const child = spawn(path.resolve("vendor/latitude-audio"), [
-    "bridge",
-    "default",
-    label,
-  ]);
-  child.stderr.on("data", () => {});
-  await new Promise((resolve, reject) => {
-    child.stdout.once("data", resolve);
-    child.once("error", reject);
-    child.once("exit", (code) => {
-      if (code) reject(Error(`Helper exited ${code}`));
+  // Parent exit (EOF), signals, and repeated stop requests must release the source.
+  for (const stop of ["eof", "SIGTERM", "SIGINT", "eof-and-signal"]) {
+    const label = "latitude_desktop_crashtest";
+    const child = spawn(path.resolve("vendor/latitude-audio"), [
+      "bridge", "default", label,
+    ]);
+    child.stderr.on("data", () => {});
+    child.stdin.on("error", () => {});
+    await new Promise((resolve, reject) => {
+      child.stdout.once("data", resolve);
+      child.once("error", reject);
+      child.once("exit", (code) => {
+        if (code) reject(Error(`Helper exited ${code}`));
+      });
     });
-  });
-  const exited = new Promise((resolve) => child.once("exit", resolve));
-  child.stdin.end();
-  assert.equal(await exited, 0);
-  assert.ok(!pactl("list", "short", "sources").includes(label));
+    const exited = new Promise((resolve) => child.once("exit", resolve));
+    if (stop.startsWith("eof")) child.stdin.end();
+    if (stop !== "eof") child.kill(stop === "eof-and-signal" ? "SIGTERM" : stop);
+    assert.equal(await exited, 0, `${stop} exits cleanly`);
+    assert.ok(!pactl("list", "short", "sources").includes(label), `${stop} removes the temporary source`);
+  }
   const stopped = new Promise(resolve => { bridge.onDisconnect = resolve; });
   const unplugged = await bridge.connect("latitude_test_b");
   pactl("unload-module", modules.pop());

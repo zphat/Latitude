@@ -421,7 +421,7 @@ app.whenReady().then(async () => {
     } catch {}
   }, 5000).unref();
   await win.loadURL("take://app/src/index.html");
-  // Opt-in packaged smoke test; does not request media or upload anything.
+  // Opt-in package checks. Desktop audio is requested only with --audio-smoke-test.
   if (process.argv.includes("--smoke-test")) {
     try {
       const ready = await win.webContents.executeJavaScript(

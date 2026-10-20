@@ -4,7 +4,7 @@ Keep application source in Git and downloadable builds in GitHub Releases. Do no
 
 ## Build and check
 
-1. Use a clean checkout on Windows x64 with Node.js 22.12 or newer. Keep package.json and package-lock.json versions aligned.
+1. Use a clean checkout on Windows x64 with Node.js 24. Keep package.json and package-lock.json versions aligned. Linux packaging also needs the tools listed in [docs/LINUX.md](docs/LINUX.md).
 2. Run `npm ci`, then `node scripts/prepare-encoder.cjs`.
 3. Run `npm test` with ffprobe on PATH. Run the browser recording and framing checks described in CONTRIBUTING.md when changing capture, audio, or scene behavior.
 4. Run `npm run dist:win -- --x64 --publish never`. This creates Setup.exe and a portable ZIP. Run `python scripts/verify-release-package.py` to verify contents and write both checksums.
@@ -13,14 +13,14 @@ Keep application source in Git and downloadable builds in GitHub Releases. Do no
 
 ## Publish
 
-Create a release from the reviewed main-branch commit, with a matching version tag. For 0.4.0 use tag `v0.4.0` and title **Latitude 0.4.0 — desktop beta**. Mark it **pre-release**. Copy `docs/releases/0.4.0.md` into the release description.
+Create a release from the reviewed main-branch commit, with a matching version tag. For 0.6.0 use tag `v0.6.0` and title **Latitude 0.6.0 — Windows beta + Linux preview**. Mark it **pre-release**. Copy `docs/releases/0.6.0.md` into the release description.
 
-Attach Setup.exe, the portable ZIP, and SHA256SUMS.txt. GitHub provides source snapshots from the tag automatically; these exclude the encoder executable. An optional source bundle may include the encoder and must preserve its notices. Release notes should distinguish those formats.
+Attach Setup.exe, the portable ZIP, the Linux x86-64 Flatpak, and SHA256SUMS.txt. GitHub provides source snapshots from the tag automatically; these exclude the encoder executable. An optional source bundle may include the encoder and must preserve its notices. Release notes should distinguish those formats.
 
 Generate SHA-256 checksums of the exact final files, and verify them after upload. On Windows:
 
 ```powershell
-Get-FileHash .\Latitude-0.4.0-Windows-x64-Setup.exe -Algorithm SHA256
+Get-FileHash .\Latitude-0.6.0-Windows-x64-Setup.exe -Algorithm SHA256
 ```
 
 The Build Windows package workflow is an on-demand packaging aid. Its artifact is not automatically a public release, and a successful build does not verify hardware capture. The Tests workflow runs the unit and FFmpeg integration suite on source changes.

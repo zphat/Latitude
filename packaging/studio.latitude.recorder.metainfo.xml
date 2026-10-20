@@ -11,7 +11,7 @@
     <p>This Linux preview uses your desktop's screen-sharing picker on Wayland and PipeWire or PulseAudio for desktop sound. It targets desktop sessions, including SteamOS Desktop Mode.</p>
   </description>
   <launchable type="desktop-id">studio.latitude.recorder.desktop</launchable>
-  <url type="homepage">https://github.com/zphat/Latitude</url>
+  <url type="homepage">https://latitude.pictures</url>
   <url type="bugtracker">https://github.com/zphat/Latitude/issues</url>
   <url type="help">https://github.com/zphat/Latitude/blob/main/docs/LINUX.md</url>
   <content_rating type="oars-1.1"/>

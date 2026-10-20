@@ -17,7 +17,7 @@ static const char *sink_name, *source_name;
 static char *default_sink;
 static uint32_t module_id = PA_INVALID_INDEX;
 static uint32_t selected_sink = PA_INVALID_INDEX;
-static int listing, first = 1, stopping, loading, ready;
+static int listing, first = 1, stopping, loading, unloading, ready;
 
 static void json_string(const char *s) {
     putchar('"');
@@ -39,8 +39,9 @@ static void released(pa_context *c, int success, void *data) {
 }
 static void stop(void) {
     stopping = 1;
-    if (loading) return;
+    if (loading || unloading) return;
     if (module_id != PA_INVALID_INDEX) {
+        unloading = 1;
         uint32_t id = module_id;
         module_id = PA_INVALID_INDEX;
         pa_operation *op = pa_context_unload_module(context, id, released, NULL);
