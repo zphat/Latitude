@@ -3,6 +3,7 @@ const fsp = fs.promises;
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { spawn } = require("node:child_process");
+const { writeMedia } = require("./export-media.cjs");
 
 const TRACKS = [
   { id: "voice1", name: "Voice 1", channels: 1 },
@@ -283,6 +284,18 @@ class RecordingStore {
       throw Error("This recording could not be found in the selected folder.");
     return m;
   }
+  async playbackPath(id) {
+    const m = await this.resolve(id);
+    if (this.active?.manifest.id === id)
+      throw Error("Stop this take before playback.");
+    const latest = m.exports?.at(-1);
+    const target = latest?.path
+      ? path.join(latest.path, latest.file || "Recording.mp4")
+      : path.join(m.dir, m.videoFile || "capture.webm");
+    if (!path.resolve(target).startsWith(path.resolve(m.dir) + path.sep))
+      throw Error("Invalid recording path.");
+    return target;
+  }
   async export(id, options, binary, progress = () => {}) {
     if (this.exporting) throw Error("An export is already running.");
     if (this.active || this.beginning)
@@ -352,6 +365,11 @@ class RecordingStore {
     };
     let output;
     try {
+      const { exportOptions, exportFormat } = await import(
+        "../src/export-formats.js"
+      );
+      options = exportOptions(options);
+      const format = exportFormat(options.format);
       const m = await this.resolve(id),
         dir = m.dir;
       for (const t of TRACKS)
@@ -374,14 +392,12 @@ class RecordingStore {
         path.join(output, "INCOMPLETE.txt"),
         "This export has not finished. Your original recording is in the parent folder.\n",
       );
-      const target = [-14, -16, -18, -20].includes(Number(options.target))
-        ? Number(options.target)
-        : -16;
+      const target = options.target;
       let analysis = null,
         report = null;
       let filter = "anull";
       if (options.normalize !== false) {
-        notify({ stage: "Measuring loudness", percent: 8 });
+        notify({ stage: "Measuring loudness", percent: 8, end: 14 });
         analysis = parseLoudness(
           await encode([
             "-i",
@@ -406,145 +422,22 @@ class RecordingStore {
           filter = `loudnorm=I=${target}:TP=-1.5:LRA=11:measured_I=${analysis.input_i}:measured_TP=${analysis.input_tp}:measured_LRA=${analysis.input_lra}:measured_thresh=${analysis.input_thresh}:offset=${analysis.target_offset}:linear=true:print_format=json`;
         else notify({ stage: "Silent mix · preserving silence", percent: 15 });
       }
-      notify({ stage: "Writing the mastered mix", percent: 20 });
-      const mixLog = await encode([
-        "-y",
-        "-i",
-        path.join(dir, "mix.wav"),
-        "-af",
+      const media = await writeMedia({
+        manifest: { ...m, duration },
+        output,
+        options,
         filter,
-        "-ar",
-        String(m.sampleRate),
-        "-c:a",
-        "pcm_s24le",
-        "-rf64",
-        "auto",
-        path.join(output, "Mix.wav"),
-      ]);
-      report = parseLoudness(mixLog);
-      const stems = TRACKS.filter(
-        (t) =>
-          t.id !== "mix" &&
-          (t.id === "desktop"
-            ? m.desktop
-            : t.id.includes("2")
-              ? m.voice2
-              : m.voice1),
-      );
-      const names = {
-        voice1: "Voice 1.wav",
-        voice2: "Voice 2.wav",
-        desktop: "Desktop.wav",
-        raw1: "Voice 1 original.wav",
-        raw2: "Voice 2 original.wav",
-      };
-      for (const [i, t] of stems.entries()) {
-        notify({ stage: `Writing ${t.name}`, percent: 30 + i * 5 });
-        // Originals remain floating point. Processed editing stems use PCM 24-bit.
-        if (t.id.startsWith("raw"))
-          await fsp.copyFile(
-            path.join(dir, `${t.id}.wav`),
-            path.join(output, names[t.id]),
-          );
-        else
-          await encode([
-            "-y",
-            "-i",
-            path.join(dir, `${t.id}.wav`),
-            "-c:a",
-            "pcm_s24le",
-            "-rf64",
-            "auto",
-            path.join(output, names[t.id]),
-          ]);
-      }
-      const tracks = [
-        { file: "Mix.wav", name: "Full mix" },
-        ...stems
-          .filter((t) => !t.id.startsWith("raw"))
-          .map((t) => ({ file: names[t.id], name: t.name })),
-      ];
-      notify({
-        stage: "Encoding the video and separate audio tracks",
-        percent: 65,
+        encode,
+        notify,
+        signal,
       });
-      const copyVideo = /h264|avc1/i.test(m.captureMime || "");
-      const args = ["-y", "-i", path.join(dir, m.videoFile || "capture.webm")];
-      for (const t of tracks) args.push("-i", path.join(output, t.file));
-      args.push("-map", "0:v:0");
-      for (let i = 0; i < tracks.length; i++) args.push("-map", `${i + 1}:a:0`);
-      if (copyVideo) args.push("-c:v", "copy");
-      else
-        args.push(
-          "-c:v",
-          "libx264",
-          "-preset",
-          "veryfast",
-          "-crf",
-          String(
-            options.quality === "high"
-              ? 18
-              : options.quality === "efficient"
-                ? 24
-                : 21,
-          ),
-          "-pix_fmt",
-          "yuv420p",
-          "-threads:v",
-          "4",
-        );
-      args.push("-c:a", "aac", "-b:a", "256k", "-ar", String(m.sampleRate));
-      for (let i = 0; i < tracks.length; i++)
-        args.push(
-          `-metadata:s:a:${i}`,
-          `title=${tracks[i].name}`,
-          `-metadata:s:a:${i}`,
-          `handler_name=${tracks[i].name}`,
-          `-disposition:a:${i}`,
-          i === 0 ? "default" : "0",
-        );
-      // Finish on the sample-aligned audio duration. tpad preserves the last frame
-      // if MediaRecorder ended a frame early, avoiding dropped tail audio.
-      if (!copyVideo) args.push("-vf", "tpad=stop_mode=clone:stop_duration=1");
-      args.push(
-        "-t",
-        String(duration),
-        "-movflags",
-        "+faststart",
-        path.join(output, "Recording.mp4"),
-      );
-      await encode(args);
-      if (options.editorClips) {
-        for (let i = 1; i < tracks.length; i++) {
-          notify({
-            stage: `Making ${tracks[i].name} editor clip`,
-            percent: Math.floor(85 + ((i - 1) * 8) / (tracks.length - 1)),
-            end: Math.floor(85 + (i * 8) / (tracks.length - 1)),
-          });
-          await encode([
-            "-y",
-            "-i",
-            path.join(output, "Recording.mp4"),
-            "-map",
-            "0:v:0",
-            "-map",
-            `0:a:${i}`,
-            "-c",
-            "copy",
-            "-disposition:a:0",
-            "default",
-            "-movflags",
-            "+faststart",
-            path.join(output, `${tracks[i].name} only.mp4`),
-          ]);
-        }
-      }
+      report = parseLoudness(media.mixLog);
       notify({ stage: "Measuring the exported mix", percent: 94 });
-      // Measure the actual encoded first audio track; AAC can alter true peaks.
+      // Measure the delivered mix, since lossy encoding can alter true peaks.
       const verified = parseLoudness(
         await encode([
           "-i",
-          path.join(output, "Recording.mp4"),
+          path.join(output, media.file),
           "-map",
           "0:a:0",
           "-af",
@@ -555,7 +448,14 @@ class RecordingStore {
         ]),
       );
       const exportReport = {
-        videoMode: copyVideo ? "H.264 stream copy" : "H.264 encode",
+        format: format.id,
+        file: media.file,
+        codecs: format.codecs,
+        videoMode: media.videoMode,
+        separateTracks: options.separateTracks,
+        embeddedAudioTracks: format.kind === "video" ? media.tracks.length : 1,
+        editingFiles: media.sidecars,
+        exportOptions: options,
         targetLUFS: options.normalize === false ? null : target,
         measuredLUFS: verified?.input_i ?? null,
         truePeakDBTP: verified?.input_tp ?? null,
@@ -563,7 +463,7 @@ class RecordingStore {
         normalization: report?.normalization_type ?? "off or silent",
         duration,
         sampleRate: m.sampleRate,
-        tracks: tracks.map((t) => t.name),
+        tracks: media.tracks,
         markers: m.markers || [],
         sourceAnalysis: analysis,
       };
@@ -586,14 +486,18 @@ class RecordingStore {
         [
           "LATITUDE — YOUR EDITING PACK",
           "",
-          "Recording.mp4: video with Full mix as the default audio stream, followed by isolated voice and desktop streams.",
-          "For CapCut: import Recording.mp4 and the Voice / Desktop WAVs. Put all files at the same timeline start, mute the video audio, then group/link the clips before cutting.",
-          "Some CapCut versions do not expose alternate embedded audio streams. The WAVs are the reliable fallback.",
+          `${media.file}: ${format.codecs}. ${format.kind === "video" ? `Full mix is the default audio stream. ${options.separateTracks ? "Isolated microphone and desktop streams follow for each recorded source." : "This export contains only the full mix."}` : `The mix is in this file. ${options.separateTracks ? "Each recorded source has its own audio file." : "This export contains only the full mix."}`}`,
+          `Format guidance: ${format.compatibility} ${format.size}`,
+          format.kind === "video"
+            ? "For CapCut, MP4 is the recommended format. Some versions do not expose alternate embedded audio streams. Use the aligned WAV editing files or the per-source video copies."
+            : "For sample-aligned editing, choose WAV or FLAC. MP3/AAC decoder handling of encoder delay can vary between editors.",
+          options.editingFiles && options.separateTracks
+            ? "Put the video and Voice / Desktop WAVs at the same timeline start, mute the video audio, then group/link clips before cutting. Original voice WAVs are pre-processing floating-point backups; input mute is respected."
+            : "Your original voice, desktop, and mix recordings remain in the parent session folder. Re-export with separate sources and WAV editing files whenever needed.",
           options.editorClips
-            ? "The “only.mp4” clips each contain the same video and one isolated audio track for editing individual clip instances."
-            : "Enable “Separate video copies” on export if you want a video file per audio source.",
-          "Mix.wav is mastered separately. Voice and Desktop stems retain their relative mix levels and are not individually loudness-normalized.",
-          "Original voice files are pre-processing floating-point backups. Input mute is always respected.",
+            ? `The “only.${format.extension}” clips each contain the same video and one isolated audio track. They preserve the selected format and use extra disk space.`
+            : "For video, enable separate sources and per-source video copies if you need to choose a mic-only or desktop-only file for individual clip instances.",
+          "Only the full mix is loudness-normalized. Isolated sources retain their relative recording levels and live processing.",
           "Audio stems share one sample clock. Check lip sync with a clap on your hardware before a long session; input driver and webcam latency vary.",
           "Audio report.json contains measured export loudness and encoded true peak. Markers.csv lists your recording markers.",
           "Keep the parent session folder until you are done editing; it contains recoverable originals.",
@@ -607,6 +511,7 @@ class RecordingStore {
           ...(m.exports || []),
           {
             path: output,
+            file: media.file,
             date: new Date().toISOString(),
             report: exportReport,
           },
@@ -626,7 +531,7 @@ class RecordingStore {
       );
       await fsp.unlink(path.join(output, "INCOMPLETE.txt"));
       notify({ stage: "Ready to edit", percent: 100 });
-      return { dir: output, report: exportReport };
+      return { dir: output, file: media.file, report: exportReport };
     } catch (error) {
       // Remove only this attempt's incomplete export, never originals or earlier exports.
       if (signal.aborted && output)

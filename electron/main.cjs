@@ -297,14 +297,7 @@ app.whenReady().then(async () => {
   });
   handle("sessions:list", () => store.list());
   handle("record:play", async (id) => {
-    const s = await store.resolve(id);
-    if (store.active?.manifest.id === id)
-      throw Error("Stop this take before playback.");
-    const target = s.exports?.at(-1)?.path
-      ? path.join(s.exports.at(-1).path, "Recording.mp4")
-      : path.join(s.dir, s.videoFile || "capture.webm");
-    if (!path.resolve(target).startsWith(path.resolve(s.dir) + path.sep))
-      throw Error("Invalid recording path.");
+    const target = await store.playbackPath(id);
     const error = await shell.openPath(target);
     if (error) throw Error(error);
   });

@@ -6,6 +6,8 @@ import { installStudioTools } from "./studio-tools.js";
 import { layout } from "./design.js";
 import { sceneDocuments, bitrateFor } from "./scene-model.js";
 import { installSceneEditor } from "./scene-editor.js";
+import { EXPORT_FORMATS } from "./export-formats.js";
+import { mountExportControls } from "./export-ui.js";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -43,6 +45,9 @@ let config = {
   target: -16,
   normalize: true,
   editorClips: false,
+  format: "mp4",
+  separateTracks: true,
+  editingFiles: true,
   autoExport: true,
   hotkeys: true,
   mic1: "",
@@ -55,6 +60,7 @@ let config = {
   appearance: {},
   ...saved,
 };
+if (!EXPORT_FORMATS.some((f) => f.id === config.format)) config.format = "mp4";
 config.profiles ??= {};
 if (!Array.isArray(config.noise)) config.noise = [false, false];
 if (!Array.isArray(config.preset)) config.preset = ["natural", "natural"];
@@ -952,7 +958,7 @@ async function loadTakes() {
     container.innerHTML = sessions
       .map((s) => {
         const report = s.exports?.at(-1)?.report;
-        return `<article class="take-card"><div class="take-art">${icon("wave")}</div><div class="take-info"><h3>${escape(s.name)}</h3><p>${escape(new Date(s.created).toLocaleString())} · ${formatTime(s.duration || 0)} · ${s.width || 1920} × ${s.height || 1080}</p><div class="take-meta"><span class="tag">${s.status === "interrupted" ? "Interrupted · recovery available" : s.status === "exported" ? "Ready to edit" : s.status === "recording" ? "Recording" : "Originals saved"}</span>${report ? `<span class="tag">${escape(report.measuredLUFS)} LUFS · ${escape(report.truePeakDBTP)} dBTP</span>` : ""}</div></div><div class="take-actions"><button class="button" data-play-take="${s.id}" ${s.status === "recording" ? "disabled" : ""} title="Play in your media player">${icon("play")} Play</button><button class="button" data-open-take="${s.id}">${icon("folder")} Open files</button><button class="button ${s.id === lastSavedId ? "primary" : ""}" data-export-take="${s.id}" ${exporting || engine.recording || engine.finishing || engine.starting || s.status === "recording" ? "disabled" : ""}>${icon("download")} ${s.status === "interrupted" ? "Recover & export" : "Export"}</button></div></article>`;
+        return `<article class="take-card"><div class="take-art">${icon("wave")}</div><div class="take-info"><h3>${escape(s.name)}</h3><p>${escape(new Date(s.created).toLocaleString())} · ${formatTime(s.duration || 0)} · ${s.width || 1920} × ${s.height || 1080}</p><div class="take-meta"><span class="tag">${s.status === "interrupted" ? "Interrupted · recovery available" : s.status === "exported" ? "Ready to edit" : s.status === "recording" ? "Recording" : "Originals saved"}</span>${report ? `<span class="tag">${escape((report.format || "mp4").toUpperCase())} · ${report.tracks?.length || 1} audio ${report.tracks?.length === 1 ? "track" : "tracks"}</span><span class="tag">${escape(report.measuredLUFS)} LUFS · ${escape(report.truePeakDBTP)} dBTP</span>` : ""}</div></div><div class="take-actions"><button class="button" data-play-take="${s.id}" ${s.status === "recording" ? "disabled" : ""} title="Play in your media player">${icon("play")} Play</button><button class="button" data-open-take="${s.id}">${icon("folder")} Open files</button><button class="button ${s.id === lastSavedId ? "primary" : ""}" data-export-take="${s.id}" ${exporting || engine.recording || engine.finishing || engine.starting || s.status === "recording" ? "disabled" : ""}>${icon("download")} ${s.status === "interrupted" ? "Recover & export" : "Export"}</button></div></article>`;
       })
       .join("");
     $$("[data-play-take]").forEach(
@@ -969,31 +975,67 @@ async function loadTakes() {
     toast(e.message, true);
   }
 }
+function exportDefaults() {
+  return {
+    format: config.format,
+    separateTracks: config.separateTracks,
+    editingFiles: config.editingFiles,
+    editorClips: config.editorClips,
+    target: config.target,
+    normalize: config.normalize,
+  };
+}
+let defaultsControls;
+function syncExportDefaults() {
+  defaultsControls = mountExportControls(
+    $("#default-output-options"),
+    "default",
+    exportDefaults(),
+    (options) => {
+      const { format, separateTracks, editingFiles, editorClips } = options;
+      Object.assign(config, {
+        format,
+        separateTracks,
+        editingFiles,
+        editorClips,
+      });
+      persist();
+    },
+  );
+}
 function exportDialog(id) {
   modal(
-    "Make it ready to edit.",
-    `<div class="modal-grid"><section class="modal-section"><h3>The final mix</h3><label>Loudness target<select id="export-target"><option value="-16">−16 LUFS · Podcast</option><option value="-18">−18 LUFS · Natural</option><option value="-14">−14 LUFS · Louder</option><option value="-20">−20 LUFS · Gentle</option></select></label><label class="toggle-row"><span>Measure & normalize</span><input type="checkbox" id="export-normalize" ${config.normalize ? "checked" : ""}></label><p>Two-pass loudness processing. Live processing stays in the isolated tracks; only the final mix is normalized.</p></section><section class="modal-section"><h3>CapCut editing pack</h3><p>MP4 with separate embedded tracks, aligned WAV stems, original voices, and an audio report.</p><label class="toggle-row"><span>Also make a video copy for each audio track</span><input type="checkbox" id="export-copies" ${config.editorClips ? "checked" : ""}></label><p>Choose a mic-only or desktop-only version for each clip instance. Uses extra disk space.</p></section></div><div class="modal-footer"><button class="button primary" id="start-export">Export this take ${icon("arrow")}</button></div>`,
+    "Your format. Your tracks.",
+    `<div class="modal-grid export-grid"><section class="modal-section"><h3>Files to create</h3><div id="export-output-options"></div></section><section class="modal-section"><h3>The final mix</h3><label>Loudness target<select id="export-target"><option value="-16">−16 LUFS · Podcast</option><option value="-18">−18 LUFS · Natural</option><option value="-14">−14 LUFS · Louder</option><option value="-20">−20 LUFS · Gentle</option></select></label><label class="toggle-row"><span>Measure & normalize</span><input type="checkbox" id="export-normalize" ${config.normalize ? "checked" : ""}></label><p>Two-pass loudness processing. Live processing stays in the isolated tracks; only the final mix is normalized.</p><div class="notice">Every export goes into a new folder. You can try another format later without replacing your originals or earlier exports.</div><label class="toggle-row"><span>Use these choices for future recordings</span><input type="checkbox" id="export-remember"></label><p>Automatic export uses your saved defaults after you stop. Recording first saves recoverable video and separate audio originals.</p></section></div><div class="modal-footer"><button class="button primary" id="start-export">Export this take ${icon("arrow")}</button></div>`,
     "EXPORT",
+  );
+  const controls = mountExportControls(
+    $("#export-output-options"),
+    "export",
+    exportDefaults(),
   );
   $("#export-target").value = config.target;
   $("#start-export").onclick = () => {
     const options = {
+      ...controls.read(),
       target: Number($("#export-target").value),
       normalize: $("#export-normalize").checked,
-      editorClips: $("#export-copies").checked,
     };
+    // Export quality follows the recorded-quality preference; format controls
+    // only supply the output choices, never silently reset recording quality.
+    delete options.quality;
+    if ($("#export-remember").checked) {
+      Object.assign(config, options);
+      $("#target-loudness").value = config.target;
+      $("#normalize").checked = config.normalize;
+      syncExportDefaults();
+      persist();
+    }
     closeModal();
     doExport(id, options);
   };
 }
-async function doExport(
-  id,
-  options = {
-    target: config.target,
-    normalize: config.normalize,
-    editorClips: config.editorClips,
-  },
-) {
+async function doExport(id, options = exportDefaults()) {
   if (engine.recording || engine.finishing || engine.starting) {
     toast("Stop and save your current take before exporting.");
     return;
@@ -1166,7 +1208,6 @@ for (const [id, key] of [
   ["#auto-export", "autoExport"],
   ["#use-countdown", "countdown"],
   ["#normalize", "normalize"],
-  ["#editor-clips", "editorClips"],
   ["#global-hotkeys", "hotkeys"],
   ["#reconnect-mic", "reconnectMic"],
 ]) {
@@ -1185,6 +1226,7 @@ for (const [id, key] of [
     }
   });
 }
+syncExportDefaults();
 $("#target-loudness").value = config.target;
 $("#target-loudness").onchange = (e) => {
   config.target = Number(e.target.value);
@@ -1234,6 +1276,8 @@ $("#diagnostics-button").onclick = () => {
         quality: config.quality,
         codec: config.codec,
         preview: config.previewMode,
+        exportFormat: config.format,
+        separateTracks: config.separateTracks,
       },
       audio: {
         sampleRate: engine.ctx?.sampleRate || 48000,
