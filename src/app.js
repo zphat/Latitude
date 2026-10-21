@@ -8,6 +8,9 @@ import { sceneDocuments, bitrateFor } from "./scene-model.js";
 import { installSceneEditor } from "./scene-editor.js";
 import { EXPORT_FORMATS } from "./export-formats.js";
 import { mountExportControls } from "./export-ui.js";
+import { ModRegistry } from "./mods/registry.js";
+import { TRUSTED_MODS } from "./mods/catalog.js";
+import { installModsPage } from "./mods/ui.js";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -188,6 +191,7 @@ function view(name) {
   );
   $("#inspector").style.display = name === "studio" ? "" : "none";
   if (name === "recordings") loadTakes();
+  window.dispatchEvent(new Event("latitude-view"));
 }
 $$("[data-view]").forEach((b) => (b.onclick = () => view(b.dataset.view)));
 $("#go-soundcheck").onclick = () => view("soundcheck");
@@ -814,7 +818,53 @@ $("#scene-settings").onclick = () => {
   };
 };
 
+function previewTransport(state) {
+  const active = state === "recording" || state === "paused";
+  $("#preview-transport").dataset.state = state;
+  $("#preview-status").textContent = {
+    ready: "Ready",
+    countdown: "Get ready",
+    starting: "Starting…",
+    recording: "Recording",
+    paused: "Paused",
+    saving: "Saving…",
+  }[state];
+  $("#preview-clock").hidden = !active && state !== "saving";
+  $("#preview-pause").hidden = !active;
+  $("#preview-pause").textContent = state === "paused" ? "▶" : "Ⅱ";
+  $("#preview-pause").setAttribute(
+    "aria-label",
+    state === "paused" ? "Resume recording" : "Pause recording",
+  );
+  $("#preview-record-label").textContent = active
+    ? "Stop"
+    : state === "countdown"
+      ? "Cancel"
+      : "Record";
+  $("#preview-record").setAttribute(
+    "aria-label",
+    active
+      ? "Stop recording"
+      : state === "countdown"
+        ? "Cancel countdown"
+        : "Start recording",
+  );
+  $("#preview-record").title =
+    $("#preview-record").getAttribute("aria-label") + " · Ctrl Shift R";
+  $("#preview-record").disabled = state === "starting" || state === "saving";
+  $("#recording-indicator").hidden = !active;
+  $("#recording-indicator").classList.toggle("paused", state === "paused");
+  $("#overlay-record-state").textContent =
+    state === "paused" ? "PAUSED" : "REC";
+  $("#preview-dot").classList.toggle("record", state === "recording");
+  document.body.classList.toggle("recording-paused", state === "paused");
+  window.dispatchEvent(new Event("latitude-view"));
+}
 async function record() {
+  if (modRegistry.changing) {
+    toast("Wait for the add-on to finish changing state before recording.");
+    return;
+  }
   if (engine.starting) return;
   if (exporting) {
     toast("Finish or cancel the export in Takes before recording.");
@@ -826,6 +876,7 @@ async function record() {
     starting = false;
     $("#countdown").hidden = true;
     $("#record-label").textContent = "Start recording";
+    previewTransport("ready");
     return;
   }
   if (engine.finishing) return;
@@ -866,6 +917,7 @@ async function record() {
   try {
     if (config.countdown) {
       $("#record-label").textContent = "Cancel countdown";
+      previewTransport("countdown");
       $("#countdown").hidden = false;
       for (let n = 3; n > 0; n--) {
         $("#countdown").textContent = n;
@@ -875,6 +927,7 @@ async function record() {
       $("#countdown").hidden = true;
     }
     $("#record-button").disabled = true;
+    previewTransport("starting");
     await engine.start({
       name: config.name,
       width: config.width,
@@ -885,13 +938,21 @@ async function record() {
       codec: config.codec,
     });
   } finally {
-    starting = false;
-    $("#countdown").hidden = true;
-    $("#record-button").disabled = false;
-    if (!engine.recording) $("#record-label").textContent = "Start recording";
+    // A cancelled countdown must not reset a newer countdown.
+    if (token === countdownToken) {
+      starting = false;
+      $("#countdown").hidden = true;
+      $("#record-button").disabled = false;
+      if (!engine.recording) $("#record-label").textContent = "Start recording";
+      previewTransport(
+        engine.recording ? (engine.paused ? "paused" : "recording") : "ready",
+      );
+    }
   }
 }
 $("#record-button").onclick = attempt(record);
+$("#preview-record").onclick = attempt(record);
+$("#preview-pause").onclick = () => engine.pause();
 $("#pause-button").onclick = () => engine.pause();
 $("#marker-button").onclick = attempt(() => engine.marker("Edit point"));
 engine.addEventListener("marker", ({ detail: m }) =>
@@ -906,8 +967,7 @@ engine.addEventListener("recording", ({ detail: on }) => {
   $("#pause-button").disabled = !on;
   $("#pause-label").textContent = "Pause";
   $("#preview-title").textContent = "Scene preview";
-  $("#recording-indicator").hidden = !on;
-  $("#preview-dot").classList.toggle("record", on);
+  previewTransport(on ? "recording" : "ready");
   $("#record-state").textContent = on
     ? "RECORDING · ALL TRACKS"
     : "READY WHEN YOU ARE";
@@ -939,12 +999,13 @@ engine.addEventListener("paused", ({ detail: paused }) => {
   $("#preview-title").textContent = paused
     ? "Recording paused"
     : "Scene preview";
-  $("#recording-indicator").hidden = paused;
+  previewTransport(paused ? "paused" : "recording");
 });
 engine.addEventListener("saving", () => {
   $("#record-label").textContent = "Saving take…";
   $("#record-button").disabled = true;
   $("#record-state").textContent = "FINISHING";
+  previewTransport("saving");
 });
 engine.addEventListener("saved", async ({ detail: s }) => {
   lastSavedId = s.id;
@@ -967,6 +1028,7 @@ setInterval(() => {
   if (document.hidden) return;
   $("#timer").textContent = formatTime(engine.time());
   $("#preview-timer").textContent = formatTime(engine.time());
+  $("#preview-clock").textContent = formatTime(engine.time());
   const f = $("#actual-fps");
   f.textContent = engine.recording
     ? `${Math.round(compositor.measuredFps)} / ${config.fps} fps`
@@ -1080,6 +1142,10 @@ function exportDialog(id) {
   };
 }
 async function doExport(id, options = exportDefaults()) {
+  if (modRegistry.changing) {
+    toast("Wait for the add-on to finish changing state before exporting.");
+    return;
+  }
   if (engine.recording || engine.finishing || engine.starting) {
     toast("Stop and save your current take before exporting.");
     return;
@@ -1089,6 +1155,7 @@ async function doExport(id, options = exportDefaults()) {
     return;
   }
   exporting = true;
+  window.dispatchEvent(new Event("latitude-view"));
   $("#cancel-export").disabled = false;
   $("#record-button").disabled = true;
   $("#record-label").textContent = "Export in progress";
@@ -1118,6 +1185,7 @@ async function doExport(id, options = exportDefaults()) {
     );
   } finally {
     exporting = false;
+    window.dispatchEvent(new Event("latitude-view"));
     $("#record-button").disabled = false;
     $("#record-label").textContent = "Start recording";
     $("#export-progress").hidden = true;
@@ -1430,7 +1498,33 @@ navigator.mediaDevices?.addEventListener("devicechange", () => {
   if (engine.recording)
     toast("An audio or camera device changed. Check the source meters.");
 });
+if (
+  !config.mods ||
+  typeof config.mods !== "object" ||
+  Array.isArray(config.mods)
+)
+  config.mods = {};
+const modsBusy = () =>
+  engine.recording ||
+  engine.finishing ||
+  engine.starting ||
+  starting ||
+  exporting;
+const modRegistry = new ModRegistry({
+  entries: TRUSTED_MODS,
+  enabled: config.mods,
+  capabilities: {
+    "studio-output": Object.freeze({
+      register: (p) => engine.outputs.register(p),
+      start: (id, options) => engine.outputs.start(id, options),
+      stop: (id) => engine.outputs.stop(id),
+    }),
+  },
+  isBusy: modsBusy,
+  save: persist,
+});
 const studioTools = installStudioTools({
+  isBusy: () => modsBusy() || modRegistry.changing,
   $,
   $$,
   escape,
@@ -1451,6 +1545,20 @@ const studioTools = installStudioTools({
   chooseScreen,
   refreshSources,
 });
+const modsPage = installModsPage({
+  $,
+  escape,
+  icon,
+  registry: modRegistry,
+  studioTools,
+  attempt,
+  isBusy: modsBusy,
+  modal,
+  closeModal,
+});
+for (const event of ["recording", "saving", "saved"])
+  engine.addEventListener(event, () => modsPage.render());
+modRegistry.restore().catch((e) => toast(e.message, true));
 const sceneEditor = installSceneEditor({
   $,
   $$,
@@ -1543,4 +1651,5 @@ if (
     finishCheck,
     studioTools,
     sceneEditor,
+    modRegistry,
   };

@@ -39,8 +39,37 @@ export function installStudioTools(api) {
   } catch {
     delete config.pack;
   }
-  const themes = () => [...THEMES, ...(pack?.themes || [])],
-    templates = () => [...TEMPLATES, ...(pack?.templates || [])];
+  const activePack = () => (config.packEnabled !== false ? pack : null);
+  const themes = () => [...THEMES, ...(activePack()?.themes || [])],
+    templates = () => [...TEMPLATES, ...(activePack()?.templates || [])];
+  function checkPackChanges() {
+    if (
+      api.isBusy?.() ||
+      engine.recording ||
+      engine.starting ||
+      engine.finishing
+    )
+      throw Error("Change add-ons between recordings and exports.");
+  }
+  function setPackEnabled(on) {
+    checkPackChanges();
+    if (!on && !THEMES.some((t) => t.id === config.theme))
+      config.packTheme = config.theme;
+    config.packEnabled = on;
+    applyTheme(on ? config.packTheme || config.theme : config.theme);
+    refreshThemeMenu();
+    window.dispatchEvent(new Event("latitude-pack"));
+  }
+  function removePack() {
+    checkPackChanges();
+    pack = null;
+    delete config.pack;
+    delete config.packTheme;
+    delete config.packEnabled;
+    applyTheme(config.theme);
+    refreshThemeMenu();
+    window.dispatchEvent(new Event("latitude-pack"));
+  }
   const saveLayout = () => {
     config.layout = structuredClone(compositor.layout);
     persist();
@@ -441,11 +470,15 @@ export function installStudioTools(api) {
     modal("A different atmosphere.", themeChoices(), "APPEARANCE");
     bindThemes();
   };
-  $("#import-pack").onclick = () => $("#pack-file").click();
+  $("#import-pack").onclick = attempt(() => {
+    checkPackChanges();
+    $("#pack-file").click();
+  });
   $("#pack-file").onchange = attempt(async (e) => {
     const file = e.target.files[0];
     try {
       if (!file) return;
+      checkPackChanges();
       if (file.size > 12 * 1024 * 1024)
         throw Error("Packs must be smaller than 12 MB.");
       const candidate = validatePack(JSON.parse(await file.text()));
@@ -455,17 +488,22 @@ export function installStudioTools(api) {
         "THEMES & LAYOUTS",
       );
       $("#confirm-pack").onclick = attempt(async () => {
+        checkPackChanges();
         await importAssets(candidate.assets);
+        checkPackChanges();
         compositor.clearImageCache();
         const { assets, ...settings } = candidate;
         pack = settings;
         config.pack = settings;
+        config.packEnabled = true;
+        delete config.packTheme;
         applyTheme(
           THEMES.some((t) => t.id === config.theme)
             ? config.theme
             : THEMES[0].id,
         );
         refreshThemeMenu();
+        window.dispatchEvent(new Event("latitude-pack"));
         closeModal();
         toast(
           "Pack added. Find its themes in Settings and layouts in Templates.",
@@ -514,6 +552,10 @@ export function installStudioTools(api) {
   refreshThemeMenu();
   updateOverlay();
   return {
+    getPack: () =>
+      pack ? { ...pack, enabled: config.packEnabled !== false } : null,
+    setPackEnabled,
+    removePack,
     onboard,
     cropEditor,
     layoutEditor,

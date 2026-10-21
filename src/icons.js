@@ -1,4 +1,6 @@
 const paths = {
+  puzzle:
+    '<path d="M9 3H4a1 1 0 0 0-1 1v5h2a2 2 0 1 1 0 4H3v7a1 1 0 0 0 1 1h5v-2a2 2 0 1 1 4 0v2h7a1 1 0 0 0 1-1v-7h-2a2 2 0 1 1 0-4h2V4a1 1 0 0 0-1-1h-7v2a2 2 0 1 1-4 0z"/>',
   type: '<path d="M4 5V3h16v2M12 3v18M8 21h8"/>',
   image:
     '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1"/><path d="m3 17 6-6 4 4 3-3 5 5"/>',

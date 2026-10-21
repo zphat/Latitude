@@ -191,7 +191,12 @@ export class StudioEngine extends EventTarget {
     await this.init();
     if (window.take && source) await window.take.chooseSource(source);
     const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: captureConstraints("screen", this.compositor.outputWidth, this.compositor.outputHeight, this.compositor.fps),
+      video: captureConstraints(
+        "screen",
+        this.compositor.outputWidth,
+        this.compositor.outputHeight,
+        this.compositor.fps,
+      ),
       audio:
         window.take?.platform !== "linux" &&
         slot === "a" &&
@@ -489,7 +494,9 @@ export class StudioEngine extends EventTarget {
       const track = this.streams[key]?.getVideoTracks()[0];
       if (track)
         try {
-          await track.applyConstraints(captureConstraints(key, options.width, options.height, options.fps));
+          await track.applyConstraints(
+            captureConstraints(key, options.width, options.height, options.fps),
+          );
           setVideoHint(track, options.fps, key === "camera");
         } catch {
           this.emit(

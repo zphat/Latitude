@@ -204,19 +204,13 @@ export class Compositor {
       x = 0;
       y = 0;
     }
-    const sx = this.canvas.width / 1920, sy = this.canvas.height / 1080;
+    const sx = this.canvas.width / 1920,
+      sy = this.canvas.height / 1080;
     const left = Math.round((x + (w - dw) / 2) * sx) / sx,
       top = Math.round((y + (h - dh) / 2) * sy) / sy,
       right = Math.round((x + (w + dw) / 2) * sx) / sx,
       bottom = Math.round((y + (h + dh) / 2) * sy) / sy;
-    c.drawImage(
-      v,
-      r.x,
-      r.y,
-      r.w,
-      r.h,
-      left, top, right - left, bottom - top,
-    );
+    c.drawImage(v, r.x, r.y, r.w, r.h, left, top, right - left, bottom - top);
     c.restore();
   }
   placeholder(c, x, y, w, h, label) {
@@ -358,12 +352,21 @@ export class Compositor {
   }
   renderScene(c, s) {
     c.imageSmoothingEnabled = true;
-    c.imageSmoothingQuality = this.quality === "high" ? "high" : this.quality === "efficient" ? "low" : "medium";
+    c.imageSmoothingQuality =
+      this.quality === "high"
+        ? "high"
+        : this.quality === "efficient"
+          ? "low"
+          : "medium";
     c.fillStyle = "#090b0d";
     c.fillRect(0, 0, 1920, 1080);
     for (const l of this.getLayers(s)) {
       if (!l.visible || l.opacity <= 0) continue;
-      const { x, y, w, h } = pixelBounds(l, this.canvas.width, this.canvas.height);
+      const { x, y, w, h } = pixelBounds(
+        l,
+        this.canvas.width,
+        this.canvas.height,
+      );
       c.save();
       c.globalAlpha *= l.opacity;
       c.translate(x, y);
@@ -445,21 +448,33 @@ export class Compositor {
     const tick = () => {
       this.timer = null;
       const now = performance.now();
-      let live = false, changed = false;
+      let live = false,
+        changed = false;
       for (const l of this.getLayers()) {
         if (!l.visible || l.opacity <= 0 || l.type !== "video") continue;
         const v = this.source(l.source);
         if (!this.ready(v)) continue;
         live = true;
         const frames = v.getVideoPlaybackQuality?.().totalVideoFrames;
-        if (frames == null || this.videoFrames.get(v) !== frames) changed = true;
+        if (frames == null || this.videoFrames.get(v) !== frames)
+          changed = true;
         this.videoFrames.set(v, frames);
       }
       const capturing = this.recording && !this.paused,
         active = capturing || (this.visible && (live || this.previous)),
-        fps = capturing ? this.fps : this.previewMode === "eco" ? 10 : this.previewMode === "detail" ? 30 : 15;
+        fps = capturing
+          ? this.fps
+          : this.previewMode === "eco"
+            ? 10
+            : this.previewMode === "detail"
+              ? 30
+              : 15;
       // Keep recording cadence; skip unchanged idle preview paints.
-      if (capturing || (this.visible && (this.dirty || changed || this.previous))) this.draw(now);
+      if (
+        capturing ||
+        (this.visible && (this.dirty || changed || this.previous))
+      )
+        this.draw(now);
       if (now - this.counterAt >= 1000) {
         this.measuredFps = (this.frames * 1000) / (now - this.counterAt);
         this.frames = 0;

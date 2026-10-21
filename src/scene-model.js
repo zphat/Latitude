@@ -261,9 +261,5 @@ export function bitrateFor(height, fps, quality = "balanced") {
     high: { 720: 10, 1080: 20, 1440: 32, 2160: 64 },
   };
   const base = (rates[quality] || rates.balanced)[height] || 12;
-  return Math.round(
-    base *
-      (fps === 60 ? 1.65 : 1) *
-      1e6,
-  );
+  return Math.round(base * (fps === 60 ? 1.65 : 1) * 1e6);
 }
