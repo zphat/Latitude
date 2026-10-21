@@ -1,5 +1,6 @@
 import { PRESETS } from "../audio/dsp.js";
 import { OutputExtensions } from "./extensions.js";
+import { captureConstraints, setVideoHint } from "./video-quality.js";
 
 export class StudioEngine extends EventTarget {
   constructor(canvas, compositor) {
@@ -190,11 +191,7 @@ export class StudioEngine extends EventTarget {
     await this.init();
     if (window.take && source) await window.take.chooseSource(source);
     const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: {
-        width: { ideal: this.compositor.outputWidth },
-        height: { ideal: this.compositor.outputHeight },
-        frameRate: { ideal: this.compositor.fps, max: this.compositor.fps },
-      },
+      video: captureConstraints("screen", this.compositor.outputWidth, this.compositor.outputHeight, this.compositor.fps),
       audio:
         window.take?.platform !== "linux" &&
         slot === "a" &&
@@ -209,6 +206,7 @@ export class StudioEngine extends EventTarget {
     }
     this.streams[key]?.getTracks().forEach((t) => t.stop());
     this.streams[key] = stream;
+    setVideoHint(stream.getVideoTracks()[0], this.compositor.fps);
     this.compositor.setScreen(stream, slot);
     const linuxSystem =
       window.take?.platform === "linux" &&
@@ -369,6 +367,7 @@ export class StudioEngine extends EventTarget {
     }
     this.streams.camera?.getTracks().forEach((t) => t.stop());
     this.streams.camera = stream;
+    setVideoHint(stream.getVideoTracks()[0], this.compositor.fps, true);
     this.compositor.setCamera(stream);
     stream.getVideoTracks()[0].onended = () => {
       if (this.streams.camera === stream) {
@@ -490,11 +489,8 @@ export class StudioEngine extends EventTarget {
       const track = this.streams[key]?.getVideoTracks()[0];
       if (track)
         try {
-          await track.applyConstraints({
-            width: { ideal: options.width },
-            height: { ideal: options.height },
-            frameRate: { ideal: options.fps, max: options.fps },
-          });
+          await track.applyConstraints(captureConstraints(key, options.width, options.height, options.fps));
+          setVideoHint(track, options.fps, key === "camera");
         } catch {
           this.emit(
             "error",
@@ -505,11 +501,13 @@ export class StudioEngine extends EventTarget {
     this.compositor.outputWidth = options.width;
     this.compositor.outputHeight = options.height;
     this.compositor.fps = options.fps;
+    this.compositor.quality = options.quality || "balanced";
     try {
       this.compositor.setRecording(true);
       this.compositor.draw(); // The compositor owns pacing. A second capture timer can miss completed frames.
       this.canvasStream = this.canvas.captureStream(0);
       this.compositor.captureTrack = this.canvasStream.getVideoTracks()[0];
+      setVideoHint(this.compositor.captureTrack, options.fps);
       const combined = new MediaStream([
         ...this.canvasStream.getVideoTracks(),
         ...this.mixDestination.stream.getAudioTracks(),
@@ -526,7 +524,7 @@ export class StudioEngine extends EventTarget {
       if (!mime) throw Error("This runtime has no compatible video recorder.");
       this.recorder = new MediaRecorder(combined, {
         mimeType: mime,
-        videoBitsPerSecond: options.bitrate || 9000000,
+        videoBitsPerSecond: options.bitrate || 12000000,
         audioBitsPerSecond: 256000,
       });
       this.session = await window.take.begin({
@@ -661,6 +659,7 @@ export class StudioEngine extends EventTarget {
       this.pausedTime += now - this.pauseAt;
       this.paused = false;
     }
+    this.compositor.setPaused(this.paused);
     this.emit("paused", this.paused);
   }
   stop() {

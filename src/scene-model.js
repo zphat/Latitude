@@ -255,11 +255,15 @@ export function resizeBox(o, dx, dy, handle = "se", lock = true) {
   );
 }
 export function bitrateFor(height, fps, quality = "balanced") {
-  const base = { 720: 5, 1080: 9, 1440: 16, 2160: 32 }[height] || 9;
+  const rates = {
+    efficient: { 720: 3.25, 1080: 5.85, 1440: 10.4, 2160: 20.8 },
+    balanced: { 720: 6, 1080: 12, 1440: 21, 2160: 42 },
+    high: { 720: 10, 1080: 20, 1440: 32, 2160: 64 },
+  };
+  const base = (rates[quality] || rates.balanced)[height] || 12;
   return Math.round(
     base *
       (fps === 60 ? 1.65 : 1) *
-      ({ efficient: 0.65, balanced: 1, high: 1.6 }[quality] || 1) *
       1e6,
   );
 }

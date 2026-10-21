@@ -1,6 +1,7 @@
 import { layout, cameraRect, cropPixels } from "./design.js";
 import { sceneDocuments } from "./scene-model.js";
 import { getAsset } from "./assets-store.js";
+import { FrameClock, pixelBounds } from "./video-quality.js";
 export const SCENES = [
   { id: "present", name: "Screen + facecam", key: "1", icon: "layout" },
   { id: "camera", name: "Camera", key: "2", icon: "camera" },
@@ -37,6 +38,10 @@ export class Compositor {
     this.previewMode = "balanced";
     this.visible = true;
     this.recording = false;
+    this.paused = false;
+    this.quality = "balanced";
+    this.clock = new FrameClock();
+    this.videoFrames = new WeakMap();
     this.dirty = true;
     this.outputWidth = 1920;
     this.outputHeight = 1080;
@@ -75,12 +80,14 @@ export class Compositor {
     this.canvas.height = h;
     this.invalidate();
   }
-  configure(w, h, fps, previewMode = "balanced") {
+  configure(w, h, fps, previewMode = "balanced", quality = "balanced") {
     this.outputWidth = w;
     this.outputHeight = h;
     this.fps = fps;
     this.previewMode = previewMode;
+    this.quality = quality;
     this.resizeForMode();
+    this.invalidate();
   }
   resizeForMode() {
     const scale = this.recording
@@ -96,8 +103,23 @@ export class Compositor {
   }
   setRecording(on) {
     this.recording = on;
+    this.paused = false;
+    this.restartClock();
     this.resizeForMode();
     this.invalidate();
+  }
+  setPaused(on) {
+    this.paused = on;
+    // Keep recording dimensions fixed, but reduce preview work while paused.
+    this.restartClock();
+    this.invalidate();
+  }
+  restartClock() {
+    clearTimeout(this.timer);
+    this.timer = null;
+    this.clock.reset();
+    this.frames = 0;
+    this.counterAt = performance.now();
   }
   pruneImages() {
     const used = new Set(
@@ -182,16 +204,18 @@ export class Compositor {
       x = 0;
       y = 0;
     }
+    const sx = this.canvas.width / 1920, sy = this.canvas.height / 1080;
+    const left = Math.round((x + (w - dw) / 2) * sx) / sx,
+      top = Math.round((y + (h - dh) / 2) * sy) / sy,
+      right = Math.round((x + (w + dw) / 2) * sx) / sx,
+      bottom = Math.round((y + (h + dh) / 2) * sy) / sy;
     c.drawImage(
       v,
       r.x,
       r.y,
       r.w,
       r.h,
-      x + (w - dw) / 2,
-      y + (h - dh) / 2,
-      dw,
-      dh,
+      left, top, right - left, bottom - top,
     );
     c.restore();
   }
@@ -333,14 +357,13 @@ export class Compositor {
     c.drawImage(cached.canvas, 0, 0, w, h);
   }
   renderScene(c, s) {
-    c.fillStyle = "#0c1210";
+    c.imageSmoothingEnabled = true;
+    c.imageSmoothingQuality = this.quality === "high" ? "high" : this.quality === "efficient" ? "low" : "medium";
+    c.fillStyle = "#090b0d";
     c.fillRect(0, 0, 1920, 1080);
     for (const l of this.getLayers(s)) {
       if (!l.visible || l.opacity <= 0) continue;
-      const x = l.x * 1920,
-        y = l.y * 1080,
-        w = l.w * 1920,
-        h = l.h * 1080;
+      const { x, y, w, h } = pixelBounds(l, this.canvas.width, this.canvas.height);
       c.save();
       c.globalAlpha *= l.opacity;
       c.translate(x, y);
@@ -413,7 +436,7 @@ export class Compositor {
     }
     c.restore();
     this.drawMs = performance.now() - started;
-    this.captureTrack?.requestFrame();
+    if (!this.paused) this.captureTrack?.requestFrame();
     this.dirty = false;
     this.frames++;
   }
@@ -421,33 +444,32 @@ export class Compositor {
     if (this.timer != null || this.destroyed) return;
     const tick = () => {
       this.timer = null;
-      const now = performance.now(),
-        live = this.getLayers().some(
-          (l) =>
-            l.visible &&
-            l.type === "video" &&
-            this.ready(this.source(l.source)),
-        ),
-        active = this.recording || (this.visible && (live || this.previous)),
-        fps = this.recording
-          ? this.fps
-          : this.previewMode === "eco"
-            ? 10
-            : this.previewMode === "detail"
-              ? 30
-              : 15;
-      if ((this.dirty && this.visible) || active) this.draw(now);
+      const now = performance.now();
+      let live = false, changed = false;
+      for (const l of this.getLayers()) {
+        if (!l.visible || l.opacity <= 0 || l.type !== "video") continue;
+        const v = this.source(l.source);
+        if (!this.ready(v)) continue;
+        live = true;
+        const frames = v.getVideoPlaybackQuality?.().totalVideoFrames;
+        if (frames == null || this.videoFrames.get(v) !== frames) changed = true;
+        this.videoFrames.set(v, frames);
+      }
+      const capturing = this.recording && !this.paused,
+        active = capturing || (this.visible && (live || this.previous)),
+        fps = capturing ? this.fps : this.previewMode === "eco" ? 10 : this.previewMode === "detail" ? 30 : 15;
+      // Keep recording cadence; skip unchanged idle preview paints.
+      if (capturing || (this.visible && (this.dirty || changed || this.previous))) this.draw(now);
       if (now - this.counterAt >= 1000) {
         this.measuredFps = (this.frames * 1000) / (now - this.counterAt);
         this.frames = 0;
         this.counterAt = now;
       }
-      if (active)
-        this.timer = setTimeout(
-          tick,
-          Math.max(1, 1000 / fps - (performance.now() - now)),
-        );
-      else {
+      if (active) {
+        this.clock.advance(now, fps);
+        this.timer = setTimeout(tick, this.clock.delay(performance.now()));
+      } else {
+        this.clock.reset();
         this.measuredFps = 0;
         this.frames = 0;
         this.counterAt = now;

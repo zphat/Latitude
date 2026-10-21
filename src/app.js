@@ -1240,6 +1240,7 @@ function updateVideo() {
     config.height,
     config.fps,
     config.previewMode,
+    config.quality,
   );
   $("#resolution-label").textContent = `${config.height}p · ${config.fps} fps`;
   const mbps = bitrateFor(config.height, config.fps, config.quality) / 1e6;

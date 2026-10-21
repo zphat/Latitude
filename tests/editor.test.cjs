@@ -75,7 +75,8 @@ test("packs preserve safe gradients and normalize imported source bounds", async
 });
 test("recording bitrate scales with resolution, frame rate and quality", async () => {
   const { bitrateFor } = await model;
-  assert.equal(bitrateFor(1080, 30), 9000000);
+  assert.equal(bitrateFor(1080, 30), 12000000);
+  assert.equal(bitrateFor(1080, 30, "efficient"), 5850000);
   assert.ok(bitrateFor(2160, 60, "high") > bitrateFor(2160, 30, "high"));
   assert.ok(bitrateFor(2160, 60, "efficient") < bitrateFor(2160, 60));
   assert.ok(bitrateFor(720, 30) < bitrateFor(1080, 30));
