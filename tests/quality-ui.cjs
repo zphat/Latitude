@@ -119,7 +119,10 @@ require("../scripts/preview.cjs");
   await page.click('[data-view="settings"]');
   await page.selectOption("#video-size", String(height));
   await page.selectOption("#video-fps", String(fps));
-  await page.selectOption("#video-quality", "efficient");
+  await page.selectOption(
+    "#video-quality",
+    process.env.LATITUDE_TEST_QUALITY || "efficient",
+  );
   assert.equal(
     await page.evaluate(() => window.__studio.compositor.canvas.width),
     1280,

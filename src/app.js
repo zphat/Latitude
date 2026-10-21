@@ -1030,13 +1030,19 @@ setInterval(() => {
   $("#preview-timer").textContent = formatTime(engine.time());
   $("#preview-clock").textContent = formatTime(engine.time());
   const f = $("#actual-fps");
-  f.textContent = engine.recording
-    ? `${Math.round(compositor.measuredFps)} / ${config.fps} fps`
-    : sourceState.screen || sourceState.camera
-      ? `${Math.round(compositor.measuredFps)} preview fps`
-      : "Preview";
+  f.textContent = engine.paused
+    ? "Paused"
+    : engine.recording
+      ? `${Math.round(compositor.measuredFps)} / ${config.fps} fps`
+      : sourceState.screen || sourceState.camera
+        ? compositor.measuredFps < 1
+          ? "Static preview"
+          : `${Math.round(compositor.measuredFps)} preview fps`
+        : "Preview";
   f.style.color =
-    engine.recording && compositor.measuredFps < config.fps * 0.85
+    engine.recording &&
+    !engine.paused &&
+    compositor.measuredFps < config.fps * 0.85
       ? "var(--amber)"
       : "";
   f.title =
@@ -1552,7 +1558,7 @@ const modsPage = installModsPage({
   registry: modRegistry,
   studioTools,
   attempt,
-  isBusy: modsBusy,
+  isBusy: () => modsBusy() || modRegistry.changing,
   modal,
   closeModal,
 });

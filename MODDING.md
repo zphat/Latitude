@@ -28,6 +28,31 @@ Templates have `name`, `note`, `scene`, `preset`, and `layout`. Scenes are `pres
 
 Coordinates are relative to the source for crops and the composition for facecams. Import clamps invalid geometry to safe bounds. IDs are assigned internally. Unknown data is ignored, never executed. Input devices must still be explicitly connected. Use an exported pack as a base; do not use packs to hide a screen without checking the actual preview.
 
+## Mods page and reviewed source modules
+
+**Mods** in the sidebar manages the installed settings pack. Enable/disable persists across restarts. Disabling hides its theme/template choices and falls back to a built-in theme when necessary; existing compositions and local media remain intact. Removing a pack does not delete recordings. This beta supports one settings pack at a time.
+
+The executable module catalog is explicit and source-reviewed: `src/mods/catalog.js` is empty in the base build. There is no arbitrary JavaScript installer or online marketplace. A trusted source build can register a lazy entry:
+
+```js
+{
+  manifest: {
+    id: "my-output", name: "My output", version: "0.1.0",
+    author: "Contributor", description: "An optional output tool.",
+    apiVersion: 1, capabilities: ["studio-output"],
+  },
+  load: () => import("./my-output/index.js"),
+}
+```
+
+The module exports `async activate({ apiVersion, services })` and `async deactivate()`. Activation receives only its declared services; unsupported API versions/services are rejected before code loads. Disabled modules remain unloaded. Changes are blocked during recording, countdown, export, or another module's transition. Failed activation calls cleanup, including after partial initialization; cleanup must be idempotent and release every timer, listener, stream, and resource owned by the module. Failed deactivation remains visibly enabled so the user can retry.
+
+This is a lifecycle contract for trusted source, **not a security sandbox**. Imported settings packs cannot register executable modules. Do not weaken Electron isolation, CSP, or Linux permissions to install a mod. Enabling a module should expose its controls, not immediately transmit media, start capture, or read unrelated files; starting those operations needs an explicit user action.
+
+The `studio-output` service exposes the existing `register`, `start`, and `stop` output-provider methods. Registration returns an unregister function. Composed video and the finished mix are shared through cloned tracks, avoiding another capture/audio graph. The current service requires an active local recording; it does not implement standalone streaming, credentials, protocols, or network backpressure. Linux's base Flatpak has no network permission. A streaming distribution needs an explicit permission decision, separate output ownership, bounded queues, and cleanup that cannot interrupt the recorder.
+
+A future editor should save a non-destructive project referencing the original video and synchronized audio stems. Keep original files intact, decode only visible material, and run cancelable exports outside live capture. A narrow project/media API and timeline are not implemented in this beta. Local filler-word detection could avoid API charges, but model downloads, memory/CPU use, accuracy, and reviewable proposed cuts still need design; do not load transcription while idle. Bundle only locally redistributable fonts with their license notices. Settings packs cannot load fonts or executable assets.
+
 ## Source map
 
 - `src/design.js`: pure layout normalization, geometry, registries, and pack validation.
@@ -35,6 +60,8 @@ Coordinates are relative to the source for crops and the composition for facecam
 - `src/scene-editor.js`: direct editing, layer inspector, undo/redo, source actions.
 - `src/assets-store.js`: local images and portable pack assets.
 - `src/extensions.js`: experimental output-provider lifecycle.
+- `src/mods/`: installed-add-on UI and lazy trusted-module lifecycle.
+- `src/video-quality.js`: native capture constraints, deadline pacing, and output-pixel geometry.
 - `src/compositor.js`: source-to-canvas rendering; separate from all editor overlays.
 - `src/studio-tools.js`: onboarding, themes, crop editor, layout controls, and packs.
 - `src/engine.js`: device streams, shared audio graph, MediaRecorder, and write queue.

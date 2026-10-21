@@ -66,12 +66,22 @@ export function installModsPage({
   $("#mods-import").onclick = () => $("#import-pack").click();
   $("#manage-mods").onclick = () =>
     document.querySelector('[data-view="mods"]').click();
-  $("#mods-guide").onclick = () =>
+  $("#mods-guide").onclick = () => {
     modal(
       "Build for Latitude",
-      `<div class="guide"><p>Start with a theme or layout pack, or contribute an optional module to the open-source project.</p><p>Developer guide: <strong>github.com/zphat/Latitude/blob/main/MODDING.md</strong></p><p>This beta loads settings packs and reviewed modules included in a build. Executable third-party installation, streaming, and timeline editing are not included yet.</p><p>Disabled modules do not load their code. Future tools can reuse composed video, the finished audio mix, and separate audio originals.</p></div>`,
+      `<div class="guide"><p>Start with a theme or layout pack, or contribute an optional module to the open-source project.</p><p>This beta loads settings packs and reviewed modules included in a build. Executable third-party installation, streaming, and timeline editing are not included yet.</p><p>Disabled modules do not load their code. Future tools can reuse composed video, the finished audio mix, and separate audio originals.</p><button class="button primary" id="open-mod-guide">Open developer guide ↗</button></div>`,
       "OPEN SOURCE",
     );
+    $("#open-mod-guide").onclick = attempt(async () => {
+      if (window.take?.modding) await window.take.modding();
+      else
+        window.open(
+          "https://github.com/zphat/Latitude/blob/main/MODDING.md",
+          "_blank",
+          "noopener",
+        );
+    });
+  };
   registry.addEventListener("change", render);
   window.addEventListener("latitude-pack", render);
   window.addEventListener("latitude-view", render);

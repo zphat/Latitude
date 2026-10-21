@@ -60,7 +60,7 @@ export class ModRegistry extends EventTarget {
     if (!m) throw Error("Unknown mod.");
     if (this.isBusy())
       throw Error("Change mods between recordings and exports.");
-    if (m.pending) throw Error("This mod is still changing state.");
+    if (this.changing) throw Error("An add-on is still changing state.");
     if (!!m.instance === on) return;
     if (on && this.unsupported(m.manifest))
       throw Error(this.unsupported(m.manifest));

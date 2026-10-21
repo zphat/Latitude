@@ -10,7 +10,7 @@ If your software center cannot open the file, use:
 
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install --user ./Latitude-0.6.0-Linux-x86_64.flatpak
+flatpak install --user ./Latitude-0.7.0-Linux-x86_64.flatpak
 flatpak run studio.latitude.recorder
 ```
 

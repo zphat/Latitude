@@ -312,6 +312,9 @@ app.whenReady().then(async () => {
   handle("app:feedback", () =>
     shell.openExternal("https://github.com/zphat/Latitude/issues"),
   );
+  handle("app:modding", () =>
+    shell.openExternal("https://github.com/zphat/Latitude/blob/main/MODDING.md"),
+  );
   handle("app:copy-diagnostics", (text) => {
     if (typeof text !== "string" || text.length > 32768)
       throw Error("Invalid diagnostics.");

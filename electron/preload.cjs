@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("take", {
   export: (id, options) => call("record:export", id, options),
   cancelExport: () => call("record:cancel-export"),
   feedback: () => call("app:feedback"),
+  modding: () => call("app:modding"),
   copyDiagnostics: (text) => call("app:copy-diagnostics", text),
   quit: () => call("app:quit"),
   play: (id) => call("record:play", id),
