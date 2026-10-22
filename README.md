@@ -28,6 +28,8 @@ The first Linux preview targets Fedora KDE/GNOME, Ubuntu/Mint with Flatpak, Bazz
 
 ## New in Latitude 0.8
 
+- **Live input and protected-output meters:** separate microphone bars, fixed dBFS color zones, numeric headroom, and an immediate red card outline only for the current clipping window (~27 ms at 48 kHz). A separate history reminder stays until Reset clips. Each channel shows its always-on limiter activity.
+
 - **Latitude Streaming**, the first official mod, is included and off by default. Enable it in **Mods**, then open **Stream** in the sidebar. Connect one RTMP/RTMPS destination with its dashboard server URL and key.
 - Stream the existing scene and processed stereo mix without recording to disk. Optional local recording keeps separate microphone/desktop tracks, with independent pause and stop controls.
 - One H.264 encode for streaming, with hardware preference/software fallback. Bundled FFmpeg copies video and encodes the finished mix once to AAC. No new production dependency or capture/DSP graph. Simultaneous recording adds a second video encode.
@@ -56,7 +58,7 @@ The first Linux preview targets Fedora KDE/GNOME, Ubuntu/Mint with Flatpak, Bazz
 - **Less unused processing:** inactive voice lanes sleep, disabled Rich clarity skips its filters, neutral EQ bands skip processing, meter logarithms run at meter rate, and unused audio contexts suspend. Static/hidden previews stop scheduling. Settings writes are debounced; text caches support all 40 layers within a 32 MiB budget.
 - **Audio and capture fixes:** gain/mute changes preserve unchanged sync-delay buffers; bypass crossfades; headphone monitoring has a limiter. Device setup and recording start/stop are guarded against races. Frames are requested immediately after completed draws under one compositor clock.
 - **Safer exports:** cancel without touching originals or earlier exports; live stage progress; atomic metadata updates; bounded video encoding threads; export and recording run separately to protect capture resources. Stalled writes and capture-stop timeouts finalize interrupted takes.
-- **Daily polish:** held input-clip warnings with Reset peaks, Save and close, focused shortcut fallback, a smaller minimum window, and reviewable diagnostics with a GitHub feedback button. Nothing is uploaded automatically.
+- **Daily polish:** input-clip history with Reset clips, Save and close, focused shortcut fallback, a smaller minimum window, and reviewable diagnostics with a GitHub feedback button. Nothing is uploaded automatically.
 
 ## New in Latitude 0.3
 
@@ -210,7 +212,7 @@ npm run pack:win             # Builds an unpacked Windows app; needs vendor/ffmp
 
 A Git checkout does not contain the encoder executable. On Windows, run `node scripts/prepare-encoder.cjs` after `npm ci` and before packaging. Run `npm run dist:win -- --publish never` to produce the Windows installer and optional portable ZIP. See [RELEASING.md](RELEASING.md) for the release procedure. CI checks source changes on Linux; the optional **Build Windows package** workflow creates a Windows test artifact without publishing a release.
 
-`tests/ui.cjs` checks the recording/export pipeline; `tests/framing-ui.cjs` checks editing and actual cropped pixels; `tests/quality-ui.cjs` checks resolution, encoded frames, text, and output-provider lifecycle; `tests/formats-ui.cjs` checks format guidance, separate-source controls, saved defaults and per-export overrides; `tests/beta-ui.cjs` checks idle suspension, concurrent microphone setup, held clip warnings, diagnostics, and compact windows. Install Playwright separately and provide `TAKE_TEST_BROWSER` if its Chromium is not in the usual location. It records synthetic media, checks pause/mute behavior, and verifies actual exports with `ffprobe`. `ffprobe` must be available for the integration tests. `TAKE_FFMPEG` can override the export binary during development.
+`tests/audio-meters-ui.cjs` checks real AudioWorklet meter timing, known signal levels, limiter activity, reset behavior, and compact layout. `tests/ui.cjs` checks the recording/export pipeline; `tests/framing-ui.cjs` checks editing and actual cropped pixels; `tests/quality-ui.cjs` checks resolution, encoded frames, text, and output-provider lifecycle; `tests/formats-ui.cjs` checks format guidance, separate-source controls, saved defaults and per-export overrides; `tests/beta-ui.cjs` checks idle suspension, concurrent microphone setup, clip history, diagnostics, and compact windows. Install Playwright separately and provide `TAKE_TEST_BROWSER` if its Chromium is not in the usual location. It records synthetic media, checks pause/mute behavior, and verifies actual exports with `ffprobe`. `ffprobe` must be available for the integration tests. `TAKE_FFMPEG` can override the export binary during development.
 
 Upgrading from Take Studio retains an existing local profile and recording folder when available. The internal `take://app` origin and IPC bridge name remain stable to preserve old preferences; they are not visible branding.
 

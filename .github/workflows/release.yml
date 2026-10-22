@@ -54,7 +54,9 @@ jobs:
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
           npx playwright install --with-deps chromium
       - name: Verify streaming, reconnect, and independent recording in Chromium
-        run: node tests/streaming-ui.cjs
+        run: |
+          node tests/audio-meters-ui.cjs
+          node tests/streaming-ui.cjs
         env:
           TAKE_FFMPEG: /usr/bin/ffmpeg
 

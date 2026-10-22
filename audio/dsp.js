@@ -202,6 +202,9 @@ export class StereoLimiter {
     this.frame = 0;
   }
   process(l, r, out) {
+    // A bad device/mod sample must not poison the lookahead buffer indefinitely.
+    if (!Number.isFinite(l)) l = 0;
+    if (!Number.isFinite(r)) r = 0;
     const peak = Math.max(Math.abs(l), Math.abs(r)),
       n = this.queuePeaks.length,
       frame = this.frame++;
@@ -369,6 +372,7 @@ export class VoiceProcessor {
     this.wet = this.p.bypass ? 0 : 1;
   }
   tick(input) {
+    if (!Number.isFinite(input)) input = 0;
     const p = this.p;
     this.trim += (this.trimTarget - this.trim) * 0.002;
     let x = input * this.trim;

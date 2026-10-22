@@ -11,6 +11,7 @@ import { mountExportControls } from "./export-ui.js";
 import { ModRegistry } from "./mods/registry.js";
 import { TRUSTED_MODS } from "./mods/catalog.js";
 import { installModsPage } from "./mods/ui.js";
+import { AudioMeters, meterMarkup } from "./audio-meters.js";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -232,6 +233,7 @@ $("#fullscreen-preview").onclick = attempt(async () => {
 });
 
 const mixerIds = ["voice1", "voice2", "desktop", "mix"];
+let audioMeters;
 function renderMixer() {
   const items = [
     { name: "Voice 1", icon: "mic", id: "voice1", track: "ISO 1" },
@@ -242,9 +244,10 @@ function renderMixer() {
   $("#mixer").innerHTML = items
     .map(
       (x, i) =>
-        `<div class="mixer-card ${i === selectedVoice ? "selected" : ""} ${i === 3 ? "master-card" : ""}" data-mixer="${i}"><div class="mixer-title"><button data-select-channel="${i}" title="${i < 2 ? "Edit voice processing" : "Audio routing"}">${icon(x.icon)}${x.name}</button><span class="track-label">${x.track}</span></div><div class="mixer-device" id="device-${x.id}">${i === 3 ? "Final limiter · −1.5 dBFS" : "Not connected"}</div><div class="level-track"><div class="level-fill" id="level-${x.id}"></div><div class="level-grid"></div></div><div class="mixer-db"><span id="peak-${x.id}">−∞ dBFS</span><b id="status-${x.id}">${i === 3 ? "Protected" : "No signal"}</b></div><div class="mixer-bottom"><button class="mute-button" data-mute="${i}" title="Mute ${x.name}" aria-label="Mute ${x.name}" aria-pressed="false">M</button><input type="range" min="-24" max="${i < 2 ? "24" : "6"}" step="0.5" data-gain="${i}" aria-label="${x.name} gain"><span class="gain-value" id="gain-${x.id}">0 dB</span></div></div>`,
+        `<div class="mixer-card ${i === selectedVoice ? "selected" : ""} ${i === 3 ? "master-card" : ""}" data-mixer="${i}"><div class="mixer-title"><button data-select-channel="${i}" title="${i < 2 ? "Edit voice processing" : "Audio routing"}">${icon(x.icon)}${x.name}</button><span class="track-label">${x.track}</span></div><div class="mixer-device" id="device-${x.id}">${i === 3 ? "Final limiter · −1.5 dBFS" : "Not connected"}</div>${meterMarkup(x.id, i < 2)}<div class="mixer-db"><b id="status-${x.id}">${i === 3 ? "Protected" : "No signal"}</b></div><div class="mixer-bottom"><button class="mute-button" data-mute="${i}" title="Mute ${x.name}" aria-label="Mute ${x.name}" aria-pressed="false">M</button><input type="range" min="-24" max="${i < 2 ? "24" : "6"}" step="0.5" data-gain="${i}" aria-label="${x.name} gain"><span class="gain-value" id="gain-${x.id}">0 dB</span></div></div>`,
     )
     .join("");
+  audioMeters = new AudioMeters($("#mixer"));
   $$("[data-select-channel]").forEach(
     (b) =>
       (b.onclick = () =>
@@ -382,7 +385,7 @@ const modules = [
     name: "Catch the peaks",
     summary: "Always on · −1.5 dBFS",
     params: [],
-    note: "5 ms lookahead on each source and the mix. The final loudness pass also measures true peaks. Hardware distortion cannot be repaired here.",
+    note: "Always active on both processed mic tracks, the desktop track, monitoring and the full mix—even with processing bypassed. 5 ms lookahead and a −1.5 dBFS sample ceiling catch sudden peaks. The Input bar watches the original device signal; a red outline means full scale in the current ~27 ms meter window, with no hold. Raw backup tracks preserve the original input. Lower hardware gain if that input clips. Lossy encoding can create intersample overs; the export loudness pass measures true peaks.",
   },
 ];
 function renderProcessing() {
@@ -477,6 +480,8 @@ $("#polish").oninput = (e) => {
 function refreshSources(s) {
   sourceState = s || {};
   s = sourceState;
+  if (engine.ctx?.state !== "running")
+    audioMeters?.clearActivity(engine.ctx ? "Meter paused" : "No signal");
   $("#screen-b-state").textContent =
     compositor.layout.secondary === "same"
       ? "From A"
@@ -524,33 +529,7 @@ engine.addEventListener("meters", ({ detail: m }) => {
   lastMeters = m;
   for (let i = 0; i < 2; i++) clippedInputs[i] ||= m.clips[i] > 0;
   if (document.hidden && !checking) return;
-  for (let i = 0; i < 4; i++) {
-    const db = gainToDb(m.peaks[i]),
-      p = $(`#peak-${mixerIds[i]}`);
-    $(`#level-${mixerIds[i]}`).style.width =
-      `${clamp(((db + 60) / 60) * 100, 0, 100)}%`;
-    p.textContent = db < -70 ? "−∞ dBFS" : `${db.toFixed(1)} dBFS`;
-    const status = $(`#status-${mixerIds[i]}`);
-    if (i < 2) {
-      const input = gainToDb(m.inputPeaks[i]);
-      status.textContent = clippedInputs[i]
-        ? "INPUT CLIP"
-        : input > -6
-          ? "Input hot"
-          : sourceState[`mic${i + 1}`]
-            ? "Input ready"
-            : "No signal";
-      status.classList.toggle("level-warning", clippedInputs[i] || input > -6);
-    } else if (i === 3)
-      status.textContent =
-        m.limiting > 0.1 ? `${m.limiting.toFixed(1)} dB limiting` : "Protected";
-    else
-      status.textContent = engine.desktopSettings.duck
-        ? "Ducks in mix"
-        : sourceState.desktop
-          ? "Stereo"
-          : "No signal";
-  }
+  audioMeters?.update(m, sourceState, clippedInputs, engine.desktopSettings);
   const gr = $("#compressor-gr");
   if (gr) gr.textContent = `${m.reduction[selectedVoice].toFixed(1)} dB GR`;
   if (m.clips.some((n) => n > 0) && performance.now() - clipWarningAt > 18000) {
@@ -1210,7 +1189,16 @@ $("#cancel-export").onclick = attempt(async () => {
 $("#reset-peaks").onclick = () => {
   clippedInputs.fill(false);
   clipWarningAt = -Infinity;
-  toast("Input clip warnings reset.");
+  if (lastMeters)
+    audioMeters?.update(
+      lastMeters,
+      sourceState,
+      clippedInputs,
+      engine.desktopSettings,
+    );
+  toast(
+    "Input clip history reset. Live indicators still show the current signal.",
+  );
 };
 $("#refresh-takes").onclick = loadTakes;
 $("#top-folder").onclick = attempt(async () => {
@@ -1366,12 +1354,13 @@ $("#choose-folder").onclick = attempt(async () => {
 function help() {
   modal(
     "Your first great take.",
-    `<div class="guide"><h3>1. Connect your sources</h3><p>Choose a screen or window. Open Camera for your facecam, then Inputs & outputs to select your microphone, desktop sound, and monitoring output.</p><h3>Arrange your scene</h3><p>Click any source in the preview to move it. Drag a corner to resize; hold Alt to bypass snapping. Scene layers has exact position, crop, visibility, lock, and layer order. Add text, gradients, images, and color panels with Add source. Ctrl Z undoes an edit; Ctrl D duplicates a layer. Preview editing locks automatically during recording.</p><h3>2. Get your voice comfortable</h3><p>Run Soundcheck. Pick Natural voice or Podcast broadcast. Start with subtle processing and watch for INPUT CLIP warnings. The left/right selector is useful for a microphone plugged into one side of a stereo interface.</p><h3>3. Make a short test</h3><p>Clap once, talk, play a desktop clip, and switch scenes. Check the result before a long session. Drivers and webcams can introduce different delays; use the audio delay controls if speech arrives early.</p><h3>4. Record, then edit</h3><p>Use Ctrl Shift R to record, Ctrl Shift P to pause/resume, Ctrl Shift M to mute Voice 1, Ctrl Shift B for markers, and Ctrl Shift 1–5 for scenes. Stop to save. Settings → Recording & export format chooses what automatic export creates after you stop. MP4 is the default. Choose MKV or MOV for lossless audio inside video, WebM for the open web, or an audio-only podcast file. Each choice explains its size and compatibility.</p><h3>5. CapCut: keep the tracks separate</h3><p>Keep microphone and desktop sources separate is on by default. In video files, the first track is the full mix. If your editor does not expose the other embedded tracks, import the WAV stems, align everything at the same timeline start, mute the video’s mix, and group/link the clips. Enable WAV editing files or optional audio-specific video copies to choose mic-only or desktop-only audio on each clip instance.</p><h3>Practical limits</h3><p>This is an early desktop build, not a replacement for a thoroughly tested production recorder yet. Windows captures the default playback output. Linux uses PipeWire/PulseAudio output monitoring; Wayland uses your desktop’s screen-sharing picker. SteamOS support targets Desktop Mode; Gaming Mode has not been validated. Hardware routing and long-session performance need testing on your computer. There is no VST hosting or AI voice restoration. Recording is local; no account or upload is required.</p></div>`,
+    `<div class="guide"><h3>1. Connect your sources</h3><p>Choose a screen or window. Open Camera for your facecam, then Inputs & outputs to select your microphone, desktop sound, and monitoring output.</p><h3>Arrange your scene</h3><p>Click any source in the preview to move it. Drag a corner to resize; hold Alt to bypass snapping. Scene layers has exact position, crop, visibility, lock, and layer order. Add text, gradients, images, and color panels with Add source. Ctrl Z undoes an edit; Ctrl D duplicates a layer. Preview editing locks automatically during recording.</p><h3>2. Get your voice comfortable</h3><p>Run Soundcheck. Pick Natural voice or Podcast broadcast. Natural voice starts with rumble filtering, gentle expansion, EQ, compression, de-essing and always-on peak limiting. Input shows the device signal; Protected output shows what goes to your processed mic track. Red outlines clear with the next clean meter window; Clipped earlier is a separate reminder. Soundcheck helps set input headroom. Noise suppression is optional for noisy rooms because it can alter voice detail. The left/right selector is useful for a microphone plugged into one side of a stereo interface.</p><h3>3. Make a short test</h3><p>Clap once, talk, play a desktop clip, and switch scenes. Check the result before a long session. Drivers and webcams can introduce different delays; use the audio delay controls if speech arrives early.</p><h3>4. Record, then edit</h3><p>Use Ctrl Shift R to record, Ctrl Shift P to pause/resume, Ctrl Shift M to mute Voice 1, Ctrl Shift B for markers, and Ctrl Shift 1–5 for scenes. Stop to save. Settings → Recording & export format chooses what automatic export creates after you stop. MP4 is the default. Choose MKV or MOV for lossless audio inside video, WebM for the open web, or an audio-only podcast file. Each choice explains its size and compatibility.</p><h3>5. CapCut: keep the tracks separate</h3><p>Keep microphone and desktop sources separate is on by default. In video files, the first track is the full mix. If your editor does not expose the other embedded tracks, import the WAV stems, align everything at the same timeline start, mute the video’s mix, and group/link the clips. Enable WAV editing files or optional audio-specific video copies to choose mic-only or desktop-only audio on each clip instance.</p><h3>Practical limits</h3><p>This is an early desktop build, not a replacement for a thoroughly tested production recorder yet. Windows captures the default playback output. Linux uses PipeWire/PulseAudio output monitoring; Wayland uses your desktop’s screen-sharing picker. SteamOS support targets Desktop Mode; Gaming Mode has not been validated. Hardware routing and long-session performance need testing on your computer. There is no VST hosting or AI voice restoration. Recording is local; no account or upload is required.</p></div>`,
     "QUICK GUIDE",
   );
 }
 $("#help-button").onclick = help;
 document.addEventListener("visibilitychange", () => {
+  audioMeters?.clearActivity();
   compositor.visible =
     !document.hidden && $("#page-studio").classList.contains("active");
   engine.node?.port.postMessage({

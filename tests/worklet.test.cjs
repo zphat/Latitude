@@ -118,3 +118,96 @@ test("live audio shares the finished mix and clock, survives recording pause, an
   assert.equal(h.processor.live, null);
   assert.equal(h.messages.filter((m) => m.type === "live-pcm").length, 4);
 });
+
+test("meter captures a one-sample input overload, clears next window, and reports actual peaks", async () => {
+  const h = await harness();
+  const input = new Float32Array(128).fill(0.25);
+  input[7] = 1;
+  h.step([[input], [], []]);
+  input[7] = 0.25;
+  for (let i = 0; i < 9; i++) h.step([[input], [], []]);
+  const first = h.messages.filter((m) => m.type === "meters").at(-1);
+  assert.equal(first.clips[0], 1);
+  assert.equal(first.inputPeaks[0], 1);
+  assert.ok(first.windowMs <= 30 && first.windowMs >= 25);
+  for (let i = 0; i < 10; i++) h.step([[input], [], []]);
+  const next = h.messages.filter((m) => m.type === "meters").at(-1);
+  assert.equal(next.clips[0], 0);
+  assert.equal(next.inputPeaks[0], 0.25);
+  assert.ok(Math.abs(h.dsp.gainToDb(next.inputPeaks[0]) + 12.0412) < 0.001);
+  input.fill(0.999);
+  for (let i = 0; i < 10; i++) h.step([[input], [], []]);
+  assert.equal(
+    h.messages.filter((m) => m.type === "meters").at(-1).clips[0],
+    0,
+  );
+});
+
+test("blended channels cannot hide a full-scale device input and restored meters discard hidden history", async () => {
+  const h = await harness();
+  h.send({ type: "voice", index: 0, settings: { channel: "mix" } });
+  const stereo = [
+    new Float32Array(128).fill(1),
+    new Float32Array(128).fill(-1),
+  ];
+  for (let i = 0; i < 10; i++) h.step([stereo, [], []]);
+  const m = h.messages.filter((m) => m.type === "meters").at(-1);
+  assert.equal(m.inputPeaks[0], 1);
+  assert.equal(m.clips[0], 1280);
+  assert.equal(m.peaks[0], 0);
+  h.send({ type: "visibility", visible: false });
+  h.step([stereo, [], []]);
+  h.send({ type: "visibility", visible: true });
+  for (let i = 0; i < 10; i++) h.step();
+  assert.equal(
+    h.messages.filter((m) => m.type === "meters").at(-1).clips[0],
+    0,
+  );
+});
+
+test("recorded mic stems and mix retain always-on protection under extreme gain and processing bypass", async () => {
+  const h = await harness();
+  for (let i = 0; i < 2; i++)
+    h.send({
+      type: "voice",
+      index: i,
+      settings: { gain: 24, makeup: 24, polish: 100, bypass: i === 1 },
+    });
+  h.send({ type: "desktop", settings: { gain: 12 } });
+  h.send({ type: "master", settings: { gain: 12 } });
+  h.send({ type: "start", frame: 0 });
+  const signal = Float32Array.from(
+    { length: 128 },
+    (_, i) => Math.sin(i * 0.37) * 2,
+  );
+  for (let i = 0; i < 100; i++) h.step([[signal], [signal], [signal, signal]]);
+  h.send({ type: "stop", frame: h.clock.frame });
+  h.step();
+  const peaks = [0, 0, 0, 0, 0, 0];
+  for (const m of h.messages.filter((m) => m.type === "pcm")) {
+    for (let track = 0; track < 6; track++) {
+      for (const sample of m.data[track]) {
+        assert.ok(Number.isFinite(sample));
+        peaks[track] = Math.max(peaks[track], Math.abs(sample));
+        if (track < 4)
+          assert.ok(Math.abs(sample) <= h.dsp.dbToGain(-1.5) + 1e-6);
+      }
+    }
+  }
+  assert.ok(
+    peaks.slice(0, 4).every((p) => p > 0.1),
+    JSON.stringify(peaks),
+  );
+  assert.ok(
+    peaks[4] > 1 && peaks[5] > 1,
+    "raw backups preserve input, not a falsely protected copy",
+  );
+  assert.ok(
+    h.messages.some(
+      (m) =>
+        m.type === "meters" &&
+        m.limiterReduction[0] > 0.1 &&
+        m.limiterReduction[1] > 0.1,
+    ),
+  );
+});

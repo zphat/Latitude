@@ -65,7 +65,13 @@ require("../scripts/preview.cjs");
   meters.clips = [0, 0];
   meters.inputPeaks = [0, 0];
   await page.evaluate((m) => window.__studio.engine.emit("meters", m), meters);
-  assert.match(await page.textContent("#status-voice1"), /INPUT CLIP/);
+  assert.match(await page.textContent("#status-voice1"), /Clipped earlier/);
+  assert.equal(
+    await page
+      .locator('[data-mixer="0"]')
+      .evaluate((el) => el.classList.contains("input-clipping")),
+    false,
+  );
   await page
     .locator(".toast button")
     .evaluateAll((buttons) => buttons.forEach((b) => b.click()));
@@ -111,7 +117,7 @@ require("../scripts/preview.cjs");
         idlePreview: "stopped",
         idleAudio: "suspended",
         inputs: "concurrently connected and released",
-        clipWarning: "held until reset",
+        clipWarning: "live flash plus history until reset",
         diagnostics: "reviewable",
         widths: [1100, 960],
         errors,

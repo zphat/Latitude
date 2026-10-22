@@ -12,7 +12,7 @@ permissions:
 jobs:
   audio:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - run: sudo apt-get update && sudo apt-get install -y libpulse-dev pulseaudio pulseaudio-utils pipewire pipewire-pulse wireplumber
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpulse-dev pulseaudio pulseaudio-utils pipewire pipewire-pulse wireplumber
       - run: npm run build:linux-audio
       - name: Test real audio routing and cleanup
         env:

@@ -142,3 +142,34 @@ test("processing bypass crossfades instead of switching abruptly", async () => {
   for (let i = 0; i < 12000; i++) p.tick(0);
   assert.equal(p.wet, 0);
 });
+
+test("invalid audio samples cannot poison voice filters or the limiter", async () => {
+  const { VoiceProcessor, StereoLimiter, dbToGain } = await import(
+    "../audio/dsp.js"
+  );
+  const voice = new VoiceProcessor(48000),
+    limiter = new StereoLimiter(48000);
+  const out = new Float32Array(2);
+  let audible = 0;
+  for (let i = 0; i < 12000; i++) {
+    const x =
+      i === 300
+        ? NaN
+        : i === 500
+          ? Infinity
+          : i === 700
+            ? -Infinity
+            : Math.sin(i * 0.05) * 0.4;
+    const y = voice.tick(x);
+    limiter.process(x, -x, out);
+    for (const v of [y, ...out]) {
+      assert.ok(Number.isFinite(v));
+      assert.ok(Math.abs(v) <= dbToGain(-1.5) + 1e-6);
+    }
+    if (i > 1000) audible += y * y;
+  }
+  assert.ok(
+    audible > 1,
+    "valid audio recovers immediately after invalid samples",
+  );
+});

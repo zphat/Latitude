@@ -13,7 +13,7 @@ class StudioProcessor extends AudioWorkletProcessor {
     this.monitorEnabled = false;
     this.connected = [false, false];
     this.monitorOut = new Float32Array(2);
-    this.meterInterval = 2400;
+    this.meterInterval = Math.round(sampleRate / 40);
     const latency = this.masterLimiter.delaySamples;
     this.alignment = Array.from({ length: 4 }, () => new Delay(latency));
     this.dryDelay = [new Delay(latency * 2), new Delay(latency * 2)];
@@ -71,8 +71,14 @@ class StudioProcessor extends AudioWorkletProcessor {
         this.monitorEnabled = !!data.enabled;
         if (!this.monitorEnabled) this.monitorLimiter.reset();
       }
-      if (data.type === "visibility")
-        this.meterInterval = data.visible ? 2400 : sampleRate;
+      if (data.type === "visibility") {
+        this.meterInterval = data.visible
+          ? Math.round(sampleRate / 40)
+          : sampleRate;
+        // A restored window must not flash a clip collected while hidden.
+        this.meterSamples = 0;
+        this.resetMeters();
+      }
       if (data.type === "live-start") {
         this.live = {
           id: data.id,
@@ -120,6 +126,7 @@ class StudioProcessor extends AudioWorkletProcessor {
     this.inputPeaks = [0, 0];
     this.inputSums = [0, 0];
     this.clips = [0, 0];
+    this.limiterGains = [1, 1, 1, 1];
   }
   flush() {
     if (!this.fill) return;
@@ -152,13 +159,22 @@ class StudioProcessor extends AudioWorkletProcessor {
       for (let v = 0; v < 2; v++) {
         const input = v ? v2 : v1,
           p = this.voices[v].p,
-          l = input[0]?.[i] || 0,
-          r = input[1]?.[i] ?? l;
+          left = input[0]?.[i] ?? 0,
+          right = input[1]?.[i] ?? left,
+          l = Number.isFinite(left) ? left : 0,
+          r = Number.isFinite(right) ? right : 0;
         const raw =
           p.channel === "right" ? r : p.channel === "mix" ? (l + r) * 0.5 : l;
-        this.inputPeaks[v] = Math.max(this.inputPeaks[v], Math.abs(raw));
+        // Detect full-scale on selected input channels before a blend can hide it.
+        const inputPeak =
+          p.channel === "right"
+            ? Math.abs(r)
+            : p.channel === "mix"
+              ? Math.max(Math.abs(l), Math.abs(r))
+              : Math.abs(l);
+        this.inputPeaks[v] = Math.max(this.inputPeaks[v], inputPeak);
         this.inputSums[v] += raw * raw;
-        if (Math.abs(raw) >= 0.999) this.clips[v]++;
+        if (inputPeak >= 1 - 1 / 32768) this.clips[v]++;
         a[v] = this.syncDelay[v].tick(raw);
       }
       const m1 = this.connected[0] ? this.voices[0].tick(a[0]) : 0,
@@ -258,6 +274,20 @@ class StudioProcessor extends AudioWorkletProcessor {
         this.port.postMessage({ type: "stopped", frame });
       }
     }
+    // Sample limiter envelopes once per render quantum, not with per-sample logs.
+    for (let v = 0; v < 2; v++)
+      this.limiterGains[v] = Math.min(
+        this.limiterGains[v],
+        this.voices[v].limiter.gain,
+      );
+    this.limiterGains[2] = Math.min(
+      this.limiterGains[2],
+      this.desktopLimiter.gain,
+    );
+    this.limiterGains[3] = Math.min(
+      this.limiterGains[3],
+      this.masterLimiter.gain,
+    );
     this.meterSamples += master[0].length;
     if (this.meterSamples >= this.meterInterval) {
       this.port.postMessage({
@@ -267,6 +297,10 @@ class StudioProcessor extends AudioWorkletProcessor {
         inputPeaks: this.inputPeaks,
         inputRms: this.inputSums.map((x) => Math.sqrt(x / this.meterSamples)),
         clips: this.clips,
+        windowMs: (1000 * this.meterSamples) / sampleRate,
+        limiterReduction: this.limiterGains.map(
+          (g) => -20 * Math.log10(Math.max(1e-8, g)),
+        ),
         reduction: this.voices.map((v) => v.lastReduction),
         limiting: this.masterLimiter.reduction,
       });
