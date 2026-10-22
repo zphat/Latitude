@@ -27,7 +27,7 @@ export async function activate({ services }) {
       <p class="notice" id="stream-advice">Leave upload headroom. Try 720p / 30 fps and 3,500–4,500 kb/s on a modest connection.</p>
       <details><summary>Local recordings & connection behavior</summary><p>Start a local take from Studio whenever you need separate audio tracks. Recording and streaming have independent Stop controls. Pausing a recording keeps the broadcast running.</p><p>Latitude retries a lost connection three times (2, 4, then 8 seconds). Your local take continues. Exports wait until the stream ends to keep encoding resources available.</p><p>“Sending” confirms media is leaving Latitude. Check your platform’s dashboard for reception, privacy, audio sync, and the final Go Live button. Platform delivery still needs beta feedback.</p></details>
     </section></div>
-    <div class="stream-stats" aria-label="Streaming statistics"><span>Output <b id="stream-time">00:00</b></span><span>Sent <b id="stream-bytes">0 MB</b></span><span>Skipped frames <b id="stream-dropped">0</b></span><span>Encoder <b id="stream-encoder">Off</b></span></div>
+    <div class="stream-stats" aria-label="Streaming statistics"><span>Output <b id="stream-time">00:00</b></span><span>Sent <b id="stream-bytes">0 MB</b></span><span>Video <b id="stream-fps">0 fps</b></span><span>Encoder skips <b id="stream-dropped">0</b></span><span>Encoder <b id="stream-encoder">Off</b></span></div>
     <p class="fine-print">One destination at a time · H.264 / AAC · up to 1080p60. Streaming alone encodes video once; recording alongside it adds a separate recording encode. Use headphones with desktop audio.</p>`,
   });
   const $ = (selector) => panel.element.querySelector(selector);
@@ -153,6 +153,8 @@ export async function activate({ services }) {
       .padStart(2, "0")}`;
     $("#stream-bytes").textContent = `${((s.bytes || 0) / 1e6).toFixed(1)} MB`;
     $("#stream-dropped").textContent = s.dropped || 0;
+    $("#stream-fps").textContent =
+      `${s.seconds > 0 ? ((s.frames || 0) / s.seconds).toFixed(1) : 0} fps`;
     $("#stream-advice").textContent =
       s.dropped > 10 && on
         ? "The video encoder is skipping frames. Try 720p / 30 fps, and close other GPU-heavy apps."

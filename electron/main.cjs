@@ -392,6 +392,8 @@ app.whenReady().then(async () => {
       });
     }
     const result = await publisher.start(options);
+    if (!publisher.active)
+      throw Error("The streaming encoder could not start.");
     streamPowerId = powerSaveBlocker.start("prevent-display-sleep");
     return result;
   });

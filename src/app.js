@@ -1015,6 +1015,8 @@ engine.addEventListener("saved", async ({ detail: s }) => {
       : "Take saved. Your original tracks are safe.",
     s.status === "interrupted",
   );
+  if (streamActive && config.autoExport)
+    toast("Local take saved. Export it from Takes after the stream ends.");
   if (!streamActive) view("recordings");
   if (
     !quitting &&

@@ -17,12 +17,12 @@ Enable **Latitude Streaming** in **Mods**, then open **Stream** in the sidebar. 
 
 The broadcast contains **one stereo full mix**: processed microphones, desktop audio, gain/mutes, optional desktop ducking and Rich clarity, and the master limiter. The existing float mix is encoded to AAC once. The live limiter cannot repair clipped hardware input; leave input headroom. Export loudness normalization is offline and does not run on the live stream.
 
-Start a local take in Studio for isolated microphone/desktop tracks, the full mix and raw voice backups. Record and Stream have **independent Stop controls**. **Pausing recording does not pause the broadcast.** A local take continues after streaming ends, and streaming can continue without disk recording. Streaming alone uses one video encode. Recording alongside it adds a second encode but shares composition and audio processing. Exports wait until broadcasting ends.
+Start a local take in Studio for isolated microphone/desktop tracks, the full mix and raw voice backups. Record and Stream have **independent Stop controls**. **Pausing recording does not pause the broadcast.** A local take continues after streaming ends, and streaming can continue without disk recording. Streaming alone uses one video encode. Recording alongside it adds a second encode but shares composition and audio processing. Export from Takes after broadcasting ends. Automatic export is skipped for takes saved while streaming.
 
 ## Reliability and privacy
 
 - Three reconnect attempts wait 2, 4 and 8 seconds. Each starts fresh codec headers and a keyframe. The platform broadcast may be interrupted; a local recording keeps running.
-- Queues, startup and writes are bounded. Lower bitrate or resolution if the output cannot keep up. Skipped frames and output statistics describe Latitude, not end-viewer playback.
+- Queues, startup and writes are bounded. Lower bitrate or resolution if the output cannot keep up. The video rate is the average encoded-output rate for the current connection; encoder skips count frames dropped from an overloaded encoder queue. Timer/capture stalls can also lower the video rate. These statistics describe Latitude, not end-viewer playback.
 - Server and key fields are session-only; they do not enter preferences, packs, diagnostics or application logs. Starting hides a revealed key. Clear the field on shared computers. Processes running as the same OS user may inspect child-process arguments or memory.
 - RTMPS checks certificates and hostnames. Invalid/self-signed endpoints fail; there is no ignore-certificate option. Use a verified certificate, or explicitly choose plain RTMP on a trusted local network for a local ingest service.
 - Linux Flatpak 0.8 adds network permission. Merely enabling/restoring the module opens no streaming connection.

@@ -69,12 +69,46 @@ test.before(async () => {
     file,
   ]);
   sample = await fs.readFile(file);
-  cert = await fs.readFile(
-    path.join(__dirname, "fixtures/localhost-test-cert.pem"),
+  // Generate an ephemeral test CA/key; no private keys belong in the repository.
+  const bundledOpenSSL = path.join(
+    process.env.ProgramFiles || "C:\\Program Files",
+    "Git",
+    "usr",
+    "bin",
+    "openssl.exe",
   );
-  key = await fs.readFile(
-    path.join(__dirname, "fixtures/localhost-test-key.pem"),
+  const openssl =
+    process.env.OPENSSL_BIN ||
+    (process.platform === "win32" &&
+    require("node:fs").existsSync(bundledOpenSSL)
+      ? bundledOpenSSL
+      : "openssl");
+  const certPath = path.join(temp, "localhost-cert.pem"),
+    keyPath = path.join(temp, "localhost-key.pem");
+  execFileSync(
+    openssl,
+    [
+      "req",
+      "-x509",
+      "-newkey",
+      "rsa:2048",
+      "-sha256",
+      "-days",
+      "2",
+      "-nodes",
+      "-keyout",
+      keyPath,
+      "-out",
+      certPath,
+      "-subj",
+      "/CN=Latitude test localhost",
+      "-addext",
+      "subjectAltName=DNS:localhost",
+    ],
+    { stdio: "ignore" },
   );
+  cert = await fs.readFile(certPath);
+  key = await fs.readFile(keyPath);
 });
 test.after(async () => {
   await fs.rm(temp, { recursive: true, force: true });
@@ -303,4 +337,25 @@ test("Twitch bandwidth test cannot silently publish to a different platform", as
   assert.throws(() =>
     twitchTestKey("rtmp://live.twitch.tv/app", "secret?bandwidthtest=false"),
   );
+});
+
+test("missing encoder releases its local listener and reports a redacted failure", async () => {
+  const states = [];
+  const pub = new StreamPublisher({
+    ffmpeg: path.join(temp, "missing-encoder"),
+    onState: (s) => states.push(s),
+  });
+  try {
+    await pub.start({
+      server: "rtmp://127.0.0.1:9/live",
+      key: "private-test-key",
+      audioKbps: 160,
+    });
+    await until(() => !pub.active);
+    assert.ok(states.some((s) => s.state === "failed"));
+    assert.equal(JSON.stringify(states).includes("private-test-key"), false);
+    assert.equal(JSON.stringify(states).includes(temp), false);
+  } finally {
+    await pub.stop();
+  }
 });
