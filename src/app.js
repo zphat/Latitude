@@ -986,7 +986,7 @@ engine.addEventListener("recording", ({ detail: on }) => {
     "#preview-quality",
     "#choose-folder",
   ])
-    $(id).disabled = on;
+    $(id).disabled = on || streamActive;
   $("#storage-status").textContent = on
     ? "Writing directly to disk"
     : "Local recording · no account needed";
@@ -1015,9 +1015,10 @@ engine.addEventListener("saved", async ({ detail: s }) => {
       : "Take saved. Your original tracks are safe.",
     s.status === "interrupted",
   );
-  view("recordings");
+  if (!streamActive) view("recordings");
   if (
     !quitting &&
+    !streamActive &&
     s.status !== "interrupted" &&
     config.autoExport &&
     info.encoder
@@ -1152,8 +1153,8 @@ async function doExport(id, options = exportDefaults()) {
     toast("Wait for the add-on to finish changing state before exporting.");
     return;
   }
-  if (engine.recording || engine.finishing || engine.starting) {
-    toast("Stop and save your current take before exporting.");
+  if (engine.recording || engine.finishing || engine.starting || streamActive) {
+    toast("End streaming and save your current take before exporting.");
     return;
   }
   if (exporting) {
@@ -1431,6 +1432,7 @@ function action(value) {
     quitting = true;
     attempt(async () => {
       try {
+        await stopStreaming();
         await engine.stop();
         await window.take.quit();
       } finally {
@@ -1495,7 +1497,7 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("beforeunload", (e) => {
   clearTimeout(persistTimer);
   savePreferences();
-  if (engine.recording || engine.finishing) {
+  if (engine.recording || engine.finishing || streamActive) {
     e.preventDefault();
     e.returnValue = "Recording is still active.";
   }
@@ -1510,16 +1512,79 @@ if (
   Array.isArray(config.mods)
 )
   config.mods = {};
+let streamActive = false, stopStreaming = async () => {};
 const modsBusy = () =>
+  streamActive ||
   engine.recording ||
   engine.finishing ||
   engine.starting ||
   starting ||
   exporting;
+function syncOutputLocks() {
+  const busy = streamActive || engine.recording || engine.finishing || engine.starting;
+  for (const id of ["#audio-setup", "#screen-source", "#screen-b-source", "#camera-source", "#templates-button", "#reopen-onboarding", "#import-pack", "#video-size", "#video-fps", "#video-quality", "#video-codec", "#preview-quality", "#choose-folder"])
+    $(id).disabled = busy;
+}
+engine.addEventListener("live", syncOutputLocks);
 const modRegistry = new ModRegistry({
   entries: TRUSTED_MODS,
   enabled: config.mods,
   capabilities: {
+    "live-output": Object.freeze({
+      format: () => ({ width: compositor.outputWidth, height: compositor.outputHeight, fps: compositor.fps }),
+      acquire: (callbacks) => {
+        if (exporting || starting) throw Error("Finish the current export or countdown before streaming.");
+        return engine.acquireLive(callbacks);
+      },
+      activity: (on) => { streamActive = on; syncOutputLocks(); modsPage.render(); },
+      setStop: (fn) => { stopStreaming = fn; return () => { stopStreaming = async () => {}; }; },
+    }),
+    "stream-transport": Object.freeze({
+      available: !!window.take?.streamStart,
+      start: (options) => window.take.streamStart(options),
+      write: (id, data) => window.take.streamWrite(id, data),
+      stop: (id) => window.take.streamStop(id),
+      onState: (fn) => window.take?.onStreamState?.(fn) || (() => {}),
+    }),
+    "workspace-panel": Object.freeze({
+      toast, show: view,
+      readSettings: (id) => structuredClone(config.modSettings?.[id]),
+      writeSettings: (id, value) => { config.modSettings ||= {}; config.modSettings[id] = structuredClone(value); persist(); },
+      mount: ({ id, title, icon: glyph, html }) => {
+        if (!/^[a-z][a-z0-9-]{1,30}$/.test(id) || document.getElementById(`page-${id}`)) throw Error("Invalid or duplicate mod panel.");
+        const element = document.createElement("section");
+        element.className = "page";
+        element.id = `page-${id}`;
+        element.innerHTML = html;
+        $("#workspace").append(element);
+        const nav = document.createElement("button");
+        nav.className = "nav-button";
+        nav.dataset.view = id;
+        nav.title = title;
+        nav.innerHTML = `${icon(glyph)}<small>${escape(title)}</small>`;
+        nav.onclick = () => view(id);
+        $(".rail-spacer").before(nav);
+        const badge = document.createElement("button");
+        badge.className = "button small stream-indicator";
+        badge.hidden = true;
+        badge.onclick = () => view(id);
+        $(".top-actions").prepend(badge);
+        const end = document.createElement("button");
+        end.className = "button small stream-indicator";
+        end.hidden = true;
+        $(".preview-toolbar").append(end);
+        return { element,
+          status: ({ active, label, stop }) => {
+            badge.hidden = end.hidden = !active;
+            badge.dataset.active = end.dataset.active = String(active);
+            badge.textContent = `Stream · ${label}`;
+            end.textContent = `End stream · ${label}`;
+            end.onclick = attempt(stop);
+          },
+          remove: () => { if (element.classList.contains("active")) view("mods"); element.remove(); nav.remove(); badge.remove(); end.remove(); },
+        };
+      },
+    }),
     "studio-output": Object.freeze({
       register: (p) => engine.outputs.register(p),
       start: (id, options) => engine.outputs.start(id, options),

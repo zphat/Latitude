@@ -69,7 +69,7 @@ export function installModsPage({
   $("#mods-guide").onclick = () => {
     modal(
       "Build for Latitude",
-      `<div class="guide"><p>Start with a theme or layout pack, or contribute an optional module to the open-source project.</p><p>This beta loads settings packs and reviewed modules included in a build. Executable third-party installation, streaming, and timeline editing are not included yet.</p><p>Disabled modules do not load their code. Future tools can reuse composed video, the finished audio mix, and separate audio originals.</p><button class="button primary" id="open-mod-guide">Open developer guide ↗</button></div>`,
+      `<div class="guide"><p>Start with a theme or layout pack, or contribute an optional module to the open-source project.</p><p>This beta loads settings packs and reviewed modules included in a build. The optional Streaming mod broadcasts to RTMP or RTMPS. Executable third-party installation and timeline editing are not included yet.</p><p>Disabled modules do not load their code. Future tools can reuse composed video, the finished audio mix, and separate audio originals.</p><button class="button primary" id="open-mod-guide">Open developer guide ↗</button></div>`,
       "OPEN SOURCE",
     );
     $("#open-mod-guide").onclick = attempt(async () => {

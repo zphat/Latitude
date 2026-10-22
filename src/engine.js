@@ -48,6 +48,7 @@ export class StudioEngine extends EventTarget {
         !this.recording &&
         !this.finishing &&
         !this.starting &&
+        !this.live &&
         !this.monitored &&
         !Object.keys(this.nodes).length
       )
@@ -70,6 +71,7 @@ export class StudioEngine extends EventTarget {
       channelCountMode: "explicit",
     });
     this.node.onprocessorerror = () => {
+      this.live?.fault?.(Error("The audio processor stopped. Restart Latitude before streaming."));
       this.emit(
         "error",
         "The audio processor stopped. Save this take, then restart the application.",
@@ -89,6 +91,7 @@ export class StudioEngine extends EventTarget {
     this.monitor.srcObject = this.monitorDestination.stream;
     this.monitor.volume = 0.7;
     this.node.port.onmessage = ({ data }) => {
+      if (data.type === "live-pcm" && data.id === this.live?.id) this.live.audio?.(data);
       if (data.type === "meters") this.emit("meters", data);
       if (data.type === "pcm" && this.session) {
         const keys = ["voice1", "voice2", "desktop", "mix", "raw1", "raw2"];
@@ -104,6 +107,7 @@ export class StudioEngine extends EventTarget {
     this.setMaster(this.masterSettings);
     this.ctx.onstatechange = () => {
       this.emit("sources", this.sourceState());
+      if (this.live && this.ctx.state !== "running") this.live.fault?.(Error("The audio engine was suspended."));
       if (this.recording && this.ctx.state !== "running") {
         this.emit(
           "error",
@@ -113,6 +117,44 @@ export class StudioEngine extends EventTarget {
       }
     };
     await this.ctx.resume();
+  }
+  async acquireLive({ onFrame, onAudio, onFault }) {
+    if (this.live || this.starting || this.finishing || this.connectingDesktop)
+      throw Error("Wait for the current output or device operation to finish.");
+    const live = { id: crypto.randomUUID(), audio: onAudio, fault: onFault };
+    this.live = live;
+    this.emit("live", true);
+    try {
+      await this.init();
+      if (!Object.values(this.sourceState()).some(Boolean) &&
+          !this.compositor.getLayers().some(l => l.visible && l.type !== "video"))
+        throw Error("Connect a source or add a visual layer in Studio first.");
+      if (this.desktopMode === "system" && this.sourceState().desktop && this.monitored)
+        await this.listen(false);
+      if (!this.recording) for (const key of ["screen", "screenB", "camera"]) {
+        const track = this.streams[key]?.getVideoTracks()[0];
+        if (track) await track.applyConstraints(captureConstraints(key,
+          this.compositor.outputWidth, this.compositor.outputHeight, this.compositor.fps)).catch(() => {});
+      }
+      const started = this.ctx.currentTime;
+      this.compositor.liveFrame = () => onFrame(this.canvas, Math.max(0, Math.round((this.ctx.currentTime - started) * 1e6)));
+      this.compositor.setLive(true);
+      this.node.port.postMessage({ type: "live-start", id: live.id, frame: Math.round(started * this.ctx.sampleRate) });
+      return { sampleRate: this.ctx.sampleRate, started,
+        release: () => this.releaseLive(live.id) };
+    } catch (error) {
+      this.releaseLive(live.id);
+      throw error;
+    }
+  }
+  releaseLive(id) {
+    if (this.live?.id !== id) return;
+    this.node?.port.postMessage({ type: "live-stop", id });
+    this.compositor.liveFrame = null;
+    this.compositor.setLive(false);
+    this.live = null;
+    this.updateIdle();
+    this.emit("live", false);
   }
   async devices() {
     return navigator.mediaDevices.enumerateDevices();
@@ -138,7 +180,7 @@ export class StudioEngine extends EventTarget {
     this.emit("sources", this.sourceState());
   }
   async mic(index, deviceId, noiseSuppression = false) {
-    if (this.recording || this.finishing || this.starting)
+    if (this.recording || this.finishing || this.starting || this.live)
       throw Error("Change input devices between takes.");
     if (deviceId === "off") {
       this.remove(`mic${index + 1}`);
@@ -164,7 +206,7 @@ export class StudioEngine extends EventTarget {
             },
             video: false,
           });
-    if (this.recording || this.finishing || this.starting) {
+    if (this.recording || this.finishing || this.starting || this.live) {
       stream.getTracks().forEach((t) => t.stop());
       throw Error(
         "Recording started while the device was connecting. Try again between takes.",
@@ -186,7 +228,7 @@ export class StudioEngine extends EventTarget {
   }
   async screen(source, desktopMode = "system", slot = "a") {
     const key = slot === "b" ? "screenB" : "screen";
-    if (this.recording || this.finishing || this.starting)
+    if (this.recording || this.finishing || this.starting || this.live)
       throw Error("Change capture devices between takes.");
     await this.init();
     if (window.take && source) await window.take.chooseSource(source);
@@ -203,7 +245,7 @@ export class StudioEngine extends EventTarget {
         desktopMode === "system",
       systemAudio: "include",
     });
-    if (this.recording || this.finishing || this.starting) {
+    if (this.recording || this.finishing || this.starting || this.live) {
       stream.getTracks().forEach((t) => t.stop());
       throw Error(
         "Recording started while the screen was connecting. Try again between takes.",
@@ -255,7 +297,7 @@ export class StudioEngine extends EventTarget {
     this.emit("sources", this.sourceState());
   }
   async linuxDesktopInput(selection = "system") {
-    if (this.recording || this.finishing || this.starting)
+    if (this.recording || this.finishing || this.starting || this.live)
       throw Error("Change desktop audio devices between takes.");
     if (this.connectingDesktop)
       throw Error("Desktop audio is already connecting.");
@@ -301,7 +343,7 @@ export class StudioEngine extends EventTarget {
         },
         video: false,
       });
-      if (this.recording || this.finishing || this.starting)
+      if (this.recording || this.finishing || this.starting || this.live)
         throw Error(
           "Recording started while desktop audio was connecting. Reconnect between takes.",
         );
@@ -318,7 +360,7 @@ export class StudioEngine extends EventTarget {
     }
   }
   async desktopInput(deviceId) {
-    if (this.recording || this.finishing || this.starting)
+    if (this.recording || this.finishing || this.starting || this.live)
       throw Error("Change desktop audio devices between takes.");
     if (deviceId === "off") {
       this.remove("desktop");
@@ -335,7 +377,7 @@ export class StudioEngine extends EventTarget {
       },
       video: false,
     });
-    if (this.recording || this.finishing || this.starting) {
+    if (this.recording || this.finishing || this.starting || this.live) {
       stream.getTracks().forEach((t) => t.stop());
       throw Error(
         "Recording started while the device was connecting. Try again between takes.",
@@ -346,7 +388,7 @@ export class StudioEngine extends EventTarget {
     this.desktopMode = "input";
   }
   async camera(deviceId) {
-    if (this.recording || this.finishing || this.starting)
+    if (this.recording || this.finishing || this.starting || this.live)
       throw Error("Change camera devices between takes.");
     if (deviceId === "off") {
       this.streams.camera?.getTracks().forEach((t) => t.stop());
@@ -364,7 +406,7 @@ export class StudioEngine extends EventTarget {
       },
       audio: false,
     });
-    if (this.recording || this.finishing || this.starting) {
+    if (this.recording || this.finishing || this.starting || this.live) {
       stream.getTracks().forEach((t) => t.stop());
       throw Error(
         "Recording started while the camera was connecting. Try again between takes.",
@@ -490,7 +532,7 @@ export class StudioEngine extends EventTarget {
       );
     if (this.desktopMode === "system" && state.desktop && this.monitored)
       await this.listen(false);
-    for (const key of ["screen", "screenB", "camera"]) {
+    for (const key of this.live ? [] : ["screen", "screenB", "camera"]) {
       const track = this.streams[key]?.getVideoTracks()[0];
       if (track)
         try {
@@ -505,6 +547,8 @@ export class StudioEngine extends EventTarget {
           );
         }
     }
+    if (this.live && (options.width !== this.compositor.outputWidth || options.height !== this.compositor.outputHeight || options.fps !== this.compositor.fps))
+      throw Error("Use the current Studio size and frame rate while streaming.");
     this.compositor.outputWidth = options.width;
     this.compositor.outputHeight = options.height;
     this.compositor.fps = options.fps;

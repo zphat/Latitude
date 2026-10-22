@@ -38,6 +38,8 @@ export class Compositor {
     this.previewMode = "balanced";
     this.visible = true;
     this.recording = false;
+    this.live = false;
+    this.liveFrame = null;
     this.paused = false;
     this.quality = "balanced";
     this.clock = new FrameClock();
@@ -90,7 +92,7 @@ export class Compositor {
     this.invalidate();
   }
   resizeForMode() {
-    const scale = this.recording
+    const scale = this.recording || this.live
       ? 1
       : Math.min(
           1,
@@ -104,6 +106,12 @@ export class Compositor {
   setRecording(on) {
     this.recording = on;
     this.paused = false;
+    this.restartClock();
+    this.resizeForMode();
+    this.invalidate();
+  }
+  setLive(on) {
+    this.live = on;
     this.restartClock();
     this.resizeForMode();
     this.invalidate();
@@ -214,7 +222,7 @@ export class Compositor {
     c.restore();
   }
   placeholder(c, x, y, w, h, label) {
-    if (this.recording) return;
+    if (this.recording || this.live) return;
     c.save();
     c.fillStyle = "#16251f";
     c.fillRect(x, y, w, h);
@@ -440,6 +448,7 @@ export class Compositor {
     c.restore();
     this.drawMs = performance.now() - started;
     if (!this.paused) this.captureTrack?.requestFrame();
+    this.liveFrame?.();
     this.dirty = false;
     this.frames++;
   }
@@ -460,7 +469,7 @@ export class Compositor {
           changed = true;
         this.videoFrames.set(v, frames);
       }
-      const capturing = this.recording && !this.paused,
+      const capturing = this.live || (this.recording && !this.paused),
         active = capturing || (this.visible && (live || this.previous)),
         fps = capturing
           ? this.fps

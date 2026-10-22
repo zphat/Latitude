@@ -34,6 +34,7 @@ class StudioProcessor extends AudioWorkletProcessor {
     this.raw = new Float64Array(2);
     this.values = new Float64Array(4);
     this.recording = false;
+    this.live = null;
     this.stopFrame = Infinity;
     this.recordFrame = 0;
     this.pauseFrame = Infinity;
@@ -72,6 +73,10 @@ class StudioProcessor extends AudioWorkletProcessor {
       }
       if (data.type === "visibility")
         this.meterInterval = data.visible ? 2400 : sampleRate;
+      if (data.type === "live-start") {
+        this.live = { id: data.id, frame: data.frame, fill: 0, buffer: new Float32Array(4096) };
+      }
+      if (data.type === "live-stop" && this.live?.id === data.id) this.live = null;
       if (data.type === "start") {
         this.enabled = data.enabled || Array(6).fill(true);
         this.resetBuffers();
@@ -203,6 +208,17 @@ class StudioProcessor extends AudioWorkletProcessor {
         this.sums[m] += values[m] * values[m];
       }
       const frame = currentFrame + i;
+      const live = this.live;
+      if (live && frame >= live.frame) {
+        if (!live.fill) live.first = frame;
+        live.buffer[live.fill * 2] = this.out[0];
+        live.buffer[live.fill * 2 + 1] = this.out[1];
+        if (++live.fill === 2048) {
+          this.port.postMessage({ type: "live-pcm", id: live.id, frame: live.first, data: live.buffer }, [live.buffer.buffer]);
+          live.buffer = new Float32Array(4096);
+          live.fill = 0;
+        }
+      }
       if (
         this.recording &&
         frame >= this.recordFrame &&

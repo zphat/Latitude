@@ -145,6 +145,7 @@
         "--socket=wayland",
         "--socket=fallback-x11",
         "--share=ipc",
+        "--share=network",
         "--socket=pulseaudio",
         "--device=all",
         "--filesystem=xdg-videos:create"

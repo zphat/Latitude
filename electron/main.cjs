@@ -49,7 +49,9 @@ let win,
   powerId,
   root,
   configFile,
-  ffmpeg;
+  ffmpeg,
+  publisher,
+  streamPowerId;
 const allowedRoot = path.join(__dirname, "..");
 const linuxAudio =
   process.platform === "linux"
@@ -344,7 +346,27 @@ app.whenReady().then(async () => {
     if (error) throw Error(error);
   });
   let exportTask;
+  handle("stream:start", async (options) => {
+    if (exportTask) throw Error("Finish the export before streaming.");
+    if (!publisher) {
+      const { StreamPublisher } = require("./stream-publisher.cjs");
+      publisher = new StreamPublisher({ ffmpeg, onState: (state) => {
+        if (!win?.isDestroyed()) win?.webContents.send("stream:state", state);
+        if (state.state === "stopped" && streamPowerId !== undefined && powerSaveBlocker.isStarted(streamPowerId))
+          powerSaveBlocker.stop(streamPowerId);
+      } });
+    }
+    const result = await publisher.start(options);
+    streamPowerId = powerSaveBlocker.start("prevent-display-sleep");
+    return result;
+  });
+  handle("stream:write", (id, bytes) => {
+    if (!publisher) throw Error("Streaming is not active.");
+    return publisher.write(id, bytes);
+  });
+  handle("stream:stop", (id) => publisher?.stop(id));
   handle("record:export", (id, opts) => {
+    if (publisher?.active) throw Error("End the stream before exporting to keep the broadcast smooth.");
     if (exportTask) throw Error("An export is already running.");
     exportTask = store
       .export(id, opts, ffmpeg, (progress) =>
@@ -359,13 +381,13 @@ app.whenReady().then(async () => {
   let closing = false,
     closePrompt = false;
   handle("app:quit", () => {
-    if (store.active || store.exporting || store.beginning)
+    if (store.active || store.exporting || store.beginning || publisher?.active)
       throw Error("Finish saving before closing.");
     closing = true;
     win.close();
   });
   win.on("close", async (e) => {
-    if (closing || (!store.active && !store.exporting && !store.beginning))
+    if (closing || (!store.active && !store.exporting && !store.beginning && !publisher?.active))
       return;
     e.preventDefault();
     if (closePrompt) return;
@@ -390,9 +412,9 @@ app.whenReady().then(async () => {
       }
       const { response } = await dialog.showMessageBox(win, {
         type: "question",
-        message: "A recording is in progress.",
-        detail: "Stop and save the take before closing.",
-        buttons: ["Keep recording", "Save and close"],
+        message: "A recording or stream is in progress.",
+        detail: "End the broadcast and save any local take before closing.",
+        buttons: ["Keep open", "End outputs and close"],
         defaultId: 0,
         cancelId: 0,
       });
@@ -402,6 +424,7 @@ app.whenReady().then(async () => {
     }
   });
   win.webContents.on("render-process-gone", async () => {
+    await publisher?.stop().catch(() => {});
     await linuxAudio?.stop().catch(() => {});
     await store
       .end({
@@ -463,9 +486,9 @@ app.whenReady().then(async () => {
 });
 app.on("will-quit", (event) => {
   globalShortcut.unregisterAll();
-  if (linuxAudio?.active) {
+  if (linuxAudio?.active || publisher?.active) {
     event.preventDefault();
-    linuxAudio.stop().finally(() => app.quit());
+    Promise.allSettled([linuxAudio?.stop(), publisher?.stop()]).finally(() => app.quit());
   }
 });
 app.on("second-instance", () => {

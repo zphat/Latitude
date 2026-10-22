@@ -3641,3 +3641,31 @@ input[type="number"] {
     gap: 12px;
   }
 }
+
+/* Optional Streaming mod; no animated meters or extra preview canvas. */
+.stream-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 24px 0; }
+.stream-settings { padding: 26px; min-width: 0; }
+.stream-settings h2 { margin: 0 0 22px; }
+.stream-settings label { display: grid; gap: 9px; margin: 18px 0 10px; font-size: 13px; font-weight: 600; }
+.stream-settings input, .stream-settings select { width: 100%; min-width: 0; }
+.stream-settings input[type="checkbox"] { width: auto; }
+.stream-settings .check-line { display: flex; align-items: center; }
+.stream-settings p, .stream-settings details { line-height: 1.6; }
+.stream-secret { display: flex; gap: 8px; }
+.stream-status-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 26px; border: 1px solid var(--line); border-radius: 20px; background: var(--panel); }
+.stream-status-card h2 { margin: 8px 0; }
+.stream-status-card p { margin: 0; max-width: 640px; line-height: 1.5; }
+.stream-status-card[data-state="sending"] { border-color: var(--accent); }
+.stream-status-card[data-state="failed"], .stream-status-card[data-state="reconnecting"] { border-color: var(--amber); }
+.stream-status-card .button { flex-shrink: 0; }
+.stream-format { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; }
+.stream-format small { line-height: 1.6; }
+.stream-stats { display: flex; flex-wrap: wrap; gap: 18px 32px; padding: 14px 0; font-size: 12px; color: var(--muted); }
+.stream-stats b { display: inline-block; color: var(--text); margin-left: 8px; }
+.stream-indicator { color: var(--accent); border: 1px solid var(--accent); }
+.stream-indicator[hidden] { display: none; }
+.stream-indicator[data-active="true"]::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.preview-toolbar:has(.stream-indicator[data-active="true"]) { flex-wrap: wrap; }
+#page-stream .notice { margin: 16px 0; }
+@media (max-width: 1000px) { .stream-grid { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .stream-status-card { align-items: stretch; flex-direction: column; } .stream-settings { padding: 18px; } }

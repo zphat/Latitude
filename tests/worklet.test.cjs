@@ -76,3 +76,29 @@ test("hidden meters reduce messages without stopping processing", async () => {
   for (let i = 0; i < 375; i++) h.step();
   assert.equal(h.messages.filter((m) => m.type === "meters").length, 1);
 });
+
+test("live audio shares the finished mix and clock, survives recording pause, and sleeps when disabled", async () => {
+  const h = await harness();
+  for (let i = 0; i < 20; i++) h.step();
+  assert.equal(h.processor.live, null);
+  assert.equal(h.messages.some(m => m.type === 'live-pcm'), false);
+  const first = h.clock.frame;
+  h.send({ type: 'live-start', id: 'test', frame: first });
+  h.send({ type: 'start', frame: first, enabled: [false, false, false, true, false, false] });
+  const input = new Float32Array(128).fill(0.12), expected = [];
+  for (let block = 0; block < 64; block++) {
+    if (block === 16) h.send({ type: 'pause', frame: h.clock.frame });
+    if (block === 48) h.send({ type: 'resume', frame: h.clock.frame });
+    h.step([[input], [], []]);
+    for (let i = 0; i < 128; i++) expected.push(h.output[0][0][i], h.output[0][1][i]);
+  }
+  const live = h.messages.filter(m => m.type === 'live-pcm');
+  assert.equal(live.length, 4);
+  assert.deepEqual(live.map(m => m.frame), [first, first + 2048, first + 4096, first + 6144]);
+  assert.deepEqual(live.flatMap(m => Array.from(m.data)), expected);
+  h.send({ type: 'live-stop', id: 'old' }); assert.ok(h.processor.live);
+  h.send({ type: 'live-stop', id: 'test' });
+  for (let i = 0; i < 20; i++) h.step();
+  assert.equal(h.processor.live, null);
+  assert.equal(h.messages.filter(m => m.type === 'live-pcm').length, 4);
+});
