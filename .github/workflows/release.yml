@@ -49,6 +49,14 @@ jobs:
         run: npm test
         env:
           TAKE_FFMPEG: /usr/bin/ffmpeg
+      - name: Install isolated browser test tools
+        run: |
+          npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
+          npx playwright install --with-deps chromium
+      - name: Verify streaming, reconnect, and independent recording in Chromium
+        run: node tests/streaming-ui.cjs
+        env:
+          TAKE_FFMPEG: /usr/bin/ffmpeg
 
   package:
     needs: validate
@@ -64,7 +72,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Verify every format with the bundled Windows encoder
-        run: node --test tests/formats.test.cjs
+        run: node --test tests/formats.test.cjs tests/streaming.test.cjs
       - name: Prepare encoder and build unsigned Windows package
         shell: pwsh
         run: |

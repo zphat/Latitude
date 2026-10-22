@@ -1031,15 +1031,16 @@ setInterval(() => {
   $("#preview-timer").textContent = formatTime(engine.time());
   $("#preview-clock").textContent = formatTime(engine.time());
   const f = $("#actual-fps");
-  f.textContent = engine.paused
-    ? "Paused"
-    : engine.recording
-      ? `${Math.round(compositor.measuredFps)} / ${config.fps} fps`
-      : sourceState.screen || sourceState.camera
-        ? compositor.measuredFps < 1
-          ? "Static preview"
-          : `${Math.round(compositor.measuredFps)} preview fps`
-        : "Preview";
+  f.textContent =
+    engine.paused && !engine.live
+      ? "Paused"
+      : engine.recording || engine.live
+        ? `${Math.round(compositor.measuredFps)} / ${config.fps} fps`
+        : sourceState.screen || sourceState.camera
+          ? compositor.measuredFps < 1
+            ? "Static preview"
+            : `${Math.round(compositor.measuredFps)} preview fps`
+          : "Preview";
   f.style.color =
     engine.recording &&
     !engine.paused &&
@@ -1512,7 +1513,8 @@ if (
   Array.isArray(config.mods)
 )
   config.mods = {};
-let streamActive = false, stopStreaming = async () => {};
+let streamActive = false,
+  stopStreaming = async () => {};
 const modsBusy = () =>
   streamActive ||
   engine.recording ||
@@ -1521,8 +1523,23 @@ const modsBusy = () =>
   starting ||
   exporting;
 function syncOutputLocks() {
-  const busy = streamActive || engine.recording || engine.finishing || engine.starting;
-  for (const id of ["#audio-setup", "#screen-source", "#screen-b-source", "#camera-source", "#templates-button", "#reopen-onboarding", "#import-pack", "#video-size", "#video-fps", "#video-quality", "#video-codec", "#preview-quality", "#choose-folder"])
+  const busy =
+    streamActive || engine.recording || engine.finishing || engine.starting;
+  for (const id of [
+    "#audio-setup",
+    "#screen-source",
+    "#screen-b-source",
+    "#camera-source",
+    "#templates-button",
+    "#reopen-onboarding",
+    "#import-pack",
+    "#video-size",
+    "#video-fps",
+    "#video-quality",
+    "#video-codec",
+    "#preview-quality",
+    "#choose-folder",
+  ])
     $(id).disabled = busy;
 }
 engine.addEventListener("live", syncOutputLocks);
@@ -1531,13 +1548,29 @@ const modRegistry = new ModRegistry({
   enabled: config.mods,
   capabilities: {
     "live-output": Object.freeze({
-      format: () => ({ width: compositor.outputWidth, height: compositor.outputHeight, fps: compositor.fps }),
+      format: () => ({
+        width: compositor.outputWidth,
+        height: compositor.outputHeight,
+        fps: compositor.fps,
+      }),
       acquire: (callbacks) => {
-        if (exporting || starting) throw Error("Finish the current export or countdown before streaming.");
+        if (exporting || starting)
+          throw Error(
+            "Finish the current export or countdown before streaming.",
+          );
         return engine.acquireLive(callbacks);
       },
-      activity: (on) => { streamActive = on; syncOutputLocks(); modsPage.render(); },
-      setStop: (fn) => { stopStreaming = fn; return () => { stopStreaming = async () => {}; }; },
+      activity: (on) => {
+        streamActive = on;
+        syncOutputLocks();
+        modsPage.render();
+      },
+      setStop: (fn) => {
+        stopStreaming = fn;
+        return () => {
+          stopStreaming = async () => {};
+        };
+      },
     }),
     "stream-transport": Object.freeze({
       available: !!window.take?.streamStart,
@@ -1547,11 +1580,20 @@ const modRegistry = new ModRegistry({
       onState: (fn) => window.take?.onStreamState?.(fn) || (() => {}),
     }),
     "workspace-panel": Object.freeze({
-      toast, show: view,
+      toast,
+      show: view,
       readSettings: (id) => structuredClone(config.modSettings?.[id]),
-      writeSettings: (id, value) => { config.modSettings ||= {}; config.modSettings[id] = structuredClone(value); persist(); },
+      writeSettings: (id, value) => {
+        config.modSettings ||= {};
+        config.modSettings[id] = structuredClone(value);
+        persist();
+      },
       mount: ({ id, title, icon: glyph, html }) => {
-        if (!/^[a-z][a-z0-9-]{1,30}$/.test(id) || document.getElementById(`page-${id}`)) throw Error("Invalid or duplicate mod panel.");
+        if (
+          !/^[a-z][a-z0-9-]{1,30}$/.test(id) ||
+          document.getElementById(`page-${id}`)
+        )
+          throw Error("Invalid or duplicate mod panel.");
         const element = document.createElement("section");
         element.className = "page";
         element.id = `page-${id}`;
@@ -1573,15 +1615,31 @@ const modRegistry = new ModRegistry({
         end.className = "button small stream-indicator";
         end.hidden = true;
         $(".preview-toolbar").append(end);
-        return { element,
+        const fullscreen = document.createElement("button");
+        fullscreen.className =
+          "button small stream-indicator stream-fullscreen";
+        fullscreen.hidden = true;
+        $("#preview-frame").append(fullscreen);
+        return {
+          element,
           status: ({ active, label, stop }) => {
-            badge.hidden = end.hidden = !active;
-            badge.dataset.active = end.dataset.active = String(active);
+            badge.hidden = end.hidden = fullscreen.hidden = !active;
+            badge.dataset.active =
+              end.dataset.active =
+              fullscreen.dataset.active =
+                String(active);
             badge.textContent = `Stream · ${label}`;
-            end.textContent = `End stream · ${label}`;
-            end.onclick = attempt(stop);
+            end.textContent = fullscreen.textContent = `End stream · ${label}`;
+            end.onclick = fullscreen.onclick = attempt(stop);
           },
-          remove: () => { if (element.classList.contains("active")) view("mods"); element.remove(); nav.remove(); badge.remove(); end.remove(); },
+          remove: () => {
+            if (element.classList.contains("active")) view("mods");
+            element.remove();
+            nav.remove();
+            badge.remove();
+            end.remove();
+            fullscreen.remove();
+          },
         };
       },
     }),

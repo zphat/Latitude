@@ -211,6 +211,32 @@ app.whenReady().then(async () => {
     let encoder = true;
     try {
       await runFFmpeg(ffmpeg, ["-version"]);
+      const streamEncoder = await win.webContents
+        .executeJavaScript(`(async () => {
+        const { header, packet } = await import('./mods/streaming/matroska.js');
+        const cfg = { codec: 'avc1.42002a', width: 640, height: 360, bitrate: 1500000,
+          framerate: 30, bitrateMode: 'constant', latencyMode: 'realtime', avc: { format: 'avc' } };
+        if (!(await VideoEncoder.isConfigSupported(cfg)).supported) throw Error('Installed H.264 streaming encoder unavailable');
+        let packets = 0, bytes = 0, failure;
+        const encoder = new VideoEncoder({ output: (chunk, metadata) => {
+          if (!packets) bytes += header({ ...cfg, sampleRate: 48000, description: metadata.decoderConfig.description }).length;
+          const data = new Uint8Array(chunk.byteLength); chunk.copyTo(data);
+          bytes += packet(1, chunk.timestamp, data, chunk.type === 'key').length; packets++;
+        }, error: error => { failure = error; } });
+        try {
+          encoder.configure(cfg);
+          const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+          canvas.getContext('2d').fillRect(0, 0, 640, 360);
+          for (let i = 0; i < 3; i++) {
+            const frame = new VideoFrame(canvas, { timestamp: i * 33333 });
+            try { encoder.encode(frame, { keyFrame: i === 0 }); } finally { frame.close(); }
+          }
+          await encoder.flush();
+          if (failure || packets !== 3 || !bytes) throw failure || Error('Installed encoder produced no usable packets');
+          return { packets, bytes };
+        } finally { if (encoder.state !== 'closed') encoder.close(); }
+      })()`);
+      console.log("STREAM_ENCODER_SMOKE " + JSON.stringify(streamEncoder));
     } catch {
       encoder = false;
     }
@@ -315,7 +341,9 @@ app.whenReady().then(async () => {
     shell.openExternal("https://github.com/zphat/Latitude/issues"),
   );
   handle("app:modding", () =>
-    shell.openExternal("https://github.com/zphat/Latitude/blob/main/MODDING.md"),
+    shell.openExternal(
+      "https://github.com/zphat/Latitude/blob/main/MODDING.md",
+    ),
   );
   handle("app:copy-diagnostics", (text) => {
     if (typeof text !== "string" || text.length > 32768)
@@ -350,11 +378,18 @@ app.whenReady().then(async () => {
     if (exportTask) throw Error("Finish the export before streaming.");
     if (!publisher) {
       const { StreamPublisher } = require("./stream-publisher.cjs");
-      publisher = new StreamPublisher({ ffmpeg, onState: (state) => {
-        if (!win?.isDestroyed()) win?.webContents.send("stream:state", state);
-        if (state.state === "stopped" && streamPowerId !== undefined && powerSaveBlocker.isStarted(streamPowerId))
-          powerSaveBlocker.stop(streamPowerId);
-      } });
+      publisher = new StreamPublisher({
+        ffmpeg,
+        onState: (state) => {
+          if (!win?.isDestroyed()) win?.webContents.send("stream:state", state);
+          if (
+            state.state === "stopped" &&
+            streamPowerId !== undefined &&
+            powerSaveBlocker.isStarted(streamPowerId)
+          )
+            powerSaveBlocker.stop(streamPowerId);
+        },
+      });
     }
     const result = await publisher.start(options);
     streamPowerId = powerSaveBlocker.start("prevent-display-sleep");
@@ -366,7 +401,10 @@ app.whenReady().then(async () => {
   });
   handle("stream:stop", (id) => publisher?.stop(id));
   handle("record:export", (id, opts) => {
-    if (publisher?.active) throw Error("End the stream before exporting to keep the broadcast smooth.");
+    if (publisher?.active)
+      throw Error(
+        "End the stream before exporting to keep the broadcast smooth.",
+      );
     if (exportTask) throw Error("An export is already running.");
     exportTask = store
       .export(id, opts, ffmpeg, (progress) =>
@@ -387,7 +425,13 @@ app.whenReady().then(async () => {
     win.close();
   });
   win.on("close", async (e) => {
-    if (closing || (!store.active && !store.exporting && !store.beginning && !publisher?.active))
+    if (
+      closing ||
+      (!store.active &&
+        !store.exporting &&
+        !store.beginning &&
+        !publisher?.active)
+    )
       return;
     e.preventDefault();
     if (closePrompt) return;
@@ -488,7 +532,9 @@ app.on("will-quit", (event) => {
   globalShortcut.unregisterAll();
   if (linuxAudio?.active || publisher?.active) {
     event.preventDefault();
-    Promise.allSettled([linuxAudio?.stop(), publisher?.stop()]).finally(() => app.quit());
+    Promise.allSettled([linuxAudio?.stop(), publisher?.stop()]).finally(() =>
+      app.quit(),
+    );
   }
 });
 app.on("second-instance", () => {

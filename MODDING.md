@@ -32,7 +32,7 @@ Coordinates are relative to the source for crops and the composition for facecam
 
 **Mods** in the sidebar manages the installed settings pack. Enable/disable persists across restarts. Disabling hides its theme/template choices and falls back to a built-in theme when necessary; existing compositions and local media remain intact. Removing a pack does not delete recordings. This beta supports one settings pack at a time.
 
-The executable module catalog is explicit and source-reviewed: `src/mods/catalog.js` is empty in the base build. There is no arbitrary JavaScript installer or online marketplace. A trusted source build can register a lazy entry:
+The executable module catalog is explicit and source-reviewed: `src/mods/catalog.js` includes the optional, off-by-default Latitude Streaming module. There is no arbitrary JavaScript installer or online marketplace. A trusted source build can register a lazy entry:
 
 ```js
 {
@@ -45,11 +45,25 @@ The executable module catalog is explicit and source-reviewed: `src/mods/catalog
 }
 ```
 
-The module exports `async activate({ apiVersion, services })` and `async deactivate()`. Activation receives only its declared services; unsupported API versions/services are rejected before code loads. Disabled modules remain unloaded. Changes are blocked during recording, countdown, export, or another module's transition. Failed activation calls cleanup, including after partial initialization; cleanup must be idempotent and release every timer, listener, stream, and resource owned by the module. Failed deactivation remains visibly enabled so the user can retry.
+The module exports `async activate({ apiVersion, services })` and `async deactivate()`. Activation receives only its declared services; unsupported API versions/services are rejected before code loads. Disabled modules remain unloaded. Changes are blocked during recording, streaming, countdown, export, or another module's transition. Failed activation calls cleanup, including after partial initialization; cleanup must be idempotent and release every timer, listener, stream, and resource owned by the module. Failed deactivation remains visibly enabled so the user can retry.
 
 This is a lifecycle contract for trusted source, **not a security sandbox**. Imported settings packs cannot register executable modules. Do not weaken Electron isolation, CSP, or Linux permissions to install a mod. Enabling a module should expose its controls, not immediately transmit media, start capture, or read unrelated files; starting those operations needs an explicit user action.
 
-The `studio-output` service exposes the existing `register`, `start`, and `stop` output-provider methods. Registration returns an unregister function. Composed video and the finished mix are shared through cloned tracks, avoiding another capture/audio graph. The current service requires an active local recording; it does not implement standalone streaming, credentials, protocols, or network backpressure. Linux's base Flatpak has no network permission. A streaming distribution needs an explicit permission decision, separate output ownership, bounded queues, and cleanup that cannot interrupt the recorder.
+Version 0.8 supplies three narrow services for the official Streaming module:
+
+| Service | Contract |
+| --- | --- |
+| `live-output` | `format()` reads the Studio format. `acquire({onFrame,onAudio,onFault})` returns a lease with `sampleRate`, `started`, idempotent `release()`. Video timestamps are microseconds relative to acquisition; PCM messages carry absolute AudioContext frames. `activity()` locks incompatible operations through reconnects. `setStop()` registers application shutdown. |
+| `stream-transport` | `start({server,key,audioKbps})`, serial `write(id,bytes)`, `stop(id)`, `onState(callback)`. RTMP/RTMPS only; no arbitrary shell arguments or output paths. |
+| `workspace-panel` | Mount/remove a sidebar page and preview status; show a page/toast; read/write non-secret module preferences. Reviewed source HTML only. Never store credentials in preferences. |
+
+The module encodes AVC using WebCodecs, preferring hardware with software fallback. Only while live, the worklet sends the existing limited stereo mix in 2,048-frame float PCM messages. A small Matroska writer carries timestamped AVC/PCM. Bundled FFmpeg copies video and encodes AAC once. A one-client Node relay verifies RTMPS certificates/hostnames. The key stays in memory but is passed to the child process: other processes running as the same OS user may inspect its arguments or memory. Keys never enter status events, diagnostics, logs, settings, or packs.
+
+Bounds: at most two waiting video frames before skipping; 24 initial PCM chunks awaiting AVC configuration; 4 MiB transport queue/packet cap; 4-second native write deadline; 20-second first-media deadline; 15-second socket inactivity deadline; 1.5-second forced-stop fallback. Three retries (2/4/8 seconds) create fresh codec headers, clock origin and keyframe. Recording pause/stop and live-output stop are independent. Simultaneous recording adds its own encode but shares composition and DSP. Exports are blocked while broadcasting.
+
+The older `studio-output` service remains compatible with recording-bound cloned-MediaStream providers. Standalone streaming uses the new live-output lease. Linux 0.8 adds network permission; simply enabling a mod opens no listener or connection.
+
+A downloadable executable-mod catalog is a later milestone. Signed/reviewed packages, compatibility, permissions, rollback and isolation need design first. This beta bundles a small lazy first-party module. Do not turn arbitrary URLs or settings packs into script loaders.
 
 A future editor should save a non-destructive project referencing the original video and synchronized audio stems. Keep original files intact, decode only visible material, and run cancelable exports outside live capture. A narrow project/media API and timeline are not implemented in this beta. Local filler-word detection could avoid API charges, but model downloads, memory/CPU use, accuracy, and reviewable proposed cuts still need design; do not load transcription while idle. Bundle only locally redistributable fonts with their license notices. Settings packs cannot load fonts or executable assets.
 
@@ -111,7 +125,7 @@ await engine.outputs.stop("my-output");
 
 Stopping a provider ends its cloned tracks while the recorder's original streams remain live. Recorder shutdown stops all providers with a bounded wait. Providers must clean up resources they allocate, including failed starts.
 
-Standalone streaming, network/credential UI, protocols, permissions, backpressure, pause semantics, and independent output start/stop need additional work. Version 1 requires local recording and is not a completed RTMP/WebRTC implementation. Settings packs cannot execute code or register providers. Keep networking opt-in; native plugins require a separately isolated host and crash handling.
+This older provider API still requires local recording. Use the new live-output lease for standalone broadcast ownership; the Streaming module is an implementation example. Settings packs cannot execute code or register providers. Keep networking opt-in; native plugins require a separately isolated host and crash handling.
 
 ## Export formats
 
@@ -121,4 +135,4 @@ A new format needs a registry entry, compatible encoder/container flags, plain s
 
 ## Linux platform boundary
 
-`electron/capture-platform.cjs` selects the Wayland portal vs. thumbnail picker. `electron/linux-audio.cjs` owns a single helper process; `native/linux-audio.c` owns a single temporary audio-server module. The renderer connects that source through the same Web Audio input used by desktop loopback on Windows. Do not add raw PCM IPC, change the user's system defaults, or load arbitrary native plugins through scene packs. The Flatpak intentionally has no network permission; a future streaming distribution would need an explicit permission change and a separate output-provider implementation.
+`electron/capture-platform.cjs` selects the Wayland portal vs. thumbnail picker. `electron/linux-audio.cjs` owns a single helper process; `native/linux-audio.c` owns a single temporary audio-server module. The renderer connects that source through the same Web Audio input used by desktop loopback on Windows. Do not duplicate capture, change the user's system defaults, or load native plugins through settings packs. The Linux input bridge still uses a temporary audio-server source instead of PCM IPC. Version 0.8 adds network permission and bounded PCM messages for the finished live-output mix only. Disabled streaming sends no packets.

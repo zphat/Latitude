@@ -613,10 +613,11 @@ export function installSceneEditor(api) {
     compositor.invalidate();
     update();
   });
-  engine.addEventListener("recording", (e) => {
-    locked = e.detail;
-    update();
-  });
+  for (const event of ["recording", "live"])
+    engine.addEventListener(event, () => {
+      locked = !!(engine.recording || engine.live);
+      update();
+    });
   $("#copy-scene").onclick = () => {
     modal(
       "Copy this composition.",

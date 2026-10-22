@@ -71,7 +71,11 @@ export class StudioEngine extends EventTarget {
       channelCountMode: "explicit",
     });
     this.node.onprocessorerror = () => {
-      this.live?.fault?.(Error("The audio processor stopped. Restart Latitude before streaming."));
+      this.live?.fault?.(
+        Error(
+          "The audio processor stopped. Restart Latitude before streaming.",
+        ),
+      );
       this.emit(
         "error",
         "The audio processor stopped. Save this take, then restart the application.",
@@ -91,7 +95,8 @@ export class StudioEngine extends EventTarget {
     this.monitor.srcObject = this.monitorDestination.stream;
     this.monitor.volume = 0.7;
     this.node.port.onmessage = ({ data }) => {
-      if (data.type === "live-pcm" && data.id === this.live?.id) this.live.audio?.(data);
+      if (data.type === "live-pcm" && data.id === this.live?.id)
+        this.live.audio?.(data);
       if (data.type === "meters") this.emit("meters", data);
       if (data.type === "pcm" && this.session) {
         const keys = ["voice1", "voice2", "desktop", "mix", "raw1", "raw2"];
@@ -107,7 +112,8 @@ export class StudioEngine extends EventTarget {
     this.setMaster(this.masterSettings);
     this.ctx.onstatechange = () => {
       this.emit("sources", this.sourceState());
-      if (this.live && this.ctx.state !== "running") this.live.fault?.(Error("The audio engine was suspended."));
+      if (this.live && this.ctx.state !== "running")
+        this.live.fault?.(Error("The audio engine was suspended."));
       if (this.recording && this.ctx.state !== "running") {
         this.emit(
           "error",
@@ -126,22 +132,51 @@ export class StudioEngine extends EventTarget {
     this.emit("live", true);
     try {
       await this.init();
-      if (!Object.values(this.sourceState()).some(Boolean) &&
-          !this.compositor.getLayers().some(l => l.visible && l.type !== "video"))
+      if (
+        !Object.values(this.sourceState()).some(Boolean) &&
+        !this.compositor
+          .getLayers()
+          .some((l) => l.visible && l.type !== "video")
+      )
         throw Error("Connect a source or add a visual layer in Studio first.");
-      if (this.desktopMode === "system" && this.sourceState().desktop && this.monitored)
+      if (
+        this.desktopMode === "system" &&
+        this.sourceState().desktop &&
+        this.monitored
+      )
         await this.listen(false);
-      if (!this.recording) for (const key of ["screen", "screenB", "camera"]) {
-        const track = this.streams[key]?.getVideoTracks()[0];
-        if (track) await track.applyConstraints(captureConstraints(key,
-          this.compositor.outputWidth, this.compositor.outputHeight, this.compositor.fps)).catch(() => {});
-      }
+      if (!this.recording)
+        for (const key of ["screen", "screenB", "camera"]) {
+          const track = this.streams[key]?.getVideoTracks()[0];
+          if (track)
+            await track
+              .applyConstraints(
+                captureConstraints(
+                  key,
+                  this.compositor.outputWidth,
+                  this.compositor.outputHeight,
+                  this.compositor.fps,
+                ),
+              )
+              .catch(() => {});
+        }
       const started = this.ctx.currentTime;
-      this.compositor.liveFrame = () => onFrame(this.canvas, Math.max(0, Math.round((this.ctx.currentTime - started) * 1e6)));
+      this.compositor.liveFrame = () =>
+        onFrame(
+          this.canvas,
+          Math.max(0, Math.round((this.ctx.currentTime - started) * 1e6)),
+        );
       this.compositor.setLive(true);
-      this.node.port.postMessage({ type: "live-start", id: live.id, frame: Math.round(started * this.ctx.sampleRate) });
-      return { sampleRate: this.ctx.sampleRate, started,
-        release: () => this.releaseLive(live.id) };
+      this.node.port.postMessage({
+        type: "live-start",
+        id: live.id,
+        frame: Math.round(started * this.ctx.sampleRate),
+      });
+      return {
+        sampleRate: this.ctx.sampleRate,
+        started,
+        release: () => this.releaseLive(live.id),
+      };
     } catch (error) {
       this.releaseLive(live.id);
       throw error;
@@ -547,8 +582,15 @@ export class StudioEngine extends EventTarget {
           );
         }
     }
-    if (this.live && (options.width !== this.compositor.outputWidth || options.height !== this.compositor.outputHeight || options.fps !== this.compositor.fps))
-      throw Error("Use the current Studio size and frame rate while streaming.");
+    if (
+      this.live &&
+      (options.width !== this.compositor.outputWidth ||
+        options.height !== this.compositor.outputHeight ||
+        options.fps !== this.compositor.fps)
+    )
+      throw Error(
+        "Use the current Studio size and frame rate while streaming.",
+      );
     this.compositor.outputWidth = options.width;
     this.compositor.outputHeight = options.height;
     this.compositor.fps = options.fps;

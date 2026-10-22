@@ -10,7 +10,7 @@ If your software center cannot open the file, use:
 
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install --user ./Latitude-0.7.0-Linux-x86_64.flatpak
+flatpak install --user ./Latitude-0.8.0-Linux-x86_64.flatpak
 flatpak run studio.latitude.recorder
 ```
 
@@ -31,7 +31,7 @@ Wayland screen capture uses PipeWire through the desktop screen-sharing portal. 
 
 Desktop audio uses a small native control helper with libpulse. PipeWire **0.3.65 or newer** with its PulseAudio compatibility service, and native PulseAudio, are supported. Older PipeWire versions are rejected before creating an input because their remap implementation can silently fail to capture monitor audio. It creates one temporary monitor input for the selected output and feeds it into the existing 48 kHz audio engine, alongside the microphones. It does not copy PCM through Node, change the default microphone/output, or adjust system volumes. Disconnecting or closing the app removes its own temporary input. Your sound settings may show a `latitude_desktop_…` input while it is connected; leave your physical mic selected for other apps.
 
-Flatpak permits audio input/output, Wayland or X11 display access, the Videos folder, and devices for webcams/GPU access. Webcam support currently needs Flatpak's broad device permission because Chromium uses V4L2; the app does not request full home-folder, network, or unrestricted D-Bus access. Files selected with a supported file portal receive scoped access. Use the default Videos/Latitude destination if an external-drive picker does not retain access.
+Flatpak permits audio input/output, Wayland or X11 display access, the Videos folder, and devices for webcams/GPU access. Webcam support currently needs Flatpak's broad device permission because Chromium uses V4L2; the app does not request full home-folder or unrestricted D-Bus access. Version 0.8 adds network permission for optional RTMP/RTMPS streaming; disabling the mod stops its connections and encoding. Files selected with a supported file portal receive scoped access. Use the default Videos/Latitude destination if an external-drive picker does not retain access.
 
 Global shortcuts depend on your desktop's shortcut service and conflicts with existing shortcuts. Latitude reports failed bindings. In-app controls work when a global binding is unavailable.
 

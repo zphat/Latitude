@@ -92,12 +92,13 @@ export class Compositor {
     this.invalidate();
   }
   resizeForMode() {
-    const scale = this.recording || this.live
-      ? 1
-      : Math.min(
-          1,
-          (this.previewMode === "detail" ? 1920 : 1280) / this.outputWidth,
-        );
+    const scale =
+      this.recording || this.live
+        ? 1
+        : Math.min(
+            1,
+            (this.previewMode === "detail" ? 1920 : 1280) / this.outputWidth,
+          );
     this.resize(
       Math.round(this.outputWidth * scale),
       Math.round(this.outputHeight * scale),

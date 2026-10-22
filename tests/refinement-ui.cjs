@@ -292,7 +292,12 @@ require("../scripts/preview.cjs");
   await page.screenshot({ path: path.join(shots, "mods.png") });
   await page.click("#mod-pack-remove");
   await page.click("#confirm-remove-pack");
-  assert.equal(await page.isVisible("#mods-empty"), true);
+  assert.equal(await page.isVisible("#mods-empty"), false);
+  assert.equal(await page.locator("#mod-pack-enabled").count(), 0);
+  assert.equal(
+    await page.locator('[data-mod-id="latitude-streaming"]').count(),
+    1,
+  );
   await page.click('[data-view="studio"]');
   for (const size of [
     { width: 1100, height: 740 },
