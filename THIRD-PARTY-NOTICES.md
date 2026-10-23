@@ -15,4 +15,4 @@ FFmpeg upstream source: https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz (Windows
 No online fonts, third-party web content, hosted analytics, or media upload services are loaded by the application UI.
 
 - **Manrope** — Copyright 2018 The Manrope Project Authors, SIL Open Font License 1.1. Bundled locally for editor titles; license in `assets/fonts/Manrope-OFL.txt`. Source: https://github.com/google/fonts/tree/main/ofl/manrope.
-- **DM Serif Display** — Copyright 2014–2019 Adobe and the DM Serif Project Authors, SIL Open Font License 1.1. Bundled locally for editor titles; license in `assets/fonts/DMSerifDisplay-OFL.txt`. Source: https://github.com/google/fonts/tree/main/ofl/dmserifdisplay.
+- **DM Serif Display** — Copyright 2014–2018 Adobe and Copyright 2019 Google LLC, SIL Open Font License 1.1. Bundled locally for editor titles; license in `assets/fonts/DMSerifDisplay-OFL.txt`. Source: https://github.com/google/fonts/tree/main/ofl/dmserifdisplay.
