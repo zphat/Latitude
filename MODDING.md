@@ -65,7 +65,13 @@ The older `studio-output` service remains compatible with recording-bound cloned
 
 A downloadable executable-mod catalog is a later milestone. Signed/reviewed packages, compatibility, permissions, rollback and isolation need design first. This beta bundles a small lazy first-party module. Do not turn arbitrary URLs or settings packs into script loaders.
 
-A future editor should save a non-destructive project referencing the original video and synchronized audio stems. Keep original files intact, decode only visible material, and run cancelable exports outside live capture. A narrow project/media API and timeline are not implemented in this beta. Local filler-word detection could avoid API charges, but model downloads, memory/CPU use, accuracy, and reviewable proposed cuts still need design; do not load transcription while idle. Bundle only locally redistributable fonts with their license notices. Settings packs cannot load fonts or executable assets.
+Latitude 0.9 includes the optional `latitude-editor` reference module. Its manifest requests `workspace-panel` and `editor-project`; the recorder imports no editor implementation while it is disabled. The editor lazily registers its page, styles, fonts and media resources, and tears them down on disable.
+
+`editor-project` provides `available`, `call(operation, data)`, `onProgress(callback)` (returns an unsubscribe function), `takes()`, `isBusy()` and `activity(boolean)`. Native operations are restricted to `import`, `take`, `open`, `save`, `draft`, `draft-info`, `restore`, `relink`, `preview`, `waveform`, `export`, `cancel`, `reveal` and `dispose`. Open/save/import/relink/export destinations use native dialogs. Renderer requests carry registered media IDs; they cannot request arbitrary paths through the media protocol. Byte-range responses keep scrubbing bounded. Native exports refuse to run alongside live capture or streaming.
+
+`src/mods/editor/model.js` owns version-1 `.latitude-edit` timeline validation and pure editing operations. `render-plan.js` compiles bounded intervals; `electron/editor.cjs` resolves files, builds cancelable jobs, then processes dialogue continuously and measures the delivered mix. The project JSON has `schema: "latitude-edit"`, `version: 1`, `project`, and `media` references relative to the project location. It contains no executable code. Keep original sources intact. See [the editor guide](docs/EDITOR.md) for limits.
+
+Future editor modules can extend the reviewed source catalog and version the project schema. Do not silently change existing version-1 meaning. Automatic captions/filler-word detection remain future work: local model downloads, CPU/memory, accuracy and reviewable proposed cuts need explicit design. Do not load transcription while idle. Manrope and DM Serif Display are bundled under SIL OFL 1.1 with their notices; settings packs cannot install executable code or fonts.
 
 ## Source map
 

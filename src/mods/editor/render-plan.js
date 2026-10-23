@@ -5,6 +5,14 @@ export const CEILING =
   "alimiter=limit=0.841395:attack=5:release=80:level=false:latency=true";
 export const VOICE_FILTER =
   "highpass=f=80,equalizer=f=220:t=q:w=0.8:g=-2,equalizer=f=3500:t=q:w=0.8:g=1.5,acompressor=threshold=0.125:ratio=2.5:attack=12:release=160:makeup=1.3";
+export function trackMixFilter(t) {
+  const angle = ((t.pan <= 0 ? t.pan + 1 : t.pan) * Math.PI) / 2;
+  const pan =
+    t.pan <= 0
+      ? `c0=c0+${n(Math.cos(angle))}*c1|c1=${n(Math.sin(angle))}*c1`
+      : `c0=${n(Math.cos(angle))}*c0|c1=c1+${n(Math.sin(angle))}*c0`;
+  return `volume=${n(10 ** (t.gain / 20))},pan=stereo|${pan}`;
+}
 export function audioTracks(project) {
   return project.tracks.filter((t) =>
     project.clips.some(
@@ -19,7 +27,12 @@ export function segmentPlan(
   media,
   titles,
   segment,
-  { separate = false, audioOnly = false, quality = "balanced" } = {},
+  {
+    separate = false,
+    audioOnly = false,
+    quality = "balanced",
+    deferVoice = false,
+  } = {},
 ) {
   const [W, H] = FORMATS[project.format],
     fps = project.fps,
@@ -137,13 +150,9 @@ export function segmentPlan(
       ? sources.map((s) => `[${s}]`).join("") +
         `amix=inputs=${sources.length}:normalize=0:duration=longest`
       : `anullsrc=r=48000:cl=stereo:d=${d}`;
-    if (t.voice) chain += `,${VOICE_FILTER}`;
-    const angle = ((t.pan <= 0 ? t.pan + 1 : t.pan) * Math.PI) / 2;
-    const pan =
-      t.pan <= 0
-        ? `c0=c0+${n(Math.cos(angle))}*c1|c1=${n(Math.sin(angle))}*c1`
-        : `c0=${n(Math.cos(angle))}*c0|c1=c1+${n(Math.sin(angle))}*c0`;
-    chain += `,volume=${n(10 ** (t.gain / 20))},pan=stereo|${pan},atrim=duration=${d}`;
+    if (t.voice && !deferVoice) chain += `,${VOICE_FILTER}`;
+    if (!(deferVoice && t.voice)) chain += `,${trackMixFilter(t)}`;
+    chain += `,atrim=duration=${d}`;
     if (separate) {
       chain += `,asplit=2[${tag}][stem${i}]`;
     } else chain += `[${tag}]`;

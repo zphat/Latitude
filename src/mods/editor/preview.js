@@ -308,7 +308,7 @@ export class Preview {
           if (!el || c.kind === "image") continue;
           const target = c.in + this.time - c.start;
           if (
-            Number.isFinite(el.duration) &&
+            el.duration > 0 &&
             (force || Math.abs(el.currentTime - target) > 0.12)
           )
             el.currentTime = Math.min(el.duration, target);
@@ -386,10 +386,7 @@ export class Preview {
         for (const el of [item.el, item.alt])
           if (el) {
             el.pause();
-            if (
-              Number.isFinite(el.duration) &&
-              Math.abs(el.currentTime - c.in) > 0.02
-            )
+            if (el.duration > 0 && Math.abs(el.currentTime - c.in) > 0.02)
               el.currentTime = c.in;
           }
       }

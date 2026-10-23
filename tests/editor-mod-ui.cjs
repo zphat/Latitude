@@ -245,6 +245,55 @@ const ff = (args) =>
         oldX,
       ),
     );
+    await page.selectOption("#clip-font", "DM Serif Display");
+    await page.waitForFunction(
+      () =>
+        window.__editor.project.clips.find((c) => c.kind === "title").font ===
+        "DM Serif Display",
+    );
+    assert.equal(
+      await page.evaluate(() =>
+        document.fonts.check('400 64px "DM Serif Display"'),
+      ),
+      true,
+    );
+    await page.selectOption("#clip-font", "Manrope");
+    await page.waitForFunction(
+      () =>
+        window.__editor.project.clips.find((c) => c.kind === "title").font ===
+        "Manrope",
+    );
+    await page.click("#edit-video-layer");
+    const titleId = await page.evaluate(
+      () => window.__editor.project.clips.find((c) => c.kind === "title").id,
+    );
+    const targetTrack = await page.evaluate(
+      () => window.__editor.project.tracks.at(-1).id,
+    );
+    await page.locator(`[data-clip="${titleId}"]`).scrollIntoViewIfNeeded();
+    const sourceBox = await page
+        .locator(`[data-clip="${titleId}"]`)
+        .boundingBox(),
+      targetBox = await page
+        .locator(`[data-row="${targetTrack}"]`)
+        .boundingBox();
+    await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + 25);
+    await page.mouse.down();
+    await page.mouse.move(sourceBox.x + sourceBox.width / 2, targetBox.y + 30, {
+      steps: 8,
+    });
+    await page.mouse.up();
+    assert.equal(
+      await page.evaluate(
+        (id) => window.__editor.project.clips.find((c) => c.id === id).track,
+        titleId,
+      ),
+      targetTrack,
+    );
+    await page.click("#edit-undo");
+    await page.click(`[data-track-select="${targetTrack}"]`);
+    await page.click("#edit-track-remove");
+    await page.evaluate((id) => window.__editor.select(id), titleId);
     await page.selectOption("#edit-format", "portrait");
     const tall = await page.locator("#edit-canvas").boundingBox();
     assert.ok(Math.abs(tall.width / tall.height - 9 / 16) < 0.03);

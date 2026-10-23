@@ -475,3 +475,141 @@ test("local media server serves real bounded byte ranges and rejects invalid ran
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test("dialogue compression stays continuous across render sections and isolated stems", async () => {
+  const f = await fixture();
+  try {
+    const source = path.join(f.root, "voice.wav");
+    ff([
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=330:sample_rate=48000:duration=31.2",
+      "-af",
+      "volume=5",
+      source,
+    ]);
+    const imported = await f.store.importFiles([source]);
+    let p = f.m.newProject();
+    p.assets = imported.items;
+    p.normalize = false;
+    p = f.m.addClip(p, p.assets[0], p.tracks[1].id, 0);
+    p.tracks[1].voice = true;
+    p.tracks[1].pan = 0.3;
+    const out = await f.store.export(p, { format: "wav" }, f.root, {});
+    const samples = pcm(out.file),
+      before = stats(
+        samples.subarray(
+          Math.floor(29.8 * 8000) * 4,
+          Math.floor(29.9 * 8000) * 4,
+        ),
+      ),
+      after = stats(
+        samples.subarray(30 * 8000 * 4, Math.floor(30.1 * 8000) * 4),
+      );
+    assert.ok(
+      Math.abs(20 * Math.log10(after.rms / before.rms)) < 0.1,
+      JSON.stringify({ before, after }),
+    );
+    assert.equal(out.report.normalized, false);
+    // Exercise the same continuous path with embedded stems over a short range.
+    p.range = { in: 1, out: 2 };
+    const separate = await f.store.export(
+      p,
+      { format: "mkv", separate: true, range: true },
+      f.root,
+      {},
+    );
+    assert.equal(
+      probe(separate.file).streams.filter((x) => x.codec_type === "audio")
+        .length,
+      2,
+    );
+    assert.ok(stats(pcm(separate.file, 1)).peak < 0.85);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("opening a Latitude take ignores empty disabled input files and retains source metadata", async () => {
+  const f = await fixture();
+  try {
+    await fs.copyFile(f.audio, path.join(f.root, "voice1.wav"));
+    await fs.writeFile(path.join(f.root, "voice2.wav"), Buffer.alloc(80));
+    await fs.writeFile(path.join(f.root, "desktop.wav"), Buffer.alloc(80));
+    const take = await f.store.importTake({
+      dir: f.root,
+      videoFile: path.basename(f.source),
+      duration: 3,
+      name: "Interview",
+      markers: [{ time: 1, label: "Highlight" }],
+    });
+    assert.deepEqual(
+      take.items.map((a) => a.name),
+      ["Picture", "Voice 1"],
+    );
+    assert.equal(take.items[0].audio, 2);
+    assert.equal(take.markers.length, 1);
+    await assert.rejects(
+      f.store.relink(take.items[1].id, f.image),
+      /same kind/,
+    );
+  } finally {
+    await f.cleanup();
+  }
+});
+test("slide and wipe exports reveal the incoming picture at the expected time", async () => {
+  const f = await fixture();
+  try {
+    let p = f.p;
+    const t = f.m.newTrack("video", "Overlay");
+    p.tracks.push(t);
+    p = f.m.addClip(p, p.assets[2], t.id, 0);
+    Object.assign(p.clips.at(-1), {
+      duration: 1,
+      fadeIn: 0.5,
+      transition: "wipe",
+    });
+    p.range = { in: 0, out: 1 };
+    const wipe = await f.store.export(
+      p,
+      { format: "mp4", range: true },
+      f.root,
+      {},
+    );
+    const pixel = (file, at, x) => [
+      ...ff([
+        "-ss",
+        String(at),
+        "-i",
+        file,
+        "-vf",
+        `crop=2:2:${x}:360,format=rgb24`,
+        "-frames:v",
+        "1",
+        "-f",
+        "rawvideo",
+        "pipe:1",
+      ]).subarray(0, 3),
+    ];
+    const left = pixel(wipe.file, 0.1, 400),
+      right = pixel(wipe.file, 0.1, 900),
+      late = pixel(wipe.file, 0.7, 900);
+    // The square overlay fits inside the 16:9 frame (x=280..1000).
+    assert.ok(left[2] > 150 && right[2] > 150); // reveal has not reached the centered picture
+    assert.ok(late[0] > 180 && late[2] < 50);
+    p.clips.at(-1).transition = "slide-left";
+    const slide = await f.store.export(
+      p,
+      { format: "mp4", range: true },
+      f.root,
+      {},
+    );
+    const entering = pixel(slide.file, 0.3, 300),
+      outside = pixel(slide.file, 0.3, 1000);
+    assert.ok(entering[0] > 180 && entering[2] < 50);
+    assert.ok(outside[2] > 150);
+  } finally {
+    await f.cleanup();
+  }
+});

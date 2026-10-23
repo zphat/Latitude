@@ -76,7 +76,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Verify every format with the bundled Windows encoder
-        run: node --test tests/formats.test.cjs tests/streaming.test.cjs
+        run: node --test tests/formats.test.cjs tests/streaming.test.cjs tests/editor-mod.test.cjs
       - name: Prepare encoder and build unsigned Windows package
         shell: pwsh
         run: |

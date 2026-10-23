@@ -1,6 +1,6 @@
 # Latitude
 
-A local screen recorder built around clear podcast audio. Version **0.8.0 — Windows beta and Linux preview**.
+A local screen recorder built around clear podcast audio. Version **0.9.0 — Windows beta and Linux preview**.
 
 [Beta homepage](https://latitude.pictures) · [Discord feedback and updates](https://discord.gg/EnPRdDutAn)
 
@@ -10,7 +10,7 @@ Record your screen, optional facecam, microphones, and desktop audio. Shape your
 
 ## Open the Windows app
 
-1. Download **Latitude-0.8.0-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.8.0).
+1. Download **Latitude-0.9.0-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.0).
 2. Double-click it. Latitude installs for your Windows account and creates desktop and Start menu shortcuts.
 3. Open either shortcut. No terminal, source folder, Node.js, OBS, or separate FFmpeg installation is needed.
 
@@ -22,9 +22,21 @@ The beta is unsigned, so Windows may identify it as an unknown publisher. It ins
 
 ## Open the Linux app
 
-Download **Latitude-0.8.0-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.8.0), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
+Download **Latitude-0.9.0-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.0), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
 
 The first Linux preview targets Fedora KDE/GNOME, Ubuntu/Mint with Flatpak, Bazzite, and SteamOS **Desktop Mode**. Gaming Mode and real-device performance remain unverified. Wayland uses the desktop screen-sharing portal; desktop audio uses PulseAudio or PipeWire 0.3.65+ with its PulseAudio service. The initial runtime download is shared with other Flatpak apps. Latitude is not on Flathub yet; preview updates come from GitHub Releases.
+
+## New in Latitude 0.9
+
+**Latitude Editor** is the second official optional mod, included and off by default. Enable it in **Mods → Latitude Editor**, then open **Edit**, or choose **Edit** on a saved take.
+
+- Layer video, audio, images and titles. Split/trim, drag between layers, insert intros or ads while keeping all later clips aligned, copy/cut/paste, and undo/redo. Separate a video's audio into a linked layer. Global range cuts preserve synchronization.
+- Fades, dissolves, slides and wipes; drag/resize framing, crop, flip, opacity, simple color controls, and locally bundled Manrope/DM Serif Display title fonts with optional gradients.
+- Clip/layer gain, panning, mute/solo, waveforms, optional dialogue cleanup, protected preview audio and two-pass podcast loudness export. Stateful dialogue processing spans the full edit, avoiding compressor resets at render boundaries.
+- Export MP4, MKV or audio-only WAV. MP4/MKV optionally retain named audio layers **and aligned 24-bit WAV stems**. Portrait, square, 720p, 1080p and 4K projects at 24/30/60 fps.
+- Non-destructive project files, local recovery drafts, missing-media relinking and cancelable native exports. Disabled editor code stays unloaded; idle previews stop; render jobs and undo memory are bounded. No new production dependency.
+
+[Editor guide and limits](docs/EDITOR.md) · [Editor QA](docs/qa/editor-0.9.0.md) · [Release notes](docs/releases/0.9.0.md).
 
 ## New in Latitude 0.8
 
@@ -34,7 +46,7 @@ The first Linux preview targets Fedora KDE/GNOME, Ubuntu/Mint with Flatpak, Bazz
 - Stream the existing scene and processed stereo mix without recording to disk. Optional local recording keeps separate microphone/desktop tracks, with independent pause and stop controls.
 - One H.264 encode for streaming, with hardware preference/software fallback. Bundled FFmpeg copies video and encodes the finished mix once to AAC. No new production dependency or capture/DSP graph. Simultaneous recording adds a second video encode.
 - Preview status, bounded queues, three reconnect attempts, session-only keys, verified TLS, Twitch bandwidth test, and Twitch/YouTube/custom bitrate presets. Up to 1080p60, sharing the Studio canvas with local recording.
-- Linux Flatpak now includes network permission; disabled streaming makes no connection. Editor and downloadable executable-mod installation remain planned.
+- Linux Flatpak now includes network permission; disabled streaming makes no connection. The editor arrived in 0.9; downloadable executable-mod installation remains planned.
 - [Streaming setup and limitations](docs/STREAMING.md) · [QA report](docs/qa/streaming-0.8.0.md) · [Release notes](docs/releases/0.8.0.md). Authenticated platform delivery and real-speech listening still need beta feedback.
 
 ## New in Latitude 0.7
@@ -83,7 +95,7 @@ The first Linux preview targets Fedora KDE/GNOME, Ubuntu/Mint with Flatpak, Bazz
 6. Pick **Natural voice** or **Podcast broadcast** in Voice Studio. Open a processing module for its controls. The **Rich clarity** slider adds fuller body, less boxiness, and focused vocal presence; start around 25–35% and toggle Clarity on/off to compare. It does not add an air shelf or remove noise underneath speech.
 7. Choose a scene. Click a source to move/resize it, or use **Crop this source** in Scene layers to remove tabs/taskbar. **Add source** adds titles, images, and backgrounds. Click **Start recording**. Pause, add edit markers, and switch scenes as needed.
 8. Stop. The original take is saved first. Automatic export then makes an editing pack; you can disable auto-export in Settings.
-9. In **Takes**, use **Play** to open the video in your media player, or **Open files** for the session/export folder.
+9. In **Takes**, use **Edit** to open synchronized picture and source audio in Latitude Editor, **Play** for your media player, or **Open files** for the session/export folder.
 
 ## What is implemented
 

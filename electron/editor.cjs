@@ -217,7 +217,13 @@ class EditorStore {
       for (const entry of files) {
         const file = safeFile(entry.file);
         try {
-          await fs.access(file);
+          const stat = await fs.stat(file);
+          // Disabled recording lanes retain an empty 80-byte WAV header.
+          if (
+            !stat.isFile() ||
+            (entry.file.endsWith(".wav") && stat.size <= 80)
+          )
+            continue;
         } catch {
           continue;
         }
@@ -350,6 +356,10 @@ class EditorStore {
     if (!this.media.has(id)) throw Error("Unknown media.");
     return this.work(async (signal) => {
       const a = { ...(await this.probe(file, 0, signal)), id };
+      if (a.kind !== this.media.get(id).kind)
+        throw Error(
+          "Relink with the same kind of media: video, audio or image.",
+        );
       this.media.set(id, a);
       return this.public(a);
     });
@@ -479,7 +489,8 @@ class EditorStore {
     return this.work(async (signal) => {
       const p = await this.validate(project),
         { duration, segments, FORMATS } = await model,
-        { segmentPlan, audioTracks, CEILING } = await plan;
+        { segmentPlan, audioTracks, CEILING, VOICE_FILTER, trackMixFilter } =
+          await plan;
       const format = ["mp4", "mkv", "wav"].includes(options?.format)
           ? options.format
           : "mp4",
@@ -511,6 +522,8 @@ class EditorStore {
       const work = await fs.mkdtemp(path.join(folder, ".latitude-edit-"));
       const titleMap = new Map();
       const tracks = audioTracks(p);
+      const continuousVoice = tracks.some((t) => t.voice),
+        renderSeparate = separate || continuousVoice;
       const safe =
         p.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, "").slice(0, 60) ||
         "Latitude edit";
@@ -524,7 +537,7 @@ class EditorStore {
           [w, h] = FORMATS[p.format];
         const estimate =
           length *
-            (48000 * 8 * (separate ? tracks.length + 1 : 1) +
+            (48000 * 8 * (renderSeparate ? tracks.length + 1 : 1) +
               (audioOnly ? 0 : w * h * 0.8)) +
           256e6;
         if (Number(stat.bavail) * Number(stat.bsize) < estimate)
@@ -572,7 +585,8 @@ class EditorStore {
           if (signal.aborted) throw Error("Canceled.");
           const segment = pieces[i],
             built = segmentPlan(p, media, titleMap, segment, {
-              separate,
+              separate: renderSeparate,
+              deferVoice: continuousVoice,
               audioOnly,
               quality: options?.quality,
             });
@@ -601,7 +615,7 @@ class EditorStore {
           path.join(work, "concat.txt"),
           parts.map((f) => `file '${path.basename(f)}'`).join("\n"),
         );
-        const joined = path.join(work, "joined.mkv");
+        let joined = path.join(work, "joined.mkv");
         this.onProgress({
           percent: 77,
           message: "Joining the edit without re-encoding video…",
@@ -625,6 +639,54 @@ class EditorStore {
           { signal },
         );
         for (const part of parts) await fs.rm(part, { force: true });
+        // Stateful EQ/compression runs once across the joined audio, so a cut or
+        // 30-second render boundary cannot reset the compressor envelope.
+        if (continuousVoice) {
+          this.onProgress({
+            percent: 79,
+            message: "Finishing continuous dialogue processing…",
+          });
+          const filters = [],
+            maps = audioOnly ? [] : ["-map", "0:v:0", "-c:v", "copy"];
+          tracks.forEach((t, i) => {
+            const chain = t.voice
+              ? `${VOICE_FILTER},${trackMixFilter(t)}`
+              : "anull";
+            filters.push(
+              `[0:a:${i + 1}]${chain}${separate ? `,asplit=2[a${i}][s${i}]` : `[a${i}]`}`,
+            );
+          });
+          filters.push(
+            tracks.map((_, i) => `[a${i}]`).join("") +
+              `amix=inputs=${tracks.length}:normalize=0:duration=longest[mix]`,
+          );
+          maps.push("-map", "[mix]");
+          if (separate) tracks.forEach((_, i) => maps.push("-map", `[s${i}]`));
+          const processed = path.join(work, "processed.mkv");
+          await command(
+            this.ffmpeg,
+            [
+              "-y",
+              "-filter_complex_threads",
+              "2",
+              "-i",
+              joined,
+              "-filter_complex",
+              filters.join(";"),
+              ...maps,
+              "-c:a",
+              "pcm_f32le",
+              "-ar",
+              "48000",
+              "-t",
+              String(length),
+              processed,
+            ],
+            { signal },
+          );
+          await fs.rm(joined, { force: true });
+          joined = processed;
+        }
         let loud = CEILING,
           measured = null;
         if (p.normalize) {

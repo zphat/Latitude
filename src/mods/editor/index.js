@@ -427,6 +427,10 @@ export async function activate({ services }) {
               : input.type === "number"
                 ? Number(input.value)
                 : input.value;
+        if (key === "font")
+          await document.fonts.load(
+            `${v === "DM Serif Display" ? 400 : 700} 64px "${v}"`,
+          );
         if (key === "audio") {
           v = Number(v);
           if (v > 0 && !media.get(c.asset)?.audioUrls?.[v])
@@ -1244,6 +1248,17 @@ export async function activate({ services }) {
       $("#edit-dialog").close();
       await work(async () => {
         await document.fonts.ready;
+        await Promise.all(
+          [
+            ...new Set(
+              p.clips.filter((c) => c.kind === "title").map((c) => c.font),
+            ),
+          ].map((font) =>
+            document.fonts.load(
+              `${font === "DM Serif Display" ? 400 : 700} 64px "${font}"`,
+            ),
+          ),
+        );
         const titles = {};
         const from = options.range && p.range ? p.range.in : 0,
           to = options.range && p.range ? p.range.out : duration(p);

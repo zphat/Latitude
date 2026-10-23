@@ -10,7 +10,7 @@ If your software center cannot open the file, use:
 
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install --user ./Latitude-0.8.0-Linux-x86_64.flatpak
+flatpak install --user ./Latitude-0.9.0-Linux-x86_64.flatpak
 flatpak run studio.latitude.recorder
 ```
 
@@ -55,3 +55,7 @@ npm run dist:linux -- --x64 --publish never
 ```
 
 See `.github/workflows/linux.yml` for the exact build and test commands. Never launch the application with `--no-sandbox` as an installation workaround. The Flatpak uses Zypak to preserve the Chromium sandbox.
+
+## Optional editor
+
+Enable **Latitude Editor** in Mods, then open **Edit**. Import media through the native file picker, or choose a Latitude take. Source media under Videos remains accessible by default. For media on another drive, use the file picker; if a portal grant expires after restarting or a file moves, use **Relink source**. Project files reference their media rather than copying it. Editing and export run separately from live recording/streaming. See [the editor guide](EDITOR.md).

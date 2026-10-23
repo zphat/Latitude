@@ -3,9 +3,13 @@
 export const TRUSTED_MODS = [
   {
     manifest: {
-      id: "latitude-editor", name: "Latitude Editor", version: "0.1.0-beta",
-      author: "Latitude", apiVersion: 1,
-      description: "Turn takes into episodes and clips. Layer video, audio, images and titles; trim, split, fade and export a finished podcast mix.",
+      id: "latitude-editor",
+      name: "Latitude Editor",
+      version: "0.1.0-beta",
+      author: "Latitude",
+      apiVersion: 1,
+      description:
+        "Turn takes into episodes and clips. Layer video, audio, images and titles; trim, split, fade and export a finished podcast mix.",
       capabilities: ["editor-project", "workspace-panel"],
     },
     load: () => import("./editor/index.js"),
