@@ -13,3 +13,6 @@ FFmpeg upstream source: https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz (Windows
 - **Flatpak / Freedesktop Platform and Electron2 BaseApp / Zypak** — Linux distribution and sandbox runtime components, under their respective upstream licenses. See https://github.com/flathub/org.electronjs.Electron2.BaseApp/tree/branch/25.08 and https://github.com/refi64/zypak. The Flatpak retains runtime and Chromium notices.
 
 No online fonts, third-party web content, hosted analytics, or media upload services are loaded by the application UI.
+
+- **Manrope** — Copyright 2018 The Manrope Project Authors, SIL Open Font License 1.1. Bundled locally for editor titles; license in `assets/fonts/Manrope-OFL.txt`. Source: https://github.com/google/fonts/tree/main/ofl/manrope.
+- **DM Serif Display** — Copyright 2014–2019 Adobe and the DM Serif Project Authors, SIL Open Font License 1.1. Bundled locally for editor titles; license in `assets/fonts/DMSerifDisplay-OFL.txt`. Source: https://github.com/google/fonts/tree/main/ofl/dmserifdisplay.

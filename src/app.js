@@ -845,8 +845,8 @@ async function record() {
     return;
   }
   if (engine.starting) return;
-  if (exporting) {
-    toast("Finish or cancel the export in Takes before recording.");
+  if (exporting || editorBusy) {
+    toast("Finish or cancel the current export or editor operation before recording.");
     view("recordings");
     return;
   }
@@ -1054,9 +1054,14 @@ async function loadTakes() {
           EXPORT_FORMATS.find((f) => f.id === report?.format)?.kind === "audio"
             ? "file"
             : "track";
-        return `<article class="take-card"><div class="take-art">${icon("wave")}</div><div class="take-info"><h3>${escape(s.name)}</h3><p>${escape(new Date(s.created).toLocaleString())} · ${formatTime(s.duration || 0)} · ${s.width || 1920} × ${s.height || 1080}</p><div class="take-meta"><span class="tag">${s.status === "interrupted" ? "Interrupted · recovery available" : s.status === "exported" ? "Ready to edit" : s.status === "recording" ? "Recording" : "Originals saved"}</span>${report ? `<span class="tag">${escape((report.format || "mp4").toUpperCase())} · ${trackCount} audio ${audioUnit}${trackCount === 1 ? "" : "s"}${report.mediaBytes ? ` · ${(report.mediaBytes / 1e6).toFixed(1)} MB` : ""}</span><span class="tag">${escape(report.measuredLUFS)} LUFS · ${escape(report.truePeakDBTP)} dBTP</span>` : ""}</div></div><div class="take-actions"><button class="button" data-play-take="${s.id}" ${s.status === "recording" ? "disabled" : ""} title="Play in your media player">${icon("play")} Play</button><button class="button" data-open-take="${s.id}">${icon("folder")} Open files</button><button class="button ${s.id === lastSavedId ? "primary" : ""}" data-export-take="${s.id}" ${exporting || engine.recording || engine.finishing || engine.starting || s.status === "recording" ? "disabled" : ""}>${icon("download")} ${s.status === "interrupted" ? "Recover & export" : "Export"}</button></div></article>`;
+        return `<article class="take-card"><div class="take-art">${icon("wave")}</div><div class="take-info"><h3>${escape(s.name)}</h3><p>${escape(new Date(s.created).toLocaleString())} · ${formatTime(s.duration || 0)} · ${s.width || 1920} × ${s.height || 1080}</p><div class="take-meta"><span class="tag">${s.status === "interrupted" ? "Interrupted · recovery available" : s.status === "exported" ? "Ready to edit" : s.status === "recording" ? "Recording" : "Originals saved"}</span>${report ? `<span class="tag">${escape((report.format || "mp4").toUpperCase())} · ${trackCount} audio ${audioUnit}${trackCount === 1 ? "" : "s"}${report.mediaBytes ? ` · ${(report.mediaBytes / 1e6).toFixed(1)} MB` : ""}</span><span class="tag">${escape(report.measuredLUFS)} LUFS · ${escape(report.truePeakDBTP)} dBTP</span>` : ""}</div></div><div class="take-actions"><button class="button" data-edit-take="${s.id}" ${s.status === "recording" || modsBusy() ? "disabled" : ""}>Edit</button><button class="button" data-play-take="${s.id}" ${s.status === "recording" ? "disabled" : ""} title="Play in your media player">${icon("play")} Play</button><button class="button" data-open-take="${s.id}">${icon("folder")} Open files</button><button class="button ${s.id === lastSavedId ? "primary" : ""}" data-export-take="${s.id}" ${exporting || engine.recording || engine.finishing || engine.starting || s.status === "recording" ? "disabled" : ""}>${icon("download")} ${s.status === "interrupted" ? "Recover & export" : "Export"}</button></div></article>`;
       })
       .join("");
+    $$("[data-edit-take]").forEach(b => b.onclick = attempt(async () => {
+      await modRegistry.setEnabled("latitude-editor", true);
+      view("editor");
+      window.dispatchEvent(new CustomEvent("latitude-edit-take", { detail: b.dataset.editTake }));
+    }));
     $$("[data-play-take]").forEach(
       (b) => (b.onclick = attempt(() => window.take.play(b.dataset.playTake))),
     );
@@ -1135,8 +1140,8 @@ async function doExport(id, options = exportDefaults()) {
     toast("Wait for the add-on to finish changing state before exporting.");
     return;
   }
-  if (engine.recording || engine.finishing || engine.starting || streamActive) {
-    toast("End streaming and save your current take before exporting.");
+  if (engine.recording || engine.finishing || engine.starting || streamActive || editorBusy) {
+    toast("Finish the current recording, stream or editor operation before exporting.");
     return;
   }
   if (exporting) {
@@ -1504,9 +1509,11 @@ if (
   Array.isArray(config.mods)
 )
   config.mods = {};
+let editorBusy = false;
 let streamActive = false,
   stopStreaming = async () => {};
 const modsBusy = () =>
+  editorBusy ||
   streamActive ||
   engine.recording ||
   engine.finishing ||
@@ -1538,6 +1545,14 @@ const modRegistry = new ModRegistry({
   entries: TRUSTED_MODS,
   enabled: config.mods,
   capabilities: {
+    "editor-project": Object.freeze({
+      available: !!window.take?.editor,
+      call: (operation, data) => window.take.editor(operation, data),
+      onProgress: fn => window.take?.onEditorProgress?.(fn) || (() => {}),
+      takes: () => window.take?.sessions?.() || Promise.resolve([]),
+      isBusy: () => streamActive || exporting || starting || engine.recording || engine.finishing || engine.starting,
+      activity: on => { editorBusy = on; modsPage.render(); },
+    }),
     "live-output": Object.freeze({
       format: () => ({
         width: compositor.outputWidth,
@@ -1545,7 +1560,7 @@ const modRegistry = new ModRegistry({
         fps: compositor.fps,
       }),
       acquire: (callbacks) => {
-        if (exporting || starting)
+        if (exporting || starting || editorBusy)
           throw Error(
             "Finish the current export or countdown before streaming.",
           );

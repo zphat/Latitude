@@ -51,6 +51,7 @@ let win,
   configFile,
   ffmpeg,
   publisher,
+  editor,
   streamPowerId;
 const allowedRoot = path.join(__dirname, "..");
 const linuxAudio =
@@ -120,6 +121,12 @@ app.whenReady().then(async () => {
   protocol.handle("take", (request) => {
     const url = new URL(request.url);
     if (url.host !== "app") return new Response("Forbidden", { status: 403 });
+    if (url.pathname.startsWith("/editor-media/")) {
+      const id = url.pathname.slice("/editor-media/".length);
+      const file = /^[\w-]{1,80}$/.test(id) && editor?.mediaPath(id);
+      if (!file) return new Response("Media unavailable", { status: 404 });
+      return net.fetch(pathToFileURL(file).toString(), { headers: request.headers });
+    }
     const rel = decodeURIComponent(url.pathname).replace(/^\/+/, "");
     const target = path.resolve(allowedRoot, rel || "src/index.html");
     if (
@@ -351,6 +358,7 @@ app.whenReady().then(async () => {
     clipboard.writeText(text);
   });
   handle("record:begin", async (opts) => {
+    if (editor?.busy) throw Error("Finish the editor operation before recording.");
     if (!opts || ![44100, 48000].includes(opts.sampleRate))
       throw Error("Unsupported audio sample rate.");
     const result = await store.begin(opts);
@@ -375,6 +383,7 @@ app.whenReady().then(async () => {
   });
   let exportTask;
   handle("stream:start", async (options) => {
+    if (editor?.busy) throw Error("Finish the editor operation before streaming.");
     if (exportTask) throw Error("Finish the export before streaming.");
     if (!publisher) {
       const { StreamPublisher } = require("./stream-publisher.cjs");
@@ -403,6 +412,7 @@ app.whenReady().then(async () => {
   });
   handle("stream:stop", (id) => publisher?.stop(id));
   handle("record:export", (id, opts) => {
+    if (editor?.busy) throw Error("Finish the editor operation before exporting a take.");
     if (publisher?.active)
       throw Error(
         "End the stream before exporting to keep the broadcast smooth.",
@@ -418,10 +428,55 @@ app.whenReady().then(async () => {
     return exportTask;
   });
   handle("record:cancel-export", () => store.cancelExport());
+  handle("editor:call", async (operation, data) => {
+    if (!editor) {
+      const { EditorStore } = require("./editor.cjs");
+      editor = new EditorStore({ ffmpeg, profile: app.getPath("userData"),
+        onProgress: state => { if (!win?.isDestroyed()) win.webContents.send("editor:progress", state); } });
+    }
+    if (operation === "cancel") { editor.cancel(); return true; }
+    if (operation === "draft") return editor.draft(data);
+    if (operation === "draft-info") return editor.draftInfo();
+    if (operation === "dispose") return editor.dispose();
+    if (store.active || store.beginning || store.exporting || publisher?.active)
+      throw Error("Finish recording, streaming or exporting before using the editor’s media tools.");
+    const mediaFilters = [{ name: "Video, audio and images", extensions: ["mp4","m4v","mov","mkv","webm","avi","wav","mp3","m4a","aac","flac","ogg","opus","png","jpg","jpeg","webp"] }];
+    if (operation === "import") {
+      const result = await dialog.showOpenDialog(win, { title: "Add media to your edit", properties: ["openFile", "multiSelections"], filters: mediaFilters });
+      return result.canceled ? null : editor.importFiles(result.filePaths);
+    }
+    if (operation === "take") {
+      const take = await store.resolve(data);
+      if (take.status === "recording") throw Error("Save this take before editing.");
+      return editor.importTake(take);
+    }
+    if (operation === "relink") {
+      const result = await dialog.showOpenDialog(win, { title: "Locate replacement media", properties: ["openFile"], filters: mediaFilters });
+      return result.canceled ? null : editor.relink(data, result.filePaths[0]);
+    }
+    if (operation === "save") {
+      const result = await dialog.showSaveDialog(win, { title: "Save a Latitude edit project", defaultPath: "Latitude-edit.latitude-edit", filters: [{ name: "Latitude edit", extensions: ["latitude-edit"] }] });
+      return result.canceled ? null : editor.save(data, result.filePath);
+    }
+    if (operation === "open") {
+      const result = await dialog.showOpenDialog(win, { title: "Open a Latitude edit project", properties: ["openFile"], filters: [{ name: "Latitude edit", extensions: ["latitude-edit"] }] });
+      return result.canceled ? null : editor.open(result.filePaths[0]);
+    }
+    if (operation === "restore") return editor.open(editor.draftPath);
+    if (operation === "waveform") return editor.waveform(data?.id, data?.audio);
+    if (operation === "preview") return editor.prepare(data?.id, data?.audio, !!data?.video);
+    if (operation === "export") {
+      const result = await dialog.showOpenDialog(win, { title: "Choose where to save this edit", defaultPath: root, properties: ["openDirectory", "createDirectory"] });
+      if (result.canceled) return null;
+      return editor.export(data?.project, data?.options, result.filePaths[0], data?.titles);
+    }
+    if (operation === "reveal" && editor.lastExport) return shell.openPath(editor.lastExport);
+    throw Error("Unsupported editor operation.");
+  });
   let closing = false,
     closePrompt = false;
   handle("app:quit", () => {
-    if (store.active || store.exporting || store.beginning || publisher?.active)
+    if (store.active || store.exporting || store.beginning || publisher?.active || editor?.busy)
       throw Error("Finish saving before closing.");
     closing = true;
     win.close();
@@ -432,13 +487,21 @@ app.whenReady().then(async () => {
       (!store.active &&
         !store.exporting &&
         !store.beginning &&
-        !publisher?.active)
+        !publisher?.active && !editor?.busy)
     )
       return;
     e.preventDefault();
     if (closePrompt) return;
     closePrompt = true;
     try {
+      if (editor?.busy) {
+        const { response } = await dialog.showMessageBox(win, {
+          message: "The editor is still working.", detail: "Cancel the editor operation, then close after it stops. Your original files and autosaved edit are kept.",
+          buttons: ["Keep open", "Cancel editor operation"], defaultId: 0, cancelId: 0,
+        });
+        if (response === 1) editor.cancel();
+        return;
+      }
       if (store.exporting) {
         const { response } = await dialog.showMessageBox(win, {
           message: "An export is in progress.",
@@ -470,6 +533,7 @@ app.whenReady().then(async () => {
     }
   });
   win.webContents.on("render-process-gone", async () => {
+    editor?.cancel();
     await publisher?.stop().catch(() => {});
     await linuxAudio?.stop().catch(() => {});
     await store
@@ -531,6 +595,7 @@ app.whenReady().then(async () => {
   }
 });
 app.on("will-quit", (event) => {
+  editor?.cancel();
   globalShortcut.unregisterAll();
   if (linuxAudio?.active || publisher?.active) {
     event.preventDefault();

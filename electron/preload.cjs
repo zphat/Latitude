@@ -2,6 +2,12 @@ const { contextBridge, ipcRenderer } = require("electron");
 const call = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
 contextBridge.exposeInMainWorld("take", {
   desktop: true,
+  editor: (operation, data) => call("editor:call", operation, data),
+  onEditorProgress: (fn) => {
+    const cb = (_, state) => fn(state);
+    ipcRenderer.on("editor:progress", cb);
+    return () => ipcRenderer.removeListener("editor:progress", cb);
+  },
   streamStart: (options) => call("stream:start", options),
   streamWrite: (id, data) => call("stream:write", id, data),
   streamStop: (id) => call("stream:stop", id),

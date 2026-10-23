@@ -1,4 +1,5 @@
 const paths = {
+  scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="m8.1 8.1 12.8 12.8M8.1 15.9 20.9 3.1"/>',
   puzzle:
     '<path d="M9 3H4a1 1 0 0 0-1 1v5h2a2 2 0 1 1 0 4H3v7a1 1 0 0 0 1 1h5v-2a2 2 0 1 1 4 0v2h7a1 1 0 0 0 1-1v-7h-2a2 2 0 1 1 0-4h2V4a1 1 0 0 0-1-1h-7v2a2 2 0 1 1-4 0z"/>',
   type: '<path d="M4 5V3h16v2M12 3v18M8 21h8"/>',
