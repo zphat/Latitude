@@ -54,7 +54,8 @@ let win,
   ffmpeg,
   publisher,
   editor,
-  streamPowerId;
+  streamPowerId,
+  updater;
 const allowedRoot = path.join(__dirname, "..");
 const linuxAudio =
   process.platform === "linux"
@@ -360,6 +361,7 @@ app.whenReady().then(async () => {
     clipboard.writeText(text);
   });
   handle("record:begin", async (opts) => {
+    if (updater?.busy) throw Error("Finish or cancel the update before starting an output.");
     if (editor?.busy)
       throw Error("Finish the editor operation before recording.");
     if (!opts || ![44100, 48000].includes(opts.sampleRate))
@@ -386,6 +388,7 @@ app.whenReady().then(async () => {
   });
   let exportTask;
   handle("stream:start", async (options) => {
+    if (updater?.busy) throw Error("Finish or cancel the update before starting an output.");
     if (editor?.busy)
       throw Error("Finish the editor operation before streaming.");
     if (exportTask) throw Error("Finish the export before streaming.");
@@ -416,6 +419,7 @@ app.whenReady().then(async () => {
   });
   handle("stream:stop", (id) => publisher?.stop(id));
   handle("record:export", (id, opts) => {
+    if (updater?.busy) throw Error("Finish or cancel the update before starting an output.");
     if (editor?.busy)
       throw Error("Finish the editor operation before exporting a take.");
     if (publisher?.active)
@@ -452,6 +456,7 @@ app.whenReady().then(async () => {
     if (operation === "draft") return editor.draft(data);
     if (operation === "draft-info") return editor.draftInfo();
     if (operation === "dispose") return editor.dispose();
+    if (updater?.busy) throw Error("Finish or cancel the update before using the editor’s media tools.");
     if (store.active || store.beginning || store.exporting || publisher?.active)
       throw Error(
         "Finish recording, streaming or exporting before using the editor’s media tools.",
@@ -542,6 +547,65 @@ app.whenReady().then(async () => {
   });
   let closing = false,
     closePrompt = false;
+  const { Updater, RELEASES } = require("./updater.cjs");
+  const updatePrefs = path.join(app.getPath("userData"), "updates.json");
+  let updateEnabled = true;
+  try { updateEnabled = JSON.parse(fs.readFileSync(updatePrefs, "utf8")).checkAtLaunch !== false; } catch {}
+  const updateMode = app.isPackaged && process.arch === "x64"
+    ? process.platform === "win32"
+      ? fs.existsSync(path.join(path.dirname(process.execPath), "Uninstall Latitude.exe")) ? "windows" : "portable"
+      : process.platform === "linux" && process.env.FLATPAK_ID === "studio.latitude.recorder" ? "flatpak" : "development"
+    : "development";
+  updater = new Updater({
+    current: app.getVersion(),
+    mode: testMode && ["windows", "portable", "flatpak"].includes(process.env.LATITUDE_UPDATE_TEST_MODE)
+      ? process.env.LATITUDE_UPDATE_TEST_MODE : updateMode,
+    cache: path.join(app.getPath("userData"), "update-cache"),
+    enabled: updateEnabled,
+    fetcher: (url, options) => net.fetch(url, options),
+    isBusy: () => !!(store.active || store.beginning || store.exporting || exportTask || publisher?.active || editor?.busy),
+    prepare: async () => {
+      await editor?.draftTask;
+      await win.webContents.session.flushStorageData();
+    },
+    handoff: async (file, mode) => {
+      if (mode === "windows") {
+        // Run the fixed, verified NSIS file directly, never through a shell.
+        const { spawn } = require("node:child_process");
+        const child = spawn(file, [], { detached: true, stdio: "ignore", cwd: path.dirname(file) });
+        await new Promise((resolve, reject) => { child.once("error", reject); child.once("spawn", resolve); });
+        child.unref();
+        closing = true;
+        win.close();
+      } else {
+        const error = await shell.openPath(file);
+        if (error) throw Error("Could not open the update. Install it from the release page using your system’s software center or archive manager.");
+      }
+    },
+    onState: (state) => { if (!win?.isDestroyed()) win.webContents.send("updates:state", state); },
+  });
+  // Test injection remains in the main process of unpackaged test runs only.
+  if (testMode) require("./updater.cjs").testing = updater;
+  handle("updates:call", async (operation, value) => {
+    if (operation === "state") return updater.snapshot();
+    if (operation === "launch") {
+      if (process.argv.includes("--smoke-test")) return updater.snapshot();
+      return updater.check();
+    }
+    if (operation === "check") return updater.check({ manual: true });
+    if (operation === "skip") return updater.skip();
+    if (operation === "cancel") return updater.cancel();
+    if (operation === "download") return updater.download();
+    if (operation === "install") return updater.install();
+    if (operation === "notes") return shell.openExternal(updater.selected?.notes || RELEASES);
+    if (operation === "enabled") {
+      if (typeof value !== "boolean") throw Error("Invalid update preference.");
+      await fs.promises.writeFile(updatePrefs + ".tmp", JSON.stringify({ checkAtLaunch: value }), { mode: 0o600 });
+      await fs.promises.rename(updatePrefs + ".tmp", updatePrefs);
+      return updater.setEnabled(value);
+    }
+    throw Error("Unsupported update operation.");
+  });
   handle("app:quit", () => {
     if (
       store.active ||
@@ -673,6 +737,7 @@ app.whenReady().then(async () => {
   }
 });
 app.on("will-quit", (event) => {
+  updater?.dispose();
   editor?.cancel();
   globalShortcut.unregisterAll();
   if (linuxAudio?.active || publisher?.active) {

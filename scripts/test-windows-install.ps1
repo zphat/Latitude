@@ -25,10 +25,14 @@ Run-And-Wait $exe @('--smoke-test', '--disable-gpu') $env:RUNNER_TEMP
 $profile = Join-Path $env:APPDATA 'Latitude'
 New-Item -ItemType Directory -Path $profile -Force | Out-Null
 $marker = Join-Path $profile 'installer-preservation-test.txt'
-Set-Content $marker 'Preferences must survive uninstall.'
+Set-Content $marker 'Preferences must survive updates and uninstall.'
+# Exercise NSIS replacement in the existing install directory, including profile retention.
+Run-And-Wait $installer @('/S') $env:RUNNER_TEMP
+if (-not (Test-Path $marker)) { throw 'Installer replacement removed user preferences.' }
+Run-And-Wait $exe @('--smoke-test', '--disable-gpu') $env:RUNNER_TEMP
 $uninstaller = Join-Path $installDir 'Uninstall Latitude.exe'
 Run-And-Wait $uninstaller @('/S', "_?=$installDir") $env:RUNNER_TEMP
 if (Test-Path $exe) { throw 'Uninstaller left the application executable behind.' }
 if ((Test-Path $desktopLink) -or (Test-Path $startLink)) { throw 'Uninstaller left application shortcuts behind.' }
 if (-not (Test-Path $marker)) { throw 'Uninstaller removed user preferences.' }
-Write-Output 'PASS: per-user install, desktop/Start shortcuts, packaged renderer + encoder launch from another folder, uninstall preserving data.'
+Write-Output 'PASS: per-user install, desktop/Start shortcuts, packaged renderer + encoder launch from another folder, installer replacement and uninstall preserving data.'

@@ -3880,3 +3880,14 @@ input[type="number"] {
 .mixer-card .mixer-db b.clip-history {
   color: var(--muted);
 }
+
+/* Update UI stays dormant outside a launch check or user action. */
+#update-dialog { width: min(520px, calc(100vw - 40px)); border-radius: 22px; }
+#update-dialog h2 { margin: 12px 0; }
+#update-dialog p { line-height: 1.6; }
+#update-dialog progress { width: 100%; accent-color: var(--accent); margin: 8px 0; }
+#update-dialog [hidden] { display: none; }
+#update-status { color: var(--muted); min-height: 1.5em; }
+.update-actions { margin: 22px 0 16px; justify-content: flex-end; }
+.settings-card .update-toggle { display: flex; align-items: center; gap: 10px; }
+.update-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }

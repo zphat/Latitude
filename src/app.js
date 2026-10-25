@@ -11,6 +11,7 @@ import { mountExportControls } from "./export-ui.js";
 import { ModRegistry } from "./mods/registry.js";
 import { TRUSTED_MODS } from "./mods/catalog.js";
 import { installModsPage } from "./mods/ui.js";
+import { installUpdates } from "./updates.js";
 import { AudioMeters, meterMarkup } from "./audio-meters.js";
 
 const $ = (s) => document.querySelector(s),
@@ -78,7 +79,7 @@ let selectedVoice = 0,
   countdownToken = 0,
   starting = false,
   clipWarningAt = -Infinity;
-let quitting = false;
+let quitting = false, updateBusy = false;
 const clippedInputs = [false, false];
 let shortcutFailures = [];
 let lastSavedId = null;
@@ -111,8 +112,10 @@ const savePreferences = () => {
   config.masterSettings = engine.masterSettings;
   try {
     localStorage.setItem("latitude-v2", JSON.stringify(config));
+    return true;
   } catch {
     toast("Preferences could not be saved. Check available disk space.", true);
+    return false;
   }
 };
 const persist = () => {
@@ -840,6 +843,7 @@ function previewTransport(state) {
   window.dispatchEvent(new Event("latitude-view"));
 }
 async function record() {
+  if (updateBusy) { toast("Finish or cancel the update before recording."); return; }
   if (modRegistry.changing) {
     toast("Wait for the add-on to finish changing state before recording.");
     return;
@@ -1145,6 +1149,7 @@ function exportDialog(id) {
   };
 }
 async function doExport(id, options = exportDefaults()) {
+  if (updateBusy) { toast("Finish or cancel the update before exporting."); return; }
   if (modRegistry.changing) {
     toast("Wait for the add-on to finish changing state before exporting.");
     return;
@@ -1530,6 +1535,7 @@ let editorBusy = false;
 let streamActive = false,
   stopStreaming = async () => {};
 const modsBusy = () =>
+  updateBusy ||
   editorBusy ||
   streamActive ||
   engine.recording ||
@@ -1539,7 +1545,7 @@ const modsBusy = () =>
   exporting;
 function syncOutputLocks() {
   const busy =
-    streamActive || engine.recording || engine.finishing || engine.starting;
+    updateBusy || streamActive || engine.recording || engine.finishing || engine.starting;
   for (const id of [
     "#audio-setup",
     "#screen-source",
@@ -1568,6 +1574,7 @@ const modRegistry = new ModRegistry({
       onProgress: (fn) => window.take?.onEditorProgress?.(fn) || (() => {}),
       takes: () => window.take?.sessions?.() || Promise.resolve([]),
       isBusy: () =>
+        updateBusy ||
         streamActive ||
         exporting ||
         starting ||
@@ -1586,7 +1593,7 @@ const modRegistry = new ModRegistry({
         fps: compositor.fps,
       }),
       acquire: (callbacks) => {
-        if (exporting || starting || editorBusy)
+        if (updateBusy || exporting || starting || editorBusy)
           throw Error(
             "Finish the current export or countdown before streaming.",
           );
@@ -1745,6 +1752,21 @@ $("#scene-label").textContent = SCENES.find(
 ).name;
 if (!config.onboarded)
   studioTools.onboard().catch((e) => toast(e.message, true));
+installUpdates({
+  api: window.take,
+  isBusy: () => editorBusy || streamActive || exporting || starting || engine.recording || engine.finishing || engine.starting || modRegistry.changing,
+  activity: (on) => {
+    updateBusy = on;
+    syncOutputLocks();
+    modsPage.render();
+    window.dispatchEvent(new Event("latitude-view"));
+  },
+  prepare: () => {
+    clearTimeout(persistTimer);
+    if (!savePreferences()) throw Error("Save your preferences before updating. Check available disk space.");
+  },
+  toast,
+});
 if (window.take) {
   window.take.onAction(action);
   window.take.onAudioDisconnect?.((message) => {

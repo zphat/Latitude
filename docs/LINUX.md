@@ -10,11 +10,11 @@ If your software center cannot open the file, use:
 
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install --user ./Latitude-0.9.0-Linux-x86_64.flatpak
+flatpak install --user ./Latitude-0.9.1-Linux-x86_64.flatpak
 flatpak run studio.latitude.recorder
 ```
 
-The first install downloads the shared Freedesktop runtime. Latitude is not listed on Flathub yet; future preview updates are installed from a new GitHub release. Flatpak itself must be installed first on distributions that do not include it. Bazzite and SteamOS do not need an unlocked or layered system image.
+The first install downloads the shared Freedesktop runtime. Latitude is not listed on Flathub yet; from 0.9.1, the app checks for new GitHub releases at launch. Choose **Update now** to download a verified Flatpak and open it in your software center, finish the update there, then restart Latitude. **Skip until next launch** dismisses the offer for the session. Install 0.9.1 manually once if you are upgrading from an older version. Settings also has a manual check and an option to disable launch checks. No extra host-execution permission is required. Flatpak itself must be installed first on distributions that do not include it. Bazzite and SteamOS do not need an unlocked or layered system image.
 
 ## First recording
 

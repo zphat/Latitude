@@ -66,10 +66,13 @@ jobs:
       - run: node scripts/prepare-encoder.cjs
       - name: Test shared application and every bundled encoder format
         run: npm test
-      - name: Verify native editor UI, seeking, cuts and real export
+      - name: Verify native editor and update UI
+        env:
+          LATITUDE_UPDATE_LIVE_CHECK: "1"
         run: |
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
           node tests/editor-mod-ui.cjs
+          node tests/updater-ui.cjs
       - name: Validate application metadata
         run: appstreamcli validate --no-net packaging/studio.latitude.recorder.metainfo.xml
       - name: Install matching Flatpak runtimes

@@ -48,6 +48,7 @@ export async function activate({ services }) {
     media = new Map(),
     busy = false,
     disposed = false,
+    hasEdit = false,
     zoom = 45,
     linked = true,
     drag = null,
@@ -116,6 +117,7 @@ export async function activate({ services }) {
   const active = () => panel.element.classList.contains("active");
   const stop = () => preview.pause();
   function autosave() {
+    hasEdit = true;
     if (!io.available) return;
     $("#edit-save-state").textContent = "Saving draft…";
     io.call("draft", p)
@@ -1169,7 +1171,8 @@ export async function activate({ services }) {
       !active() ||
       busy ||
       e.repeat ||
-      $("#edit-dialog").open ||
+      io.isBusy() ||
+      document.querySelector("dialog[open]") ||
       ["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)
     )
       return;
@@ -1214,6 +1217,11 @@ export async function activate({ services }) {
     } else preview.draw(true);
   };
   const onTake = (e) => run(() => openTake(e.detail))();
+  const onUpdate = (e) => {
+    stop();
+    if (io.available && hasEdit) e.detail.waitUntil(io.call("draft", p));
+  };
+  window.addEventListener("latitude-before-update", onUpdate);
   window.addEventListener("keydown", onKey);
   window.addEventListener("latitude-view", onView);
   window.addEventListener("latitude-edit-take", onTake);
@@ -1317,6 +1325,7 @@ export async function activate({ services }) {
     cancelAnimationFrame(scrollRaf);
     window.removeEventListener("keydown", onKey);
     window.removeEventListener("latitude-view", onView);
+    window.removeEventListener("latitude-before-update", onUpdate);
     window.removeEventListener("latitude-edit-take", onTake);
     document.removeEventListener("visibilitychange", onView);
     await preview.destroy();

@@ -435,6 +435,13 @@
             </div>
           </div>
           <div class="settings-grid">
+            <article class="settings-card" id="updates-card">
+              <h3><span data-icon="download"></span> App updates</h3>
+              <label class="update-toggle"><input type="checkbox" id="updates-enabled" checked /> Check for updates at launch</label>
+              <p id="updates-status" role="status">Updates are available in the desktop app.</p>
+              <div class="button-row"><button class="button" id="updates-check">Check for updates</button><button class="text-button" id="updates-notes">Release notes</button></div>
+              <p>One check per launch. Nothing downloads until you choose. Skipping waits until your next launch.</p>
+            </article>
             <article class="settings-card">
               <h3><span data-icon="layout"></span> Make it yours</h3>
               <label>Color theme<select id="theme-select"></select></label>
@@ -726,6 +733,18 @@
         ></button>
       </div>
       <div id="modal-content"></div>
+    </dialog>
+    <dialog id="update-dialog" aria-labelledby="update-title" aria-describedby="update-description">
+      <div class="eyebrow">LATITUDE UPDATE</div>
+      <h2 id="update-title">A fresh Latitude is ready.</h2>
+      <p id="update-description"></p>
+      <p id="update-status" role="status"></p>
+      <progress id="update-progress" max="100" value="0" aria-label="Update download progress" hidden></progress>
+      <div class="button-row update-actions">
+        <button class="button" id="update-skip" autofocus>Skip until next launch</button>
+        <button class="button primary" id="update-now">Update now</button>
+      </div>
+      <button class="text-button" id="update-notes">What’s new in this release</button>
     </dialog>
     <script type="module" src="app.js"></script>
   </body>
