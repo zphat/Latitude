@@ -562,7 +562,9 @@ app.whenReady().then(async () => {
       ? process.env.LATITUDE_UPDATE_TEST_MODE : updateMode,
     cache: path.join(app.getPath("userData"), "update-cache"),
     enabled: updateEnabled,
-    fetcher: (url, options) => net.fetch(url, options),
+    // Node fetch exposes manual redirect responses; Electron net.fetch aborts them.
+    // Every redirect is inspected by the updater before following it.
+    fetcher: (url, options) => fetch(url, options),
     isBusy: () => !!(store.active || store.beginning || store.exporting || exportTask || publisher?.active || editor?.busy),
     prepare: async () => {
       await editor?.draftTask;

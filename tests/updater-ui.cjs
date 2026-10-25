@@ -88,13 +88,13 @@ const os=require('node:os');
     assert.equal((await native()).calls.length,2,'Manual checks still work when launch checks are disabled');
     if(process.env.LATITUDE_UPDATE_LIVE_CHECK==='1') {
       // Public metadata + checksum only; never download or execute a real release here.
-      const live=await app.evaluate(async({net},file)=>{
+      const live=await app.evaluate(async(_,file)=>{
         const require=process.getBuiltinModule('node:module').createRequire(file),u=require(file).testing;
-        u.current='0.0.0';u.fetcher=(url,options)=>net.fetch(url,options);
+        u.current='0.0.0';u.fetcher=(url,options)=>fetch(url,options);
         const state=await u.check({manual:true});return {phase:state.phase,message:state.message,hash:u.selected?.hash};
       },modulePath);
       assert.equal(live.phase,'available',live.message);assert.match(live.hash,/^[a-f0-9]{64}$/);
-      console.log('Live GitHub metadata and checksum verified through Electron networking.');
+      console.log('Live GitHub metadata and checksum verified through the native updater transport.');
     }
     assert.deepEqual(errors,[]);
     console.log('Update UI passed: startup deferral, skip/relaunch, manual check, verified download, draft save, handoff, persisted opt-out. Screenshot: '+path.join(root,'update-prompt.png'));

@@ -2,11 +2,14 @@
 
 ## Local checks
 
-- 100 shared Node tests passed, including 14 updater tests. The updater suite exercises version ordering and beta/stable channels, exact published asset selection, HTTPS redirect restrictions, checksum selection, once-per-launch behavior, skip/reset, opt-out, active-work guards, all three package types, partial-file cleanup, malformed/offline/rate-limited responses, bounded metadata, timeout, canceled downloads, tampering after download, and failed draft preservation.
-- Real Electron 44.8.0 UI integration passed: deferral behind an existing dialog, metadata-only startup, skip surviving renderer reload, prompt returning after process relaunch, manual check, verified fixture download, pre-handoff editor draft saved on disk, update opt-out persisted across another relaunch, and manual checking while opted out. No renderer exceptions. Installer execution is replaced by a harmless handoff fixture in this test.
+- 101 shared Node tests passed, including 15 updater tests. The updater suite exercises version ordering and beta/stable channels, exact published asset selection, HTTPS redirect restrictions, checksum selection, once-per-launch behavior, skip/reset, opt-out, active-work guards, all three package types, partial-file cleanup, malformed/offline/rate-limited responses, bounded metadata, timeout, canceled downloads, tampering after download, valid CDN redirects, and failed draft preservation.
+- Real Electron 44.8.0 UI integration passed: deferral behind an existing dialog, metadata-only startup, skip surviving renderer reload, prompt returning after process relaunch, manual check, verified fixture download, pre-handoff editor draft saved on disk, update opt-out persisted across another relaunch, and manual checking while opted out. Empty-editor updates preserve an older recovery draft, and editor shortcuts are blocked behind a modal. No renderer exceptions. Installer execution is replaced by a harmless handoff fixture in this test.
+- A live GitHub release check passed through the production transport, including the redirected checksum download.
 - Inspected the actual update prompt rendered at the application's 960 × 640 minimum size.
 
 ## Release gates
+
+A live release check caught Electron convenience-fetch aborting manual redirects. The updater uses Node’s built-in fetch so each redirect can be inspected, and CI verifies the public release metadata and checksum through that production transport.
 
 Release CI runs the shared tests, existing meter/streaming browser tests, native updater UI on Windows and Linux, native editor UI, bundled encoder tests, real Linux audio-server tests, and installation checks. Windows installation checks now also replace the existing installation and confirm profile retention and successful relaunch. The release publishes only after all gates succeed.
 

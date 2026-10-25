@@ -110,3 +110,14 @@ test('launch requests time out without locking the UI and can be retried manuall
   const keep=setTimeout(()=>{},200);await u.check();clearTimeout(keep);
   assert.equal(u.state.phase,'error');assert.equal(u.state.prompt,false);assert.equal(u.task,null);assert.match(u.state.message,/timed out/);
 });
+
+test('valid GitHub CDN redirects preserve checksum and streaming download validation',async t=>{
+  const f=await fixture(t),cdn='https://release-assets.githubusercontent.com/latitude/';
+  f.u.fetcher=async(url,options)=>{
+    assert.equal(options.redirect,'manual');assert.equal(options.credentials,'omit');
+    if(url.includes('api.github.com'))return f.fetcher(url);
+    if(url.startsWith(cdn))return url.endsWith('sums')?new Response(`${hash}  ${artifact('0.9.2','windows')}\n`):new Response(bytes);
+    return new Response(null,{status:302,headers:{location:cdn+(url.endsWith('SHA256SUMS.txt')?'sums':'package')}});
+  };
+  await f.u.check();assert.equal(f.u.state.phase,'available');await f.u.download();assert.equal(f.u.state.phase,'ready');await f.u.install();assert.equal(f.handed.length,1);
+});

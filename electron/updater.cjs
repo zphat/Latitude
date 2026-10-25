@@ -58,7 +58,9 @@ function allowedURL(raw) {
 }
 async function response(fetcher,url,signal) {
   for(let i=0;i<6;i++) {
-    const r=await fetcher(allowedURL(url),{signal,redirect:'manual',credentials:'omit',cache:'no-store',headers:{Accept:'application/vnd.github+json, application/octet-stream;q=0.9','User-Agent':'Latitude desktop updater'}});
+    const target=allowedURL(url);let r;
+    try { r=await fetcher(target,{signal,redirect:'manual',credentials:'omit',cache:'no-store',headers:{Accept:'application/vnd.github+json, application/octet-stream;q=0.9','User-Agent':'Latitude desktop updater'}}); }
+    catch(error) { if(signal.aborted)throw error;throw Error('Could not reach the update service. Check your connection or use the release notes link to download manually.'); }
     if([301,302,303,307,308].includes(r.status)){
       const location=r.headers.get('location');await r.body?.cancel();if(!location)throw Error('The update download address is unavailable.');url=new URL(location,url).href;continue;
     }

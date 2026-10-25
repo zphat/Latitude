@@ -3,14 +3,14 @@ export function installUpdates({ api, isBusy, activity, prepare, toast }) {
   const $ = (s) => document.querySelector(s);
   const dialog = $('#update-dialog'), check = $('#updates-check'), enabled = $('#updates-enabled');
   if (!api?.updates) { check.disabled = enabled.disabled = true; $('#updates-notes').disabled = true; return; }
-  let state, timer, disposed = false, launchPending = true, working = false, canceled = false, lastActive = false;
+  let state, timer, startTimer, launchReady = false, disposed = false, launchPending = true, working = false, canceled = false, lastActive = false;
   const otherDialog = () => !!document.querySelector('dialog[open]:not(#update-dialog)');
   const occupied = () => isBusy() || document.hidden || otherDialog();
   const later = () => { clearTimeout(timer); if (!disposed) timer = setTimeout(refresh, 1000); };
   function refresh() {
     clearTimeout(timer);
     if (disposed || !state) return;
-    if (launchPending) {
+    if (launchPending && launchReady) {
       if (!state.enabled || state.mode === 'development') launchPending = false;
       else if (!occupied() && !working) {
         launchPending = false;
@@ -88,6 +88,9 @@ export function installUpdates({ api, isBusy, activity, prepare, toast }) {
   const off = api.onUpdateState(render);
   // One startup timer; while a prompt is deferred only a cheap idle check runs.
   // There are no recurring network checks or idle timers after a skip/current result.
-  api.updates('state').then((initial) => { state = initial; timer = setTimeout(() => render(state), 2000); }).catch(report);
-  window.addEventListener('beforeunload', () => { disposed = true; clearTimeout(timer); off(); }, { once: true });
+  api.updates('state').then((initial) => {
+    render(initial);
+    startTimer = setTimeout(() => { launchReady = true; refresh(); }, 2000);
+  }).catch(report);
+  window.addEventListener('beforeunload', () => { disposed = true; clearTimeout(timer); clearTimeout(startTimer); off(); }, { once: true });
 }
