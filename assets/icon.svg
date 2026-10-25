@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-<defs><linearGradient id="tile" x2=".7" y2="1"><stop stop-color="#1d292d"/><stop offset="1" stop-color="#090c10"/></linearGradient><linearGradient id="wire" x2=".8" y2="1"><stop stop-color="#e0eeeb"/><stop offset="1" stop-color="#6c9a9b"/></linearGradient><clipPath id="sphere"><circle cx="256" cy="256" r="160"/></clipPath></defs>
-<rect x="5" y="5" width="502" height="502" rx="116" fill="url(#tile)" stroke="#34444a" stroke-width="3"/>
-<g fill="none" stroke="url(#wire)" stroke-width="9"><circle cx="256" cy="256" r="160" stroke-width="12"/><ellipse cx="256" cy="256" rx="81" ry="160"/><path d="M256 96v320" stroke-width="7" opacity=".65"/><g clip-path="url(#sphere)"><ellipse cx="256" cy="187" rx="145" ry="39"/><ellipse cx="256" cy="325" rx="145" ry="39"/></g></g>
-<ellipse cx="256" cy="256" rx="160" ry="51" fill="none" stroke="#d1ff4a" stroke-width="13"/><circle cx="389" cy="284" r="20" fill="#d1ff4a" stroke="#111719" stroke-width="6"/>
-</svg>

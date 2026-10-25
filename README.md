@@ -1,6 +1,8 @@
+<img src="assets/icon.png" width="96" height="96" alt="Latitude — near-black globe with lime latitude bands" />
+
 # Latitude
 
-A local screen recorder built around clear podcast audio. Version **0.9.1 — Windows beta and Linux preview**.
+A local screen recorder built around clear podcast audio. Version **0.9.2 — Windows beta and Linux preview**.
 
 [Beta homepage](https://latitude.pictures) · [Discord feedback and updates](https://discord.gg/EnPRdDutAn)
 
@@ -10,11 +12,11 @@ Record your screen, optional facecam, microphones, and desktop audio. Shape your
 
 ## Open the Windows app
 
-1. Download **Latitude-0.9.1-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.1).
+1. Download **Latitude-0.9.2-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.2).
 2. Double-click it. Latitude installs for your Windows account and creates desktop and Start menu shortcuts.
 3. Open either shortcut. No terminal, source folder, Node.js, OBS, or separate FFmpeg installation is needed.
 
-Recordings stay in your chosen folder (initially `Videos\Latitude`). Windows Settings → Apps can uninstall Latitude; preferences and recordings are retained. From 0.9.1 onward, Latitude checks once at launch and offers **Update now** or **Skip until next launch**. You can also check in **Settings → App updates**. To move from 0.9.0 or earlier, install 0.9.1 manually once.
+Recordings stay in your chosen folder (initially `Videos\Latitude`). Windows Settings → Apps can uninstall Latitude; preferences and recordings are retained. From 0.9.1 onward, Latitude checks once at launch and offers **Update now** or **Skip until next launch**. You can also check in **Settings → App updates**. To move from 0.9.0 or earlier, install the current version manually once.
 
 The optional ZIP is for portable use. Extract the **whole** ZIP and keep its runtime files together. A shortcut to its Latitude.exe works; moving only the EXE breaks that portable copy. The installer is recommended for everyday use.
 
@@ -22,9 +24,13 @@ The beta is unsigned, so Windows may identify it as an unknown publisher. It ins
 
 ## Open the Linux app
 
-Download **Latitude-0.9.1-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.1), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
+Download **Latitude-0.9.2-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.2), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
 
 The first Linux preview targets Fedora KDE/GNOME, Ubuntu/Mint with Flatpak, Bazzite, and SteamOS **Desktop Mode**. Gaming Mode and real-device performance remain unverified. Wayland uses the desktop screen-sharing portal; desktop audio uses PulseAudio or PipeWire 0.3.65+ with its PulseAudio service. The initial runtime download is shared with other Flatpak apps. Latitude is not on Flathub yet; preview updates come from GitHub Releases.
+
+## New in Latitude 0.9.2
+
+The new near-black globe with lime latitude bands is used throughout the app, Windows desktop/Start menu icons, Linux launcher, and website. The original artwork and reproducible icon exports are included in [branding](branding/README.md). This is a branding update; recording and audio processing are unchanged. [Release notes](docs/releases/0.9.2.md).
 
 ## New in Latitude 0.9.1
 
