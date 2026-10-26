@@ -301,6 +301,7 @@ class StudioProcessor extends AudioWorkletProcessor {
         limiterReduction: this.limiterGains.map(
           (g) => -20 * Math.log10(Math.max(1e-8, g)),
         ),
+        deessReduction: this.voices.map((v) => v.p.bypass ? 0 : v.deesser.reduction),
         reduction: this.voices.map((v) => v.lastReduction),
         limiting: this.masterLimiter.reduction,
       });

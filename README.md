@@ -2,7 +2,7 @@
 
 # Latitude
 
-A local screen recorder built around clear podcast audio. Version **0.9.2 — Windows beta and Linux preview**.
+A local screen recorder built around clear podcast audio. Version **0.9.3 — Windows beta and Linux preview**.
 
 [Beta homepage](https://latitude.pictures) · [Discord feedback and updates](https://discord.gg/EnPRdDutAn)
 
@@ -12,7 +12,7 @@ Record your screen, optional facecam, microphones, and desktop audio. Shape your
 
 ## Open the Windows app
 
-1. Download **Latitude-0.9.2-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.2).
+1. Download **Latitude-0.9.3-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.3).
 2. Double-click it. Latitude installs for your Windows account and creates desktop and Start menu shortcuts.
 3. Open either shortcut. No terminal, source folder, Node.js, OBS, or separate FFmpeg installation is needed.
 
@@ -24,9 +24,17 @@ The beta is unsigned, so Windows may identify it as an unknown publisher. It ins
 
 ## Open the Linux app
 
-Download **Latitude-0.9.2-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.2), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
+Download **Latitude-0.9.3-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.3), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
 
 The first Linux preview targets Fedora KDE/GNOME, Ubuntu/Mint with Flatpak, Bazzite, and SteamOS **Desktop Mode**. Gaming Mode and real-device performance remain unverified. Wayland uses the desktop screen-sharing portal; desktop audio uses PulseAudio or PipeWire 0.3.65+ with its PulseAudio service. The initial runtime download is shared with other Flatpak apps. Latitude is not on Flathub yet; preview updates come from GitHub Releases.
+
+## New in Latitude 0.9.3
+
+Clearer speech without added air: focused de-essing preserves more lower speech detail, and Podcast broadcast has restrained Rich clarity, no air boost and slightly gentler dynamics. Voice inputs remain mono and centered. Compression and the always-on sample limiters remain active by default; no new processing latency, dependencies or stereo widening were added.
+
+Saved numeric settings are preserved. Choose **Podcast broadcast → Reapply** to use the revised starting point, then run **Soundcheck**. Reapply retains input gain, channel, mute and sync delay. The de-esser algorithm itself improves on every enabled voice chain, including saved profiles. Its live reduction readout shows when it is working.
+
+Streaming FPS now comes from actual video encoder output. Technical details includes an on-demand performance snapshot. See [release notes](docs/releases/0.9.3.md), [QA evidence](docs/qa/voice-0.9.3.md), and the [performance and listening test guide](docs/PERFORMANCE.md).
 
 ## New in Latitude 0.9.2
 
@@ -104,7 +112,7 @@ The new near-black globe with lime latitude bands is used throughout the app, Wi
 3. Open **Inputs & outputs**. Choose your microphone under Voice 1, and leave Voice 2 off unless needed. Click **Connect selected devices**.
 4. If you want a facecam, click **Camera**, choose your webcam, and apply it. Its microphone is not automatically added. Camera is optional.
 5. Open **Check** for a 12-second soundcheck. Stay quiet for three seconds, then speak naturally. Apply the suggestion if appropriate.
-6. Pick **Natural voice** or **Podcast broadcast** in Voice Studio. Open a processing module for its controls. The **Rich clarity** slider adds fuller body, less boxiness, and focused vocal presence; start around 25–35% and toggle Clarity on/off to compare. It does not add an air shelf or remove noise underneath speech.
+6. Pick **Natural voice** or **Podcast broadcast** in Voice Studio. Open a processing module for its controls. The **Rich clarity** slider adds fuller body, less boxiness, and focused vocal presence; start around 15–25% and toggle Clarity on/off to compare. It does not add an air shelf or remove noise underneath speech.
 7. Choose a scene. Click a source to move/resize it, or use **Crop this source** in Scene layers to remove tabs/taskbar. **Add source** adds titles, images, and backgrounds. Click **Start recording**. Pause, add edit markers, and switch scenes as needed.
 8. Stop. The original take is saved first. Automatic export then makes an editing pack; you can disable auto-export in Settings.
 9. In **Takes**, use **Edit** to open synchronized picture and source audio in Latitude Editor, **Play** for your media player, or **Open files** for the session/export folder.

@@ -173,3 +173,61 @@ test("invalid audio samples cannot poison voice filters or the limiter", async (
     "valid audio recovers immediately after invalid samples",
   );
 });
+
+test("focused de-essing preserves lower speech detail at 44.1 and 48 kHz", async () => {
+  const { SpeechDeEsser } = await import("../audio/dsp.js");
+  for (const sr of [44100, 48000]) {
+    const response = (hz) => {
+      const p = new SpeechDeEsser(sr);
+      let power = 0, dry = 0, wet = 0;
+      for (let i = 0; i < sr; i++) {
+        const x = 0.2 * Math.sin(2 * Math.PI * hz * i / sr);
+        power += (x * x - power) * (x * x > power ? 0.01 : 0.0003);
+        const y = p.tick(x, power, 3.5);
+        assert.ok(Number.isFinite(y));
+        if (i > sr / 2) { dry += x * x; wet += y * y; }
+      }
+      return 10 * Math.log10(wet / dry);
+    };
+    for (const hz of [1500, 3000, 4000])
+      assert.ok(response(hz) > (hz === 4000 ? -1 : -0.3), `${sr}/${hz}: speech should remain clear`);
+    const s = response(6500);
+    assert.ok(s < -2 && s >= -3.6, `${sr}: sibilance ${s}`);
+  }
+});
+
+test("de-essing preserves the lower component of a mixed speech/sibilance signal", async () => {
+  const { SpeechDeEsser } = await import("../audio/dsp.js");
+  const sr = 48000, p = new SpeechDeEsser(sr);
+  let power = 0;
+  const sums = [0, 0, 0, 0];
+  for (let i = 0; i < sr * 2; i++) {
+    const low = Math.sin(2 * Math.PI * 1500 * i / sr);
+    const high = Math.sin(2 * Math.PI * 6500 * i / sr);
+    const x = 0.1 * low + 0.2 * high;
+    power += (x * x - power) * (x * x > power ? 0.01 : 0.0003);
+    const y = p.tick(x, power, 3.5);
+    if (i >= sr) { sums[0] += x * low; sums[1] += y * low; sums[2] += x * high; sums[3] += y * high; }
+  }
+  assert.ok(20 * Math.log10(sums[1] / sums[0]) > -0.3);
+  assert.ok(20 * Math.log10(sums[3] / sums[2]) < -2);
+});
+
+test("disabled de-esser releases smoothly and sleeps without filter work", async () => {
+  const { SpeechDeEsser } = await import("../audio/dsp.js");
+  const p = new SpeechDeEsser(48000);
+  let calls = 0;
+  const tick = p.band.tick.bind(p.band);
+  p.band.tick = x => { calls++; return tick(x); };
+  for (let i = 0; i < 1000; i++) assert.equal(p.tick(0.1, 0.01, 0), 0.1);
+  assert.equal(calls, 0);
+  for (let i = 0; i < 48000; i++) p.tick(0.2 * Math.sin(i * 2 * Math.PI * 6500 / 48000), 0.02, 3.5);
+  const before = p.gain;
+  p.tick(0.1, 0.01, 0);
+  assert.ok(p.gain > before && p.gain - before < 0.001);
+  for (let i = 0; i < 96000; i++) p.tick(0.1, 0.01, 0);
+  assert.equal(p.sleeping, true);
+  const stopped = calls;
+  assert.equal(p.tick(0.1, 0.01, 0), 0.1);
+  assert.equal(calls, stopped);
+});

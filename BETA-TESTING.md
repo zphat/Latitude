@@ -1,13 +1,13 @@
-# Trying Latitude 0.6 — Windows beta and Linux preview
+# Trying Latitude — Windows beta and Linux preview
 
-Install the Windows x64 **Setup.exe**, then open Latitude from the desktop or Start menu. To update, close the old copy first and run the newer installer. Keep existing takes; uninstalling does not remove recordings or preferences.
+Install the Windows x64 **Setup.exe**, then open Latitude from the desktop or Start menu. From 0.9.1, launch checks offer Update now or Skip until next launch. Older builds need one manual update. Keep existing takes; uninstalling does not remove recordings or preferences.
 
 On Linux x86-64, open the **.flatpak** in Discover or another Flatpak-capable software center and install, then launch Latitude from the application menu. See the [Linux guide](docs/LINUX.md) for prerequisites, terminal installation, permissions, and preview limits. SteamOS testing is for **Desktop Mode**; Gaming Mode is not supported.
 
 ## First ten minutes
 
-1. Choose Voice 1 in onboarding; leave Voice 2 off unless needed. Open Soundcheck, stay quiet for three seconds, then speak naturally. Lower hardware gain if INPUT CLIP appears. Reset peaks clears the held warning after adjustment.
-2. Start with Natural voice or Podcast broadcast. Try Rich clarity at 25–35%, and compare its on/off control at the same listening level. Monitor through headphones; hardware direct monitoring is preferable while capturing system audio.
+1. Choose Voice 1 in onboarding; leave Voice 2 off unless needed. Pick Natural voice or Podcast broadcast, then open Soundcheck, stay quiet for three seconds, then speak naturally. Lower hardware gain if INPUT CLIP appears. Reset peaks clears the held warning after adjustment.
+2. Try Rich clarity at 15–25%, and compare its on/off control at the same listening level. Monitor through headphones; hardware direct monitoring is preferable while capturing system audio.
 3. Select a screen/window, play desktop audio, and check its meter. Facecam is optional. Drag sources, crop browser tabs/taskbar, add text if wanted, and try a scene hotkey.
 4. Record a one-minute take at 1080p/30. Clap for sync, speak, play a clip, pause/resume, mute/unmute, switch scenes, and add a marker. Stop and let export finish.
 5. Play the export. Check picture smoothness, lip sync, final words, audio quality, and the isolated WAVs. All stems should have the same duration. In CapCut, align the WAVs and video at the same start, mute the video's full mix, and group/link before editing. Optional per-track video copies give each clip instance a different soundtrack.
@@ -39,3 +39,9 @@ Try a 60–90 minute take with your normal sources and background applications. 
 Join [Latitude's Discord](https://discord.gg/EnPRdDutAn) for feedback, questions, and updates. Settings → **Technical details** shows a report you can review and copy. **Report a bug / idea** opens GitHub issues for structured reports. Include what you expected, what happened, steps, app version, operating system, devices, and recording settings. On Linux, also include your distro/version, desktop, and Wayland or X11. Do not attach private recordings. The app does not upload diagnostics automatically.
 
 See [BUILD-REPORT.md](BUILD-REPORT.md) for earlier automated evidence, [the Linux guide](docs/LINUX.md) for current Linux checks, and [ROADMAP.md](ROADMAP.md) for hardware testing and performance work. These preview builds still need real-device feedback.
+
+## Voice refinement and mod checks
+
+Existing tone settings are preserved. In Voice Studio, choose Podcast broadcast and click Reapply to adopt 0.9.3 defaults, then rerun Soundcheck. Reapply keeps input gain, channel, mute and delay. Compare raw and processed speech at matched loudness. Listen for clear consonants and natural word endings. The voice should remain centered when desktop audio is absent. The de-esser reduction readout should react to strong S sounds and release on other speech.
+
+Enable Streaming and Editor separately in Mods. Check streaming reconnects without interrupting a local take. Test editor save/reopen, linked cuts, titles, fades and export. Use [PERFORMANCE.md](docs/PERFORMANCE.md) for repeatable capture/encoding measurements and a same-hardware OBS comparison; do not infer output FPS from preview FPS alone.

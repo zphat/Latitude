@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.3 — 2026-10-26
+
+Focused de-essing and restrained voice presets; live de-esser reduction, Reapply preset, encoded streaming FPS, on-demand performance diagnostics, long audio-clock QA and updated setup/contributor guidance. [Full notes](docs/releases/0.9.3.md).
+
+Recent releases: [0.9.2 branding](docs/releases/0.9.2.md), [0.9.1 updater](docs/releases/0.9.1.md), [0.9.0 editor](docs/releases/0.9.0.md), [0.8.0 streaming](docs/releases/0.8.0.md).
+
 ## 0.4.0 — desktop beta
 
 - Windows installer, desktop/Start menu shortcuts, and uninstall support; recordings and preferences retained.

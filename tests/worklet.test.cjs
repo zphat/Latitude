@@ -211,3 +211,33 @@ test("recorded mic stems and mix retain always-on protection under extreme gain 
     ),
   );
 });
+
+test("every voice preset stays centered without stereo widening", async () => {
+  for (const name of ["natural", "broadcast", "room", "soft", "clean"]) {
+    const h = await harness();
+    h.send({ type: "voice", index: 0, settings: h.dsp.PRESETS[name] });
+    const signal = Float32Array.from({length:128}, (_, i) => Math.sin(i * 0.25) * 0.2);
+    let energy = 0;
+    for (let i = 0; i < 100; i++) {
+      h.step([[signal], [], []]);
+      assert.deepEqual(h.output[0][0], h.output[0][1]);
+      energy += h.output[0][0].reduce((sum, x) => sum + x*x, 0);
+    }
+    assert.ok(energy > 0.1, name);
+  }
+});
+
+test("de-esser meters are bounded and report zero when bypassed", async () => {
+  const h = await harness();
+  h.send({ type: "voice", index: 0, settings: { deess: 3.5 } });
+  for (let i = 0; i < 100; i++) {
+    const signal = Float32Array.from({length:128}, (_, j) => 0.2 * Math.sin(2*Math.PI*6500*(i*128+j)/48000));
+    h.step([[signal], [], []]);
+  }
+  const meters = h.messages.filter(m => m.type === "meters");
+  assert.ok(meters.some(m => m.deessReduction[0] > 1));
+  assert.ok(meters.every(m => m.deessReduction.every(x => Number.isFinite(x) && x >= 0 && x <= 3.5)));
+  h.send({ type: "voice", index: 0, settings: { bypass: true } });
+  for (let i = 0; i < 10; i++) h.step();
+  assert.equal(h.messages.filter(m => m.type === "meters").at(-1).deessReduction[0], 0);
+});

@@ -1,4 +1,4 @@
-# Latitude on Linux — 0.6 preview
+# Latitude on Linux — preview
 
 The first Linux build is an x86-64 Flatpak. It targets Fedora KDE/GNOME, Ubuntu and Mint with Flatpak, Bazzite, and **SteamOS Desktop Mode**. These are target environments, not claims that every distribution and device has passed hardware testing. SteamOS Gaming Mode is not supported in this preview.
 
@@ -10,7 +10,7 @@ If your software center cannot open the file, use:
 
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install --user ./Latitude-0.9.2-Linux-x86_64.flatpak
+flatpak install --user ./Latitude-0.9.3-Linux-x86_64.flatpak
 flatpak run studio.latitude.recorder
 ```
 

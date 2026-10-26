@@ -15,5 +15,8 @@
   <url type="bugtracker">https://github.com/zphat/Latitude/issues</url>
   <url type="help">https://github.com/zphat/Latitude/blob/main/docs/LINUX.md</url>
   <content_rating type="oars-1.1"/>
-  <releases><release version="0.9.2" date="2026-10-25" type="development"/><release version="0.9.1" date="2026-10-25" type="development"/><release version="0.9.0" date="2026-10-23" type="development"/><release version="0.8.0" date="2026-10-22" type="development"/><release version="0.7.0" date="2026-10-21" type="development"/><release version="0.6.0" date="2026-10-20" type="development"/></releases>
+  <releases>
+    <release version="0.9.3" date="2026-10-26" type="development">
+      <description><p>Refined voice presets, focused de-essing, preset reapply controls and clearer streaming performance statistics.</p></description>
+    </release><release version="0.9.2" date="2026-10-25" type="development"/><release version="0.9.1" date="2026-10-25" type="development"/><release version="0.9.0" date="2026-10-23" type="development"/><release version="0.8.0" date="2026-10-22" type="development"/><release version="0.7.0" date="2026-10-21" type="development"/><release version="0.6.0" date="2026-10-20" type="development"/></releases>
 </component>

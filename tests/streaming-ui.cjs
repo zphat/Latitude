@@ -202,6 +202,9 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       false,
       "streaming does not require disk recording",
     );
+    await page.waitForFunction(() => parseFloat(document.querySelector("#stream-fps").textContent) > 5);
+    const encodedFps = parseFloat(await page.textContent("#stream-fps"));
+    assert.ok(encodedFps <= fps * 1.15, `encoded fps ${encodedFps}`);
     await wait(1800);
     await page.screenshot({ path: path.join(root, "streaming.png") });
     await page.click("#stream-studio");

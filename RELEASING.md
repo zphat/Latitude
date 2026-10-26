@@ -13,14 +13,14 @@ Keep application source in Git and downloadable builds in GitHub Releases. Do no
 
 ## Publish
 
-Create a release from the reviewed main-branch commit, with a matching version tag. For 0.6.0 use tag `v0.6.0` and title **Latitude 0.6.0 — Windows beta + Linux preview**. Mark it **pre-release**. Copy `docs/releases/0.6.0.md` into the release description.
+Create a release from the reviewed main-branch commit, with a matching version tag. For X.Y.Z use tag `vX.Y.Z` and title **Latitude X.Y.Z — Windows beta + Linux preview**. Mark it **pre-release**. Copy `docs/releases/X.Y.Z.md` into the release description.
 
 Attach Setup.exe, the portable ZIP, the Linux x86-64 Flatpak, and SHA256SUMS.txt. GitHub provides source snapshots from the tag automatically; these exclude the encoder executable. An optional source bundle may include the encoder and must preserve its notices. Release notes should distinguish those formats.
 
 Generate SHA-256 checksums of the exact final files, and verify them after upload. On Windows:
 
 ```powershell
-Get-FileHash .\Latitude-0.6.0-Windows-x64-Setup.exe -Algorithm SHA256
+Get-FileHash .\Latitude-X.Y.Z-Windows-x64-Setup.exe -Algorithm SHA256
 ```
 
 The Build Windows package workflow is an on-demand packaging aid. Its artifact is not automatically a public release, and a successful build does not verify hardware capture. The Tests workflow runs the unit and FFmpeg integration suite on source changes.
@@ -33,7 +33,7 @@ The workflow runs the test suite, builds on a Windows runner, checks the archive
 
 The encoder hash in `scripts/verify-release-package.py` deliberately pins the reviewed Windows encoder. If upgrading FFmpeg, review the exact new binary and corresponding notices before updating that hash.
 
-No code-signing certificate or automatic updater is configured. Do not describe a package as signed, hardware-validated, or stable unless those checks were actually completed for that package. Preserve released assets; use a new version for changes to application behavior.
+The automatic updater is included; no code-signing certificate is configured. Do not describe a package as signed, hardware-validated, or stable unless those checks were actually completed for that package. Preserve released assets; use a new version for changes to application behavior.
 
 ## Linux release gate
 

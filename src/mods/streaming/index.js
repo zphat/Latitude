@@ -154,7 +154,7 @@ export async function activate({ services }) {
     $("#stream-bytes").textContent = `${((s.bytes || 0) / 1e6).toFixed(1)} MB`;
     $("#stream-dropped").textContent = s.dropped || 0;
     $("#stream-fps").textContent =
-      `${s.seconds > 0 ? ((s.frames || 0) / s.seconds).toFixed(1) : 0} fps`;
+      `${(s.encodedFps || 0).toFixed(1)} fps`;
     $("#stream-advice").textContent =
       s.dropped > 10 && on
         ? "The video encoder is skipping frames. Try 720p / 30 fps, and close other GPU-heavy apps."

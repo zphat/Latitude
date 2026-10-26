@@ -21,7 +21,7 @@ require("../scripts/preview.cjs");
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.addInitScript(() =>
-      localStorage.setItem(
+      !localStorage.getItem("latitude-v2") && localStorage.setItem(
         "latitude-v2",
         JSON.stringify({ onboarded: true, reconnectMic: false }),
       ),
@@ -41,6 +41,7 @@ require("../scripts/preview.cjs");
       await engine.attach("mic1", dest.stream, 0);
       engine.emit("sources", engine.sourceState());
       window.testGain = gain;
+      window.testOscillator = oscillator;
       window.meterChecks = [];
       engine.addEventListener("meters", ({ detail: m }) => {
         window.meterChecks.push({
@@ -124,6 +125,14 @@ require("../scripts/preview.cjs");
       "red outline must follow the current worklet window without a hold",
     );
     assert.ok(checks.every((x) => x.output <= Math.pow(10, -1.5 / 20) + 1e-6));
+    await page.evaluate(() => {
+      window.testGain.gain.value = 0.2;
+      window.testOscillator.frequency.value = 6500;
+      window.__studio.engine.setVoice(0, { bypass: false, gain: 0, deess: 3.5 });
+    });
+    await page.waitForFunction(() => parseFloat(document.querySelector("#deesser-gr").textContent) > 1);
+    await page.evaluate(() => { window.testOscillator.frequency.value = 1500; });
+    await page.waitForFunction(() => parseFloat(document.querySelector("#deesser-gr").textContent) < 0.2);
     await page.evaluate(() => window.__studio.engine.ctx.suspend());
     await page.waitForFunction(
       () =>
@@ -154,6 +163,36 @@ require("../scripts/preview.cjs");
     await page.screenshot({
       path: path.join(shots, "compact-meter-layout.png"),
     });
+    // Simulate a saved 0.9.2 profile. Startup must preserve its numeric tone.
+    await page.evaluate(() => {
+      const { engine, config } = window.__studio;
+      config.preset[0] = "broadcast";
+      engine.setVoice(0, { air: 0.5, polish: 35, gain: -3, channel: "right", syncMs: 35, bypass: true });
+      const saved = JSON.parse(localStorage.getItem("latitude-v2"));
+      saved.preset = ["broadcast", "natural"];
+      saved.voices = engine.voiceSettings;
+      localStorage.setItem("latitude-v2", JSON.stringify(saved));
+    });
+    await page.reload();
+    await page.waitForFunction(() => !!window.__studio);
+    const old = await page.evaluate(() => window.__studio.engine.voiceSettings[0]);
+    assert.equal(old.air, 0.5);
+    assert.equal(old.polish, 35);
+    await page.evaluate(() => window.__studio.engine.setVoice(0, { mute: true }));
+    await page.click("#reapply-preset");
+    const updated = await page.evaluate(() => window.__studio.engine.voiceSettings[0]);
+    assert.equal(updated.air, 0);
+    assert.equal(updated.polish, 25);
+    assert.equal(updated.gain, -3);
+    assert.equal(updated.channel, "right");
+    assert.equal(updated.syncMs, 35);
+    assert.equal(updated.mute, true);
+    assert.equal(updated.bypass, false);
+    assert.equal(updated.clarityBypass, false);
+    await page.selectOption("#voice-preset", "custom");
+    assert.equal(await page.textContent("#reapply-preset"), "Use Natural");
+    await page.click("#reapply-preset");
+    assert.equal(await page.inputValue("#voice-preset"), "natural");
     assert.deepEqual(errors, []);
     console.log(
       JSON.stringify({

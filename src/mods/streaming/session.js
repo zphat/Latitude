@@ -30,6 +30,7 @@ export class StreamingSession extends EventTarget {
       if (data.state === "sending") {
         this.update({
           ...data,
+          encodedFps: run.videoSeconds > 0 ? run.frames / run.videoSeconds : 0,
           dropped: run.dropped,
           encoder: run.encoderLabel,
         });
@@ -78,6 +79,9 @@ export class StreamingSession extends EventTarget {
       queue: Promise.resolve(),
       audio: [],
       dropped: 0,
+      frames: 0,
+      firstTimestamp: null,
+      videoSeconds: 0,
       lastFrame: -1,
       lastKey: -2e6,
     });
@@ -88,6 +92,7 @@ export class StreamingSession extends EventTarget {
       message: "Opening the encoder and destination…",
       seconds: 0,
       bytes: 0,
+      encodedFps: 0,
       dropped: 0,
     });
     if (typeof VideoEncoder === "undefined")
@@ -128,6 +133,10 @@ export class StreamingSession extends EventTarget {
       output: (chunk, metadata) => {
         if (!current()) return;
         try {
+          run.firstTimestamp ??= chunk.timestamp;
+          run.frames++;
+          run.videoSeconds = Math.max(run.videoSeconds,
+            (chunk.timestamp - run.firstTimestamp + (chunk.duration || 1e6 / this.options.fps)) / 1e6);
           if (!run.header) {
             this.send(
               run,

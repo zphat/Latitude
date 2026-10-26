@@ -11,7 +11,7 @@ export const PRESETS = {
     highpass: 75,
     body: 0.5,
     mud: -1.5,
-    presence: 1,
+    presence: 1.5,
     air: 0,
     threshold: -20,
     ratio: 2.5,
@@ -26,21 +26,21 @@ export const PRESETS = {
   },
   broadcast: {
     name: "Podcast broadcast",
-    note: "A fuller voice with controlled dynamics.",
+    note: "Fuller, steady speech with a clear center and no added air.",
     highpass: 80,
     body: 1.5,
     mud: -2,
-    presence: 1.5,
-    air: 0.5,
+    presence: 2,
+    air: 0,
     threshold: -22,
     ratio: 3,
-    attack: 8,
-    release: 150,
+    attack: 12,
+    release: 180,
     makeup: 3,
     gate: -50,
-    gateDepth: 16,
+    gateDepth: 12,
     deess: 3.5,
-    polish: 35,
+    polish: 25,
     gain: 0,
   },
   room: {
@@ -69,7 +69,7 @@ export const PRESETS = {
     body: 1,
     mud: -1,
     presence: 2,
-    air: 0.5,
+    air: 0,
     threshold: -26,
     ratio: 2.5,
     attack: 15,
@@ -125,6 +125,14 @@ export class Biquad {
       b0 = (1 - c) / 2;
       b1 = 1 - c;
       b2 = b0;
+      a0 = 1 + a;
+      a1 = -2 * c;
+      a2 = 1 - a;
+    } else if (type === "bandpass") {
+      // RBJ constant 0 dB peak bandpass.
+      b0 = a;
+      b1 = 0;
+      b2 = -a;
       a0 = 1 + a;
       a1 = -2 * c;
       a2 = 1 - a;
@@ -284,23 +292,66 @@ export class RichClarity {
   }
 }
 
+// A selective dynamic cut, not a broad high-frequency shelf. Keep consonant
+// detail below the sibilance band. One biquad, no extra lookahead or allocations.
+export class SpeechDeEsser {
+  constructor(sr) {
+    this.band = new Biquad();
+    this.band.set("bandpass", 6500, 0, 1.1, sr);
+    this.attack = 1 - Math.exp(-1 / (sr * 0.002));
+    this.release = 1 - Math.exp(-1 / (sr * 0.06));
+    this.controlPeriod = Math.max(1, Math.round(sr / 1500));
+    this.reset();
+  }
+  reset() {
+    this.band.reset();
+    this.power = this.counter = 0;
+    this.gain = this.target = 1;
+    this.sleeping = true;
+  }
+  get reduction() {
+    return -gainToDb(this.gain);
+  }
+  tick(input, totalPower, depth) {
+    if (depth <= 0 && 1 - this.gain < 1e-7) {
+      if (!this.sleeping) this.reset();
+      return input;
+    }
+    this.sleeping = false;
+    const band = this.band.tick(input), power = band * band;
+    this.power += (power - this.power) *
+      (power > this.power ? this.attack : this.release);
+    // Expensive dB conversion at control rate; gain remains sample-smoothed.
+    if (--this.counter <= 0) {
+      this.counter = this.controlPeriod;
+      const share = this.power / Math.max(1e-12, totalPower);
+      const focus = clamp((share - 0.12) / 0.38, 0, 1);
+      const reduction = Math.min(Math.max(0, depth),
+        Math.max(0, gainToDb(Math.sqrt(this.power)) + 30) * 0.5) * focus;
+      this.target = dbToGain(-reduction);
+    }
+    if (depth <= 0) this.target = 1;
+    this.gain += (this.target - this.gain) *
+      (this.target < this.gain ? this.attack : this.release);
+    return input + (this.gain - 1) * band;
+  }
+}
+
 export class VoiceProcessor {
   constructor(sr) {
     this.sr = sr;
     this.filters = Array.from({ length: 5 }, () => new Biquad());
-    this.split = new Biquad();
+    this.deesser = new SpeechDeEsser(sr);
     this.clarity = new RichClarity(sr);
     this.limiter = new StereoLimiter(sr);
     this.tmp = new Float32Array(2);
     this.env = 0;
     this.gateGain = 1;
     this.compGain = 1;
-    this.sibilance = 0;
     this.trim = 1;
     this.muteGain = 1;
     this.wet = 1;
     this.bypassSmoothing = 1 - Math.exp(-1 / (sr * 0.005));
-    this.split.set("lowpass", 5200, 0, 0.707, sr);
     this.set({
       ...PRESETS.natural,
       bypass: false,
@@ -362,9 +413,9 @@ export class VoiceProcessor {
   }
   reset() {
     for (const f of this.filters) f.reset();
-    this.split.reset();
+    this.deesser.reset();
     this.limiter.reset();
-    this.env = this.sibilance = this.clarity.amount = 0;
+    this.env = this.clarity.amount = 0;
     this.clarity.sleeping = true;
     this.gateGain = this.compGain = 1;
     this.trim = this.trimTarget;
@@ -400,20 +451,7 @@ export class VoiceProcessor {
         comp +
         (this.compGain - comp) *
           (comp < this.compGain ? this.attack : this.release);
-      if (p.deess > 0) {
-        const low = this.split.tick(x),
-          high = x - low;
-        this.sibilance +=
-          (high * high - this.sibilance) *
-          (high * high > this.sibilance ? 0.02 : 0.001);
-        const deess = dbToGain(
-          -Math.min(
-            p.deess,
-            Math.max(0, gainToDb(Math.sqrt(this.sibilance)) + 30) * 0.5,
-          ),
-        );
-        x = low + high * deess;
-      }
+      x = this.deesser.tick(x, this.env, p.deess);
       x *= this.gateGain * this.compGain * this.makeup;
       x = this.clarity.tick(x, p.clarityBypass ? 0 : p.polish / 100);
       x = dry + (x - dry) * this.wet;

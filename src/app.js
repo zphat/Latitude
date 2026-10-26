@@ -381,7 +381,8 @@ const modules = [
   },
   {
     name: "Tame sharp S sounds",
-    summary: "Split-band de-esser",
+    summary: "Focused de-esser",
+    note: "A selective cut around sharp S sounds, preserving lower speech detail. Voices stay mono and centered; no stereo widening is added.",
     params: [["deess", "Maximum reduction", 0, 8, 0.5, " dB"]],
   },
   {
@@ -391,6 +392,12 @@ const modules = [
     note: "Always active on both processed mic tracks, the desktop track, monitoring and the full mix—even with processing bypassed. 5 ms lookahead and a −1.5 dBFS sample ceiling catch sudden peaks. The Input bar watches the original device signal; a red outline means full scale in the current ~27 ms meter window, with no hold. Raw backup tracks preserve the original input. Lower hardware gain if that input clips. Lossy encoding can create intersample overs; the export loudness pass measures true peaks.",
   },
 ];
+function updatePresetNote() {
+  const id = config.preset[selectedVoice];
+  $("#preset-note").textContent = PRESETS[id]?.note ||
+    "Your own balance. Saved for this input device.";
+  $("#reapply-preset").textContent = PRESETS[id] ? "Reapply" : "Use Natural";
+}
 function renderProcessing() {
   const p = engine.voiceSettings[selectedVoice];
   $("#clarity-bypass").textContent = p.clarityBypass
@@ -402,13 +409,11 @@ function renderProcessing() {
       .map(([id, p]) => `<option value="${id}">${p.name}</option>`)
       .join("") + '<option value="custom">Custom settings</option>';
   $("#voice-preset").value = config.preset[selectedVoice] || "custom";
-  $("#preset-note").textContent =
-    PRESETS[config.preset[selectedVoice]]?.note ||
-    "Your own balance. Saved for this input device.";
+  updatePresetNote();
   $("#processing-chain").innerHTML = modules
     .map(
       (m, i) =>
-        `<details class="processor"><summary><span class="module-number">0${i + 1}</span><i class="module-dot"></i>${m.name}<span class="module-summary">${i === 2 ? `<span id="compressor-gr">0.0 dB GR</span>` : m.summary}</span></summary><div class="processor-body">${m.params.map(([key, label, min, max, step, unit]) => `<div class="param"><label for="param-${key}">${label}<output id="value-${key}">${p[key]}${unit}</output></label><input id="param-${key}" data-param="${key}" data-unit="${unit}" min="${min}" max="${max}" step="${step}" value="${p[key]}" type="range"></div>`).join("")}${m.note ? `<p>${m.note}</p>` : ""}</div></details>`,
+        `<details class="processor"><summary><span class="module-number">0${i + 1}</span><i class="module-dot"></i>${m.name}<span class="module-summary">${i === 2 ? `<span id="compressor-gr">0.0 dB GR</span>` : i === 3 ? `<span id="deesser-gr">0.0 dB GR</span>` : m.summary}</span></summary><div class="processor-body">${m.params.map(([key, label, min, max, step, unit]) => `<div class="param"><label for="param-${key}">${label}<output id="value-${key}">${p[key]}${unit}</output></label><input id="param-${key}" data-param="${key}" data-unit="${unit}" min="${min}" max="${max}" step="${step}" value="${p[key]}" type="range"></div>`).join("")}${m.note ? `<p>${m.note}</p>` : ""}</div></details>`,
     )
     .join("");
   $$("[data-param]").forEach(
@@ -420,8 +425,7 @@ function renderProcessing() {
         $(`#value-${k}`).textContent = v + input.dataset.unit;
         config.preset[selectedVoice] = "custom";
         $("#voice-preset").value = "custom";
-        $("#preset-note").textContent =
-          "Your own balance. Saved for this input device.";
+        updatePresetNote();
         persistProfile();
       }),
   );
@@ -447,17 +451,28 @@ function selectVoice(index) {
 $$("[data-voice]").forEach(
   (b) => (b.onclick = () => selectVoice(Number(b.dataset.voice))),
 );
-$("#voice-preset").onchange = (e) => {
-  if (e.target.value === "custom") return;
-  config.preset[selectedVoice] = e.target.value;
+function applyVoicePreset(id) {
+  if (id === "custom") {
+    config.preset[selectedVoice] = id;
+    updatePresetNote();
+    persistProfile();
+    return;
+  }
+  if (!PRESETS[id]) return;
+  config.preset[selectedVoice] = id;
   engine.setVoice(selectedVoice, {
-    ...PRESETS[e.target.value],
+    ...PRESETS[id],
+    bypass: false,
+    clarityBypass: false,
     gain: engine.voiceSettings[selectedVoice].gain,
   });
   renderProcessing();
   syncMixer();
   persistProfile();
-};
+}
+$("#voice-preset").onchange = (e) => applyVoicePreset(e.target.value);
+$("#reapply-preset").onclick = () =>
+  applyVoicePreset(PRESETS[config.preset[selectedVoice]] ? config.preset[selectedVoice] : "natural");
 $("#bypass-button").onclick = () => {
   engine.setVoice(selectedVoice, {
     bypass: !engine.voiceSettings[selectedVoice].bypass,
@@ -477,6 +492,7 @@ $("#polish").oninput = (e) => {
   $("#polish-value").textContent = `${e.target.value}%`;
   config.preset[selectedVoice] = "custom";
   $("#voice-preset").value = "custom";
+  updatePresetNote();
   persistProfile();
 };
 
@@ -535,6 +551,8 @@ engine.addEventListener("meters", ({ detail: m }) => {
   audioMeters?.update(m, sourceState, clippedInputs, engine.desktopSettings);
   const gr = $("#compressor-gr");
   if (gr) gr.textContent = `${m.reduction[selectedVoice].toFixed(1)} dB GR`;
+  const deess = $("#deesser-gr");
+  if (deess) deess.textContent = `${(m.deessReduction?.[selectedVoice] || 0).toFixed(1)} dB GR`;
   if (m.clips.some((n) => n > 0) && performance.now() - clipWarningAt > 18000) {
     clipWarningAt = performance.now();
     toast(
@@ -1381,7 +1399,7 @@ $("#choose-folder").onclick = attempt(async () => {
 function help() {
   modal(
     "Your first great take.",
-    `<div class="guide"><h3>1. Connect your sources</h3><p>Choose a screen or window. Open Camera for your facecam, then Inputs & outputs to select your microphone, desktop sound, and monitoring output.</p><h3>Arrange your scene</h3><p>Click any source in the preview to move it. Drag a corner to resize; hold Alt to bypass snapping. Scene layers has exact position, crop, visibility, lock, and layer order. Add text, gradients, images, and color panels with Add source. Ctrl Z undoes an edit; Ctrl D duplicates a layer. Preview editing locks automatically during recording.</p><h3>2. Get your voice comfortable</h3><p>Run Soundcheck. Pick Natural voice or Podcast broadcast. Natural voice starts with rumble filtering, gentle expansion, EQ, compression, de-essing and always-on peak limiting. Input shows the device signal; Protected output shows what goes to your processed mic track. Red outlines clear with the next clean meter window; Clipped earlier is a separate reminder. Soundcheck helps set input headroom. Noise suppression is optional for noisy rooms because it can alter voice detail. The left/right selector is useful for a microphone plugged into one side of a stereo interface.</p><h3>3. Make a short test</h3><p>Clap once, talk, play a desktop clip, and switch scenes. Check the result before a long session. Drivers and webcams can introduce different delays; use the audio delay controls if speech arrives early.</p><h3>4. Record, then edit</h3><p>Use Ctrl Shift R to record, Ctrl Shift P to pause/resume, Ctrl Shift M to mute Voice 1, Ctrl Shift B for markers, and Ctrl Shift 1–5 for scenes. Stop to save. Settings → Recording & export format chooses what automatic export creates after you stop. MP4 is the default. Choose MKV or MOV for lossless audio inside video, WebM for the open web, or an audio-only podcast file. Each choice explains its size and compatibility.</p><h3>5. CapCut: keep the tracks separate</h3><p>Keep microphone and desktop sources separate is on by default. In video files, the first track is the full mix. If your editor does not expose the other embedded tracks, import the WAV stems, align everything at the same timeline start, mute the video’s mix, and group/link the clips. Enable WAV editing files or optional audio-specific video copies to choose mic-only or desktop-only audio on each clip instance.</p><h3>Practical limits</h3><p>This is an early desktop build, not a replacement for a thoroughly tested production recorder yet. Windows captures the default playback output. Linux uses PipeWire/PulseAudio output monitoring; Wayland uses your desktop’s screen-sharing picker. SteamOS support targets Desktop Mode; Gaming Mode has not been validated. Hardware routing and long-session performance need testing on your computer. There is no VST hosting or AI voice restoration. Recording is local; no account or upload is required.</p></div>`,
+    `<div class="guide"><h3>1. Connect your sources</h3><p>Choose a screen or window. Open Camera for your facecam, then Inputs & outputs to select your microphone, desktop sound, and monitoring output.</p><h3>Arrange your scene</h3><p>Click any source in the preview to move it. Drag a corner to resize; hold Alt to bypass snapping. Scene layers has exact position, crop, visibility, lock, and layer order. Add text, gradients, images, and color panels with Add source. Ctrl Z undoes an edit; Ctrl D duplicates a layer. Preview editing locks automatically during recording.</p><h3>2. Get your voice comfortable</h3><p>Pick Natural voice or Podcast broadcast, then run Soundcheck. Reapply restores the latest preset while keeping input gain, channel, mute and sync delay. Natural voice starts with rumble filtering, gentle expansion, EQ, compression, de-essing and always-on peak limiting. Input shows the device signal; Protected output shows what goes to your processed mic track. Red outlines clear with the next clean meter window; Clipped earlier is a separate reminder. Soundcheck helps set input headroom. Noise suppression is optional for noisy rooms because it can alter voice detail. The left/right selector is useful for a microphone plugged into one side of a stereo interface.</p><h3>3. Make a short test</h3><p>Clap once, talk, play a desktop clip, and switch scenes. Check the result before a long session. Drivers and webcams can introduce different delays; use the audio delay controls if speech arrives early.</p><h3>4. Record, then edit</h3><p>Use Ctrl Shift R to record, Ctrl Shift P to pause/resume, Ctrl Shift M to mute Voice 1, Ctrl Shift B for markers, and Ctrl Shift 1–5 for scenes. Stop to save. Settings → Recording & export format chooses what automatic export creates after you stop. MP4 is the default. Choose MKV or MOV for lossless audio inside video, WebM for the open web, or an audio-only podcast file. Each choice explains its size and compatibility.</p><h3>5. CapCut: keep the tracks separate</h3><p>Keep microphone and desktop sources separate is on by default. In video files, the first track is the full mix. If your editor does not expose the other embedded tracks, import the WAV stems, align everything at the same timeline start, mute the video’s mix, and group/link the clips. Enable WAV editing files or optional audio-specific video copies to choose mic-only or desktop-only audio on each clip instance.</p><h3>Practical limits</h3><p>This is an early desktop build, not a replacement for a thoroughly tested production recorder yet. Windows captures the default playback output. Linux uses PipeWire/PulseAudio output monitoring; Wayland uses your desktop’s screen-sharing picker. SteamOS support targets Desktop Mode; Gaming Mode has not been validated. Hardware routing and long-session performance need testing on your computer. There is no VST hosting or AI voice restoration. Recording is local; no account or upload is required.</p></div>`,
     "QUICK GUIDE",
   );
 }
@@ -1428,6 +1446,20 @@ $("#diagnostics-button").onclick = () => {
           engine.desktopSettings.syncMs || 0,
         ],
       },
+      performanceSnapshot: {
+        recording: engine.recording,
+        paused: engine.paused,
+        streaming: !!engine.live,
+        compositorFps: Math.round(compositor.measuredFps * 10) / 10,
+        lastDrawMs: Math.round(compositor.drawMs * 10) / 10,
+        pendingWriteBytes: engine.pendingBytes + (engine.pendingBlobBytes || 0),
+        recorderMime: engine.recorder?.mimeType || null,
+        sources: Object.entries(engine.streams).flatMap(([source, stream]) =>
+          stream.getVideoTracks().map(track => {
+            const { width, height, frameRate } = track.getSettings();
+            return { source, width, height, frameRate };
+          })),
+      },
       h264Capture: MediaRecorder.isTypeSupported("video/webm;codecs=h264,opus"),
       shortcutFailures,
     },
@@ -1436,7 +1468,7 @@ $("#diagnostics-button").onclick = () => {
   );
   modal(
     "Share a useful bug report.",
-    `<p>Review these technical details, then copy them into a GitHub issue with what happened and how to reproduce it. No recordings, device names, account information, or folder paths are included. Nothing is uploaded automatically.</p><textarea id="diagnostics-text" readonly rows="14" aria-label="Technical diagnostics">${escape(diagnostics)}</textarea><div class="modal-footer"><button id="copy-diagnostics" class="button primary">Copy diagnostics</button></div>`,
+    `<p>Review these technical details, then copy them into a GitHub issue with what happened and how to reproduce it. No recordings, device names, account information, or folder paths are included. Nothing is uploaded automatically. Drawing FPS is a local snapshot, not the encoded file or viewer frame rate.</p><textarea id="diagnostics-text" readonly rows="14" aria-label="Technical diagnostics">${escape(diagnostics)}</textarea><div class="modal-footer"><button id="copy-diagnostics" class="button primary">Copy diagnostics</button></div>`,
     "BETA FEEDBACK",
   );
   $("#copy-diagnostics").onclick = attempt(async () => {

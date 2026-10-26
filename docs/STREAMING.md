@@ -1,6 +1,6 @@
 # Latitude Streaming beta
 
-Enable **Latitude Streaming** in **Mods**, then open **Stream** in the sidebar. It is included in 0.8, off by default, with no extra download or subscription. Disabled streaming loads no implementation, encoder, socket or extra capture. The editor mod is still planned.
+Enable **Latitude Streaming** in **Mods**, then open **Stream** in the sidebar. It is included in 0.8, off by default, with no extra download or subscription. Disabled streaming loads no implementation, encoder, socket or extra capture. The optional Editor mod is also included; both are off by default.
 
 ## First broadcast
 
@@ -36,3 +36,5 @@ Automated tests cover local RTMP/RTMPS receipt, actual video/audio decode, TLS r
 Report OS, GPU, platform, resolution/fps, video/audio bitrate, simultaneous recording, skipped-frame count, and whether the platform received clean picture/audio. Never post a key. Feedback: https://discord.gg/EnPRdDutAn or https://github.com/zphat/Latitude/issues.
 
 References: [Twitch broadcasting](https://dev.twitch.tv/docs/video-broadcast/), [YouTube encoder settings](https://support.google.com/youtube/answer/2853702), [WebCodecs AVC](https://www.w3.org/TR/webcodecs-avc-codec-registration/), [Matroska mappings](https://www.matroska.org/technical/codec_specs.html).
+
+The Video FPS readout measures local encoded frames over their timestamps, reset on each connection. It does not measure viewer delivery. This avoids a false zero when FFmpeg reports no frame count for stream-copied video.

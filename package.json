@@ -1,7 +1,7 @@
 {
   "name": "latitude",
   "productName": "Latitude",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "description": "A local-first screen recorder with a podcast-focused audio studio.",
   "main": "electron/main.cjs",
   "private": true,
@@ -25,7 +25,8 @@
     "bench:audio": "node scripts/benchmark-audio.mjs",
     "build:linux-audio": "node scripts/build-linux-audio.cjs",
     "pack:linux": "electron-builder --linux dir",
-    "dist:linux": "electron-builder --linux flatpak"
+    "dist:linux": "electron-builder --linux flatpak",
+    "soak:audio": "node scripts/soak-audio.mjs"
   },
   "devDependencies": {
     "electron": "44.8.0",

@@ -1,27 +1,26 @@
-LATITUDE 0.3.0 — WINDOWS x64 BETA
+LATITUDE 0.9.3 — WINDOWS BETA / LINUX PREVIEW
 
-Extract the entire ZIP. Open Latitude.exe. Keep the surrounding files with it.
-No Node.js, OBS, account, or separate encoder installation is needed.
+Windows: run the Setup.exe from GitHub Releases. Open Latitude from its desktop
+or Start menu icon. No Node.js, source folder or separate encoder is needed.
+For portable use, extract the whole ZIP and keep its files together.
 
-1. Connect and test your microphone, or skip. Camera is always optional.
-2. Connect Screen A. Click a source in the preview to move it; drag a corner to resize.
-3. Scene layers has exact position, size, Crop this source, fit, mirror, visibility and lock.
-4. Add source adds text, gradients, images/logos, color panels and video layers.
-   Ctrl Z undoes; Ctrl D duplicates; arrows nudge; Shift nudges 10 pixels.
-5. Templates are optional. Review desk compares two crops of A; View B can instead
-   capture another window or monitor. Each scene/layer has its own crop.
-6. Voice Studio: run Check, pick a preset, and try Rich clarity around 25–35%.
-   If raw input clips, reduce the microphone/interface's hardware gain.
-7. Settings has five themes, 720p through 4K, 30/60 fps, quality and preview controls.
-   Start at 1080p/30 and check a short take before recording an important episode.
-8. Stop to save. Takes > Export creates an MP4 editing pack and synchronized WAV stems.
+Linux: install the .flatpak through Discover or a Flatpak-capable software center,
+then launch Latitude from your application menu. See docs/LINUX.md.
 
-CapCut: put MP4 and WAVs at the same timeline start; mute the mix when using stems.
-Optional per-track MP4 copies let each clip use mic-only or desktop-only audio.
-Preview editing locks during recording; Unlock preview permits deliberate live edits.
-The fps indicator measures compositing, not guaranteed encoded performance.
+1. Choose your mic in onboarding; Voice 2 and facecam are optional.
+2. Add a screen/window and optional camera. Drag sources to arrange the scene.
+3. Choose Natural voice or Podcast broadcast, then run Soundcheck.
+4. Keep hardware input below clipping. Processed tracks have always-on limiters;
+   raw backups preserve the input and cannot repair an overloaded microphone.
+5. Record a short test. Check voice, desktop sound, sync and video quality.
+6. Separate tracks are on by default. WAV stems work with editors that cannot
+   expose multiple audio tracks inside a video file.
+7. Enable optional Streaming or Editor in Mods. Recording needs neither.
 
-README.md covers routing, recovery, and limits. BUILD-REPORT.md lists checks.
-The app is unsigned. Windows hardware capture and long sessions still need real testing.
-Application source is MIT licensed. Runtime/encoder licenses are separate.
-MODDING.md documents packs and the experimental output-provider extension seam.
+Already using Latitude? Your saved tone settings remain. Use Voice Studio's
+Reapply to adopt the revised preset, then rerun Soundcheck. Input gain, channel,
+mute and delay are preserved. Updates are offered once at launch from 0.9.1.
+
+Downloads: https://github.com/zphat/Latitude/releases
+Help and feedback: https://discord.gg/EnPRdDutAn
+Beta homepage: https://latitude.pictures
