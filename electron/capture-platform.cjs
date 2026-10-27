@@ -4,7 +4,7 @@ function capturePlatform(platform = process.platform, env = process.env) {
     linux && (env.XDG_SESSION_TYPE === "wayland" || !!env.WAYLAND_DISPLAY);
   return {
     picker: wayland ? "portal" : "thumbnails",
-    desktopAudio: linux ? "pulse" : platform === "win32" ? "loopback" : "input",
+    desktopAudio: linux ? "pulse" : ["win32", "darwin"].includes(platform) ? "loopback" : "input",
     session: linux ? (wayland ? "wayland" : "x11") : platform,
     flatpak: linux && !!env.FLATPAK_ID,
   };

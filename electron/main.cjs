@@ -207,7 +207,7 @@ app.whenReady().then(async () => {
         if (!source) return callback({});
         callback({
           video: source,
-          ...(process.platform === "win32" && request.audioRequested
+          ...(["win32", "darwin"].includes(process.platform) && request.audioRequested
             ? { audio: "loopback" }
             : {}),
         });

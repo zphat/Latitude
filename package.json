@@ -26,7 +26,8 @@
     "build:linux-audio": "node scripts/build-linux-audio.cjs",
     "pack:linux": "electron-builder --linux dir",
     "dist:linux": "electron-builder --linux flatpak",
-    "soak:audio": "node scripts/soak-audio.mjs"
+    "soak:audio": "node scripts/soak-audio.mjs",
+    "dist:mac": "electron-builder --mac dmg zip"
   },
   "devDependencies": {
     "electron": "44.8.0",
@@ -164,6 +165,31 @@
           "packaging/studio.latitude.recorder.metainfo.xml",
           "/share/metainfo/studio.latitude.recorder.metainfo.xml"
         ]
+      ]
+    },
+    "mac": {
+      "category": "public.app-category.video",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "minimumSystemVersion": "14.2",
+      "artifactName": "Latitude-${version}-macOS-${arch}.${ext}",
+      "icon": "assets/icon.png",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Record your selected microphones for podcasts and videos.",
+        "NSCameraUsageDescription": "Include your camera in recording scenes.",
+        "NSAudioCaptureUsageDescription": "Record desktop audio on its own synchronized track."
+      },
+      "extraResources": [
+        {
+          "from": "vendor/ffmpeg",
+          "to": "ffmpeg"
+        },
+        {
+          "from": "vendor/mac",
+          "to": "encoder-notices"
+        }
       ]
     }
   },
