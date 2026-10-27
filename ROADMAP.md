@@ -24,3 +24,31 @@ Streaming and a basic layered Editor now ship as optional mods. Defer VST hostin
 ## Extension boundaries
 
 Keep scene/theme packs data-only. The experimental output-provider seam is documented in MODDING.md. The streaming mod owns its network configuration, credentials, buffering and reconnect behavior; streaming failures must not stop local recording. Native audio plugins would need a separate isolated host and performance budget. Streaming is included; native audio plugin hosting is not.
+
+## Next UI pass: a comfortable editor in a smaller window
+
+Backlog for the next application update; no runtime change in this documentation pass.
+The target use case is one monitor with Latitude in a non-maximized window.
+
+- Keep the selected clip, playhead, unsaved edits and audio settings stable on resize.
+- Let users adjust the preview/timeline balance and collapse secondary panels;
+  provide a clear way to reopen each panel and reset the layout.
+- Keep transport, save/undo and export reachable without covering tracks. Move
+  secondary controls into labeled sections rather than making everything smaller.
+- Preserve every existing control and value. Resizing or hiding a panel must not
+  alter a project, source media or exported output.
+- Test proposed 960×640 and 1280×720 windows, display scaling, keyboard access,
+  long clip names, multiple layers, reopening a project and restoring panel sizes.
+  These are future acceptance targets, not claims about current layout support.
+- Avoid background redraws, duplicate media decoders or new UI dependencies solely
+  for layout. Use the same project state; test export equivalence after rearranging UI.
+
+## Community content before a marketplace
+
+Improve tested examples, pack documentation and contribution paths before building
+accounts, checkout, executable downloads or creator payouts. Existing settings
+packs support themes/static scenes; transition algorithms, font installation and
+animated recording sources need separate implementation work. Any shared app-family
+kit should describe and test each supported app, rather than imply a common mod API.
+Paid content and funding options remain a discussion, not a committed price or
+feature restriction. Existing application licenses are unchanged.

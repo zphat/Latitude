@@ -1,5 +1,7 @@
 # Trying Latitude — Windows beta and Linux preview
 
+New here? [Make your first recording](docs/START-HERE.md) before working through the longer checks below.
+
 Install the Windows x64 **Setup.exe**, then open Latitude from the desktop or Start menu. From 0.9.1, launch checks offer Update now or Skip until next launch. Older builds need one manual update. Keep existing takes; uninstalling does not remove recordings or preferences.
 
 On Linux x86-64, open the **.flatpak** in Discover or another Flatpak-capable software center and install, then launch Latitude from the application menu. See the [Linux guide](docs/LINUX.md) for prerequisites, terminal installation, permissions, and preview limits. SteamOS testing is for **Desktop Mode**; Gaming Mode is not supported.
