@@ -2,7 +2,7 @@
 
 # Latitude
 
-A local screen recorder built around clear podcast audio. Version **0.9.3 — Windows beta and Linux preview**.
+A local screen recorder built around clear podcast audio. Version **0.9.4 — Windows beta and Linux preview**.
 
 [Beta homepage](https://latitude.pictures) · [Discord feedback and updates](https://discord.gg/EnPRdDutAn)
 
@@ -12,7 +12,7 @@ Record your screen, optional facecam, microphones, and desktop audio. Shape your
 
 ## Open the Windows app
 
-1. Download **Latitude-0.9.3-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.3).
+1. Download **Latitude-0.9.4-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.4).
 2. Double-click it. Latitude installs for your Windows account and creates desktop and Start menu shortcuts.
 3. Open either shortcut. No terminal, source folder, Node.js, OBS, or separate FFmpeg installation is needed.
 
@@ -24,9 +24,17 @@ The beta is unsigned, so Windows may identify it as an unknown publisher. It ins
 
 ## Open the Linux app
 
-Download **Latitude-0.9.3-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.3), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
+Download **Latitude-0.9.4-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.4), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
 
 The first Linux preview targets Fedora KDE/GNOME, Ubuntu/Mint with Flatpak, Bazzite, and SteamOS **Desktop Mode**. Gaming Mode and real-device performance remain unverified. Wayland uses the desktop screen-sharing portal; desktop audio uses PulseAudio or PipeWire 0.3.65+ with its PulseAudio service. The initial runtime download is shared with other Flatpak apps. Latitude is not on Flathub yet; preview updates come from GitHub Releases.
+
+## New in Latitude 0.9.4
+
+The optional Editor now fits smaller windows with a draggable preview/timeline divider, collapsible Media and Inspector panels, remembered layout and Reset layout. Keyboard divider controls and independent scrolling keep tools reachable while preserving the current edit. There are no new runtime dependencies or duplicate media players.
+
+[Editor workspace guide](docs/EDITOR.md#arranging-the-workspace) · [Release notes](docs/releases/0.9.4.md) · [QA evidence and limits](docs/qa/editor-workspace.md).
+
+Mac ARM64 and Intel packaging and bundled-encoder tests have passed in development-preview CI. Mac builds remain unsigned development artifacts; real-Mac capture tests, signing/notarization and public release are separate gates. [Mac status](docs/MACOS.md).
 
 ## New in Latitude 0.9.3
 

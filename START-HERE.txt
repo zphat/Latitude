@@ -1,4 +1,4 @@
-LATITUDE 0.9.3 — WINDOWS BETA / LINUX PREVIEW
+LATITUDE 0.9.4 — WINDOWS BETA / LINUX PREVIEW
 
 Windows: run the Setup.exe from GitHub Releases. Open Latitude from its desktop
 or Start menu icon. No Node.js, source folder or separate encoder is needed.
