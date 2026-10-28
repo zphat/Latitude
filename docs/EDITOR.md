@@ -41,3 +41,11 @@ Space plays/pauses; S splits; Delete removes; Ctrl/Cmd C/X/V copies/cuts/pastes 
 - Linux file-portal grants for media outside Videos can expire or change. Relink if necessary after restarting. SteamOS Desktop Mode and real GPU/device performance still need community testing.
 
 Feedback: [Discord](https://discord.gg/EnPRdDutAn) or [GitHub issues](https://github.com/zphat/Latitude/issues). Include platform, source codec, project format, what you expected and the smallest reproducible example. Project files can contain local paths; review them before sharing.
+
+## Arranging the workspace
+
+Drag the divider between preview and timeline to give either more room. With the divider focused, Up/Down changes the balance in 5-point steps; Home/End selects the supported extremes. Double-click it for an even balance.
+
+**Media** and **Inspector** toggle their panels without clearing a selection or changing any field. Media starts collapsed on smaller windows; use its button to import or reopen your library. Each panel and the timeline scroll independently. At high display scaling, the panels become drawers over the preview; close them for a clear picture. Very small effective windows scroll vertically, and long toolbars scroll horizontally or bring focused controls into view with Tab.
+
+The panel choices and divider balance are remembered on this device. **Reset layout** restores a balanced workspace suited to the current window. Layout preferences are separate from project settings, undo history and export. No preview decoder is created when resizing or toggling panels.

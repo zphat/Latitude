@@ -12,7 +12,7 @@ const ff = (args) =>
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "latitude-edit-ui-"));
   const shots = path.join(root, "shots");
   await fs.mkdir(shots);
-  const video = path.join(root, "Episode.mp4"),
+  const video = path.join(root, "Episode 01 - A long podcast source name with guests and a sponsor segment.mp4"),
     picture = path.join(root, "Sponsor.png");
   ff([
     "-f",
@@ -70,6 +70,7 @@ const ff = (args) =>
       },
     });
     page = await app.firstWindow();
+    await page.setViewportSize({ width: 1480, height: 1000 });
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("dialog", (d) => d.accept());
@@ -121,7 +122,8 @@ const ff = (args) =>
           .getImageData(100, 100, 1, 1).data[0] > 180,
     );
     await page.evaluate(() => window.__editor.preview.seek(0.4));
-    await page.click("#edit-play");
+    await page.locator("#edit-divider").focus();
+    await page.keyboard.press("Space");
     await page.waitForFunction(
       () => document.querySelector("#edit-meter").value > 0.01,
     );
@@ -140,7 +142,8 @@ const ff = (args) =>
       await page.evaluate(() => window.__editor.project.clips.length),
       2,
     );
-    await page.click("#edit-undo");
+    await page.locator("#edit-divider").focus();
+    await page.keyboard.press("Control+z");
     await page.evaluate(() => window.__editor.preview.seek(0.5));
     await page.click("#edit-in");
     await page.evaluate(() => window.__editor.preview.seek(1));
@@ -303,6 +306,67 @@ const ff = (args) =>
       path: path.join(shots, "editor.png"),
       fullPage: true,
     });
+    // Layout changes must not touch an unsaved layered project or its decoders.
+    await page.fill("#edit-name", "An unusually long podcast episode name with guests and layered clips");
+    await page.locator("#edit-name").blur();
+    const snapshot = () => page.evaluate(() => JSON.stringify({
+      project: window.__editor.project, selected: window.__editor.selected,
+      time: window.__editor.preview.time, history: window.__editor.history,
+    }));
+    const beforeLayout = await snapshot();
+    await page.evaluate(() => { window.layoutPlayers = [...window.__editor.preview.items.values()].map(v => v.el); });
+    for (const [width, height] of [[960, 640], [1280, 720], [1480, 1000]]) {
+      await page.setViewportSize({ width, height });
+      for (const id of ["#edit-toggle-media", "#edit-toggle-inspector"]) {
+        await page.click(id);
+        await page.click(id);
+      }
+      await page.locator("#edit-divider").focus();
+      await page.keyboard.press("Home");
+      assert.equal(await page.locator("#edit-divider").getAttribute("aria-valuenow"), "25");
+      await page.keyboard.press("ArrowDown");
+      assert.equal(await page.locator("#edit-divider").getAttribute("aria-valuenow"), "30");
+      await page.keyboard.press("End");
+      await page.locator("#edit-divider").dblclick();
+      assert.equal(await page.locator("#edit-divider").getAttribute("aria-valuenow"), "50");
+      const divider = await page.locator("#edit-divider").boundingBox();
+      await page.mouse.move(divider.x + divider.width / 2, divider.y + 6);
+      await page.mouse.down();
+      await page.mouse.move(divider.x + divider.width / 2, divider.y + 30, { steps: 5 });
+      await page.mouse.up();
+      assert.ok(Number(await page.locator("#edit-divider").getAttribute("aria-valuenow")) > 50);
+      await page.click("#edit-reset-layout");
+      for (const id of ["#edit-save", "#edit-export", "#edit-play", "#edit-undo", "#edit-toggle-media", "#edit-toggle-inspector"]) {
+        const b = await page.locator(id).boundingBox();
+        assert.ok(b && b.x >= 0 && b.y >= 0 && b.x + b.width <= width + 1 && b.y + b.height <= height, `${id} reachable at ${width}x${height}`);
+      }
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.querySelector("#workspace").scrollWidth <= document.querySelector("#workspace").clientWidth), "No workspace horizontal overflow");
+      assert.equal(await snapshot(), beforeLayout);
+      assert.ok(await page.evaluate(() => [...window.__editor.preview.items.values()].every((v, i) => v.el === window.layoutPlayers[i])), "No replacement media decoders");
+      await page.screenshot({ path: path.join(shots, `workspace-${width}x${height}.png`) });
+    }
+    // Native Chromium zoom approximates OS display scaling, including constrained windows.
+    for (const zoom of [1.25, 1.5]) {
+      await app.evaluate(({ BrowserWindow }, value) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(value), zoom);
+      await page.setViewportSize({ width: 960, height: 640 });
+      await page.click("#edit-toggle-media");
+      await page.click("#edit-toggle-media");
+      await page.locator("#edit-save").scrollIntoViewIfNeeded();
+      await page.locator("#edit-play").scrollIntoViewIfNeeded();
+      await page.locator("#edit-undo").scrollIntoViewIfNeeded();
+      const undoBox = await page.locator("#edit-undo").boundingBox();
+      assert.ok(undoBox && undoBox.y >= 0 && undoBox.y + undoBox.height <= await page.evaluate(() => innerHeight), "Timeline reachable at display scaling");
+      await page.locator("#edit-toggle-media").scrollIntoViewIfNeeded();
+      assert.equal(await snapshot(), beforeLayout);
+      await page.screenshot({ path: path.join(shots, `workspace-zoom-${zoom}.png`) });
+    }
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1));
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.click("#edit-reset-layout");
+    await page.locator("#edit-divider").focus();
+    await page.keyboard.press("ArrowDown");
+    await page.click("#edit-toggle-media");
+    await page.evaluate(() => { window.oldLayoutButton = document.querySelector("#edit-toggle-media"); });
     const projectFile = path.join(root, "Episode.latitude-edit");
     await app.evaluate(({ dialog }, file) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
@@ -333,7 +397,7 @@ const ff = (args) =>
       { timeout: 120000 },
     );
     const output = (await fs.readdir(root)).find((f) =>
-      f.startsWith("Untitled edit-"),
+      f.startsWith("An unusually"),
     );
     const report = JSON.parse(
       await fs.readFile(path.join(root, output, "Export-report.json"), "utf8"),
@@ -360,6 +424,16 @@ const ff = (args) =>
     await page.uncheck('[data-mod-id="latitude-editor"]');
     await page.waitForFunction(() => !window.__editor);
     assert.equal(await page.locator("#page-editor").count(), 0);
+    const settingsBefore = await page.evaluate(() => localStorage.getItem("latitude-v2"));
+    await page.evaluate(() => window.oldLayoutButton.click());
+    assert.equal(await page.evaluate(() => localStorage.getItem("latitude-v2")), settingsBefore, "Disabled layout listeners removed");
+    await page.check('[data-mod-id="latitude-editor"]');
+    await page.click('[data-view="editor"]');
+    await page.waitForFunction(() => !!window.__editor);
+    assert.equal(await page.locator("#edit-divider").getAttribute("aria-valuenow"), "55");
+    assert.equal(await page.locator("#edit-toggle-media").getAttribute("aria-expanded"), "false");
+    await page.click("#edit-toggle-media");
+    assert.equal(await page.locator("#edit-import").isVisible(), true);
     assert.deepEqual(errors, []);
     console.log(
       JSON.stringify({

@@ -777,3 +777,79 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* A bounded workspace: only media, inspector and tracks scroll independently. */
+body:has(#page-editor.active) { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+body:has(#page-editor.active) > .topbar,
+body:has(#page-editor.active) > .statusbar { flex-shrink: 0; }
+.app-body:has(#page-editor.active) { height: auto; flex: 1; min-height: 0; overflow: hidden; }
+#workspace:has(#page-editor.active) { padding: 12px 16px; overflow: auto; }
+body:has(#page-editor.active) .rail { overflow: auto; }
+#page-editor.active { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 400px; }
+#page-editor .editor-heading { margin: 0; align-items: center; gap: 12px; flex-wrap: nowrap; }
+#page-editor .editor-heading h1 { font-size: 24px; margin: 0; }
+#page-editor .editor-file-actions .button { padding: 9px 14px; font-size: 12px; border-radius: 12px; }
+#page-editor .editor-project-line { margin: 0; gap: 8px; flex-shrink: 0; }
+#page-editor .editor-project-line input { min-width: 100px; max-width: 250px; }
+#page-editor .editor-project-line select { max-width: 205px; }
+.editor-layout-tools { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.editor-layout-tools .button { padding: 8px 12px; border-radius: 10px; font-size: 12px; }
+.editor-layout-tools [aria-expanded="true"] { border-color: var(--accent); }
+#edit-save-state { font-size: 10px; max-width: 165px; }
+.editor-workspace { display: grid; grid-template-rows: minmax(140px, var(--edit-preview-share, 50fr)) 12px minmax(230px, var(--edit-timeline-share, 50fr)); flex: 1; min-height: 0; }
+#page-editor .editor-top { grid-template-columns: minmax(165px, 195px) minmax(0, 1fr) minmax(205px, 245px); align-items: stretch; gap: 12px; min-height: 0; }
+#page-editor[data-media="false"] .editor-top { grid-template-columns: minmax(0, 1fr) minmax(205px, 245px); }
+#page-editor[data-inspector="false"] .editor-top { grid-template-columns: minmax(165px, 195px) minmax(0, 1fr); }
+#page-editor[data-media="false"][data-inspector="false"] .editor-top { grid-template-columns: minmax(0, 1fr); }
+#page-editor .editor-top > .panel { min-height: 0; padding: 12px; border-radius: 16px; }
+#page-editor .editor-media, #page-editor .editor-inspector { overflow: auto; max-height: none; grid-column: auto; scrollbar-gutter: stable; }
+#page-editor [hidden] { display: none !important; }
+#edit-media-list { max-height: none; }
+#page-editor .editor-viewer { display: flex; flex-direction: column; gap: 7px; }
+#page-editor .editor-stage { flex: 1; min-height: 0; }
+#page-editor #edit-canvas { max-height: 100%; max-width: 100%; width: auto; height: auto; }
+#page-editor .editor-transport { margin: 0; gap: 7px; flex-shrink: 0; }
+#page-editor .editor-meter { display: flex; width: 85px; }
+#page-editor #edit-scrub { margin: 0; flex-shrink: 0; }
+#page-editor .editor-preview-note { margin: 0 !important; font-size: 10px; }
+#edit-empty { gap: 6px; padding: 8px; }
+#edit-empty b { font-size: 18px; }
+#edit-empty span { line-height: 1.5; }
+#edit-divider { cursor: row-resize; touch-action: none; display: grid; place-items: center; border-radius: 8px; }
+#edit-divider::after { content: ""; width: 46px; height: 3px; border-radius: 3px; background: var(--line); }
+#edit-divider:hover::after, #edit-divider:focus-visible::after { background: var(--accent); }
+#edit-divider:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+#page-editor .editor-timeline-panel { margin: 0; min-height: 0; display: flex; flex-direction: column; padding: 10px 12px !important; overflow: visible; }
+#page-editor .editor-tools, #page-editor .editor-range-tools { flex-wrap: nowrap; overflow-x: auto; flex-shrink: 0; gap: 8px; padding: 5px 0; scrollbar-width: thin; }
+#page-editor .editor-tools > *, #page-editor .editor-range-tools > * { flex-shrink: 0; white-space: nowrap; }
+#page-editor .editor-tools .button { font-size: 12px; border-radius: 9px; }
+#page-editor .editor-timeline { flex: 1; min-height: 54px; max-height: none; }
+#page-editor .editor-timeline-footer { position: relative; flex-direction: row; padding-top: 5px; flex-shrink: 0; }
+#page-editor .editor-timeline-footer > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#page-editor .editor-timeline-footer details { flex-shrink: 0; }
+#page-editor .editor-timeline-footer details[open] { position: absolute; bottom: 0; right: 0; padding: 14px; width: min(400px, 100%); max-height: 250px; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; z-index: 10; font-size: 12px; box-shadow: 0 8px 30px #0006; }
+#page-editor .editor-operation, #page-editor #edit-recovery { margin: 0; flex-shrink: 0; }
+@media (max-width: 1100px) {
+  #page-editor .editor-project-line #edit-save-state { flex-basis: 100%; max-width: none; margin: 0; }
+  #page-editor .editor-project-line { row-gap: 4px; }
+  #page-editor .editor-preview-note { display: none; }
+}
+@media (max-width: 750px) {
+  #page-editor.active { min-height: 520px; }
+  #page-editor .editor-heading { flex-wrap: wrap; }
+  #page-editor .editor-top { gap: 6px; }
+  #page-editor .editor-top > .panel { padding: 8px; }
+  #page-editor .editor-project-line select { max-width: 180px; }
+}
+#page-editor, #page-editor .editor-workspace, #page-editor .editor-top,
+#page-editor .editor-timeline-panel { min-width: 0; }
+.editor-workspace { grid-template-columns: minmax(0, 1fr); }
+/* At high display scaling, drawers share the preview area instead of squeezing it. */
+@media (max-width: 900px) {
+  #page-editor.active { min-height: 600px; }
+  #page-editor .editor-top { position: relative; grid-template-columns: minmax(0, 1fr); }
+  #page-editor .editor-top .editor-media,
+  #page-editor .editor-top .editor-inspector { position: absolute; z-index: 3; top: 0; bottom: 70px; width: min(245px, 46%); background: var(--panel); border: 1px solid var(--line); box-shadow: 0 4px 16px #0005; }
+  #page-editor .editor-media { left: 0; }
+  #page-editor .editor-inspector { right: 0; }
+}

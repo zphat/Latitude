@@ -18,6 +18,7 @@ import {
   FORMATS,
 } from "./model.js";
 import { Preview, titleCanvas } from "./preview.js";
+import { installLayout } from "./layout.js";
 let teardown;
 const esc = (s) =>
   String(s ?? "").replace(
@@ -64,26 +65,30 @@ export async function activate({ services }) {
     title: "Edit",
     icon: "scissors",
     html: `
-    <div class="page-heading editor-heading"><div><div class="eyebrow">LATITUDE EDITOR · OPTIONAL MOD</div><h1>A good take. A finished story.</h1></div><div class="editor-file-actions"><button class="button small" id="edit-new">New</button><button class="button small" id="edit-open">Open project</button><button class="button small" id="edit-save">Save project</button><button class="button primary" id="edit-export">Export edit</button></div></div>
-    <div class="editor-project-line"><input id="edit-name" aria-label="Edit name" maxlength="100" value="Untitled edit"><select id="edit-format" aria-label="Picture shape"><option value="landscape">16:9 · 1080p episode</option><option value="portrait">9:16 · vertical clip</option><option value="square">1:1 · square</option><option value="compact">16:9 · 720p lightweight</option><option value="uhd">16:9 · 4K</option></select><select id="edit-fps" aria-label="Frame rate"><option>24</option><option selected>30</option><option>60</option></select><span class="fine-print" id="edit-save-state" role="status">Sources stay untouched</span></div>
+    <div class="page-heading editor-heading"><div><h1>Editor</h1></div><div class="editor-file-actions"><button class="button small" id="edit-new">New</button><button class="button small" id="edit-open">Open project</button><button class="button small" id="edit-save">Save project</button><button class="button primary" id="edit-export">Export edit</button></div></div>
+    <div class="editor-project-line"><input id="edit-name" aria-label="Edit name" maxlength="100" value="Untitled edit"><select id="edit-format" aria-label="Picture shape"><option value="landscape">16:9 · 1080p episode</option><option value="portrait">9:16 · vertical clip</option><option value="square">1:1 · square</option><option value="compact">16:9 · 720p lightweight</option><option value="uhd">16:9 · 4K</option></select><select id="edit-fps" aria-label="Frame rate"><option>24</option><option selected>30</option><option>60</option></select><div class="editor-layout-tools" aria-label="Workspace layout"><button class="button small" id="edit-toggle-media" aria-controls="edit-media-panel">Media</button><button class="button small" id="edit-toggle-inspector" aria-controls="edit-inspector">Inspector</button><button class="text-button" id="edit-reset-layout">Reset layout</button></div><span class="fine-print" id="edit-save-state" role="status">Sources stay untouched</span></div>
     <div class="editor-operation" id="edit-operation" hidden><div><b id="edit-progress-label">Working…</b><progress id="edit-progress" max="100"></progress></div><button class="button small" id="edit-cancel">Cancel</button></div>
     <div id="edit-recovery" class="notice" hidden><span id="edit-recovery-name"></span> <button class="text-button" id="edit-restore">Restore draft</button></div>
+    <div class="editor-workspace">
     <div class="editor-top">
-      <section class="panel editor-media"><div class="editor-section-title"><h2>Media</h2><button class="button small" id="edit-import">+ Import</button></div><button class="button small" id="edit-takes">Use a Latitude take</button><p class="fine-print">Video, audio, intros, ads and images. Add a source to the timeline to use it.</p><div id="edit-media-list"></div><div id="edit-media-tools" hidden><button class="button small" id="edit-add-media" title="Place media over the current timeline">Add at playhead</button><div class="editor-pair"><button class="button small" id="edit-insert-media" title="Insert here and move all later clips together">Insert</button><button class="button small" id="edit-append-media" title="Place at the end of the timeline">Append</button></div><button class="text-button" id="edit-proxy">Make lighter / compatible preview</button><button class="text-button" id="edit-waveform">Build audio waveform</button><button class="text-button" id="edit-relink">Relink source</button></div></section>
+      <section class="panel editor-media" id="edit-media-panel" aria-label="Media library"><div class="editor-section-title"><h2>Media</h2><button class="button small" id="edit-import">+ Import</button></div><button class="button small" id="edit-takes">Use a Latitude take</button><p class="fine-print">Video, audio, intros, ads and images. Add a source to the timeline to use it.</p><div id="edit-media-list"></div><div id="edit-media-tools" hidden><button class="button small" id="edit-add-media" title="Place media over the current timeline">Add at playhead</button><div class="editor-pair"><button class="button small" id="edit-insert-media" title="Insert here and move all later clips together">Insert</button><button class="button small" id="edit-append-media" title="Place at the end of the timeline">Append</button></div><button class="text-button" id="edit-proxy">Make lighter / compatible preview</button><button class="text-button" id="edit-waveform">Build audio waveform</button><button class="text-button" id="edit-relink">Relink source</button></div></section>
       <section class="panel editor-viewer"><div class="editor-stage" id="edit-stage"><canvas id="edit-canvas" aria-label="Edit preview; drag a selected picture or title to reposition it"></canvas><div id="edit-empty"><b>Your edit starts here.</b><span>Import media or choose a Latitude take.<br>Then split, arrange, and make it yours.</span></div></div><div class="editor-transport"><button class="button small" id="edit-back" title="Previous frame">‹</button><button class="button primary" id="edit-play">Play</button><button class="button small" id="edit-forward" title="Next frame">›</button><output id="edit-time">00:00.00</output><span id="edit-length" class="fine-print">/ 00:00.00</span><label class="editor-meter" title="Protected preview mix; final loudness is set at export"><meter id="edit-meter" min="0" max="1" low=".25" high=".71" optimum=".1" value="0"></meter><small id="edit-meter-db">Mix · silent</small></label></div><input id="edit-scrub" type="range" min="0" max="1" step=".033333" value="0" aria-label="Preview playhead"><p class="editor-preview-note fine-print">Lightweight preview · originals used for export · drag to position, corners to resize</p></section>
       <section class="panel editor-inspector" id="edit-inspector"></section>
     </div>
+    <div id="edit-divider" role="separator" tabindex="0" aria-label="Resize preview and timeline" aria-orientation="horizontal" aria-valuemin="25" aria-valuemax="75" aria-valuenow="50" title="Drag to resize · Up/Down arrows · double-click to balance"></div>
     <section class="panel editor-timeline-panel"><div class="editor-tools"><button class="button small" id="edit-undo" title="Undo · Ctrl Z">Undo</button><button class="button small" id="edit-redo" title="Redo · Ctrl Shift Z">Redo</button><button class="button small" id="edit-split">Split · S</button><button class="button small" id="edit-delete">Delete</button><button class="button small" id="edit-duplicate">Duplicate</button><button class="button small" id="edit-copy" title="Copy linked selection · Ctrl C">Copy</button><button class="button small" id="edit-cut" title="Cut linked selection · Ctrl X">Cut</button><button class="button small" id="edit-paste" title="Paste at playhead · Ctrl V">Paste</button><button class="button small" id="edit-title">+ Title</button><button class="button small" id="edit-video-layer">+ Video layer</button><button class="button small" id="edit-audio-layer">+ Audio layer</button><label class="check-line"><input type="checkbox" id="edit-linked" checked>Linked clips</label></div>
       <div class="editor-range-tools"><button class="text-button" id="edit-in">Mark in · I</button><button class="text-button" id="edit-out">Mark out · O</button><span id="edit-range-label" class="fine-print">Select a range to make a clip or remove a section</span><button class="button small" id="edit-ripple">Remove range & close gap</button><button class="text-button" id="edit-clear-range">Clear</button><label class="editor-zoom">Zoom <input id="edit-zoom" type="range" min="5" max="160" value="45" aria-label="Timeline zoom"></label></div>
       <div class="editor-timeline" id="edit-timeline"><div id="edit-timeline-content"><div class="editor-ruler" id="edit-ruler"></div><div id="edit-track-rows"></div><div class="editor-playhead" id="edit-playhead"></div><div id="edit-range-shade"></div></div></div>
       <div class="editor-timeline-footer"><span>Drag clips across time or layers · drag their edges to trim · higher video layers cover lower ones</span><details><summary>Shortcuts & tips</summary><p>Space play/pause · S split linked selection · Delete remove selection · Ctrl C/X/V copy/cut/paste · Ctrl D duplicate · Ctrl Z undo · Ctrl Shift Z redo · I/O range · ←/→ one frame · M marker. Shift-click Split cuts every unlocked layer at the playhead. Overlap picture clips and fade the incoming clip for a dissolve. Use Remove range to cut all layers together without losing sync. Save a project before starting a different edit; the local recovery draft holds the latest edit only.</p></details></div>
     </section>
+    </div>
     <dialog id="edit-dialog" class="editor-dialog"></dialog>
   `,
   });
   const $ = (s) => panel.element.querySelector(s),
     canvas = $("#edit-canvas"),
     timeline = $("#edit-timeline");
+  const layout = installLayout(panel.element, ui);
   const report = (message) => {
     if (message !== shownError) {
       shownError = message;
@@ -1321,6 +1326,7 @@ export async function activate({ services }) {
         "Finish or cancel the editor operation before disabling this mod.",
       );
     disposed = true;
+    layout.destroy();
     off();
     cancelAnimationFrame(scrollRaf);
     window.removeEventListener("keydown", onKey);
@@ -1341,6 +1347,8 @@ export async function activate({ services }) {
       get preview() {
         return preview;
       },
+      get selected() { return selected; },
+      get history() { return history; },
       get media() {
         return media;
       },
