@@ -67,7 +67,7 @@ def build():
             "--disable-ffplay", "--disable-shared", "--enable-static", "--enable-gpl",
             "--enable-libx264", "--enable-libvpx", "--enable-libopus", "--enable-libmp3lame",
             "--enable-videotoolbox", "--enable-audiotoolbox", "--enable-securetransport",
-            "--enable-zlib", "--enable-bzlib", "--enable-lzma", "--pkg-config-flags=--static",
+            "--enable-zlib", "--disable-bzlib", "--disable-lzma", "--pkg-config-flags=--static",
             f"--extra-cflags=-I{prefix / 'include'} -mmacosx-version-min=14.2",
             f"--extra-ldflags=-L{prefix / 'lib'} -mmacosx-version-min=14.2")
 

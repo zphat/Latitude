@@ -6,15 +6,20 @@ function validateEncoder(configuration) {
   for (const flag of ['--enable-gpl', '--enable-libx264', '--enable-libvpx', '--enable-libopus', '--enable-libmp3lame'])
     if (!configuration.includes(flag)) throw Error(`Missing required encoder feature ${flag}`);
 }
+function validateLibraries(output) {
+  const external = output.split('\n').slice(1).map(l=>l.trim()).filter(Boolean)
+    .filter(l=>!/^\/(System\/Library|usr\/lib)\//.test(l));
+  if (external.length) throw Error(`Non-system libraries are not portable: ${external.join('; ')}`);
+}
 function prepare() {
   if (process.platform !== 'darwin') throw Error('Run on macOS');
   const binary = path.resolve('vendor/ffmpeg');
   const configuration = execFileSync(binary, ['-buildconf'], {encoding:'utf8', stdio:['ignore','pipe','pipe']});
   validateEncoder(configuration);
   for (const file of ['ffmpeg', 'ffprobe']) {
-    const dependencies = execFileSync('otool', ['-L', path.resolve('vendor', file)], {encoding:'utf8'}).split('\n').slice(1).filter(l=>l.trim());
-    if (dependencies.some(l=>!/^\s+\/(System\/Library|usr\/lib)\//.test(l)))
-      throw Error(`${file} depends on a non-system library; the downloaded app must be self-contained`);
+    const dependencies = execFileSync('otool', ['-L', path.resolve('vendor', file)], {encoding:'utf8'});
+    console.log(dependencies);
+    validateLibraries(dependencies);
   }
   for (const name of ['ffmpeg/COPYING.GPLv2', 'x264/COPYING', 'libvpx/LICENSE', 'opus/COPYING', 'lame/COPYING', 'BUILD.json'])
     if (!fs.existsSync(path.join('vendor/mac', name))) throw Error(`Missing encoder notice ${name}`);
@@ -24,4 +29,4 @@ function prepare() {
   console.log('Verified redistributable encoder features, system-only libraries and runtime notices.');
 }
 if (require.main === module) prepare();
-module.exports = {validateEncoder};
+module.exports = {validateEncoder, validateLibraries};
