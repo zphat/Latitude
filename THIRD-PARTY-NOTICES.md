@@ -16,3 +16,20 @@ No online fonts, third-party web content, hosted analytics, or media upload serv
 
 - **Manrope** — Copyright 2018 The Manrope Project Authors, SIL Open Font License 1.1. Bundled locally for editor titles; license in `assets/fonts/Manrope-OFL.txt`. Source: https://github.com/google/fonts/tree/main/ofl/manrope.
 - **DM Serif Display** — Copyright 2014–2018 Adobe and Copyright 2019 Google LLC, SIL Open Font License 1.1. Bundled locally for editor titles; license in `assets/fonts/DMSerifDisplay-OFL.txt`. Source: https://github.com/google/fonts/tree/main/ofl/dmserifdisplay.
+
+## Mac development previews
+
+Mac preview packages build **FFmpeg 6.1.6** from source as a separate GPL executable,
+with **x264** (GPL-2.0-or-later), **libvpx 1.15.2** (BSD), **Opus 1.5.2** (BSD) and
+**LAME 3.100** (LGPL). No `--enable-nonfree` components are used. The Mac source
+manifest pins exact downloads and hashes in `packaging/mac/encoder-sources.json`;
+the build recipe is `scripts/build-mac-encoder.py`. Full license texts, provenance
+and build metadata are included in `Latitude.app/Contents/Resources/encoder-notices/`,
+along with Electron's MIT license and Chromium's third-party notices.
+
+The exact corresponding source archives, build recipe and configuration are
+distributed beside each Mac binary as `Latitude-VERSION-macOS-ARCH-Encoder-Sources.tar.gz`
+on the [same GitHub release](https://github.com/zphat/Latitude/releases).
+The sources are unmodified. macOS system frameworks provide platform services;
+no Homebrew runtime libraries are required. Earlier unsigned Actions artifacts
+used a nonfree-enabled Apple Silicon encoder and must not be redistributed.

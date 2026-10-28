@@ -2,7 +2,7 @@
 
 # Latitude
 
-A local screen recorder built around clear podcast audio. Version **0.9.4 — Windows beta and Linux preview**.
+A local screen recorder built around clear podcast audio. Version **0.9.4 — Windows beta, Linux preview and Mac development preview**.
 
 [Beta homepage](https://latitude.pictures) · [Discord feedback and updates](https://discord.gg/EnPRdDutAn)
 
@@ -34,7 +34,11 @@ The optional Editor now fits smaller windows with a draggable preview/timeline d
 
 [Editor workspace guide](docs/EDITOR.md#arranging-the-workspace) · [Release notes](docs/releases/0.9.4.md) · [QA evidence and limits](docs/qa/editor-workspace.md).
 
-Mac ARM64 and Intel packaging and bundled-encoder tests have passed in development-preview CI. Mac builds remain unsigned development artifacts; real-Mac capture tests, signing/notarization and public release are separate gates. [Mac status](docs/MACOS.md).
+## Try the Mac development preview
+
+Mac previews use the same **0.9.4 editor and voice tools**, with separate Apple Silicon (arm64) and Intel (x64) DMGs on the [0.9.4 release page](https://github.com/zphat/Latitude/releases/tag/v0.9.4). Requires macOS 14.2 or newer. Drag Latitude into Applications and launch it there. Mac updates are manual for now.
+
+These are **unsigned, unnotarized development previews**. Automated Mac encoder, editor/export and package-launch checks are required before upload; they do not verify real microphone/camera capture, privacy prompts or long recordings. Use a short test take first. [Mac installation, permissions and test guide](docs/MACOS.md). A signed, hardware-tested Mac beta remains a separate milestone.
 
 ## New in Latitude 0.9.3
 
@@ -228,7 +232,7 @@ This build has automated DSP, file-writing, export, and browser recording tests,
 
 **Windows hardware capture, your webcam/mic drivers, output-device routing, global shortcuts in other programs, and long-session stability still need testing on your computer.** The Windows pipeline checks install, shortcuts, packaged launch, encoder availability, and uninstall; these do not exercise your real capture devices. The app is a desktop beta, not a claim of OBS-level reliability or commercial DAW mastering quality.
 
-VST/AU hosting, AI restoration, per-application audio capture, simultaneous multiple webcams, independently recorded camera video, custom hotkey remapping, hardware video encoder selection, and automatic echo/latency correction are not included. The five scene slots are independent compositions, with up to 40 layers each. Each layer has its own crop. Templates replace the destination scene and legacy layout defaults. Applying a new template can reveal areas hidden by a previous crop, so review the preview before recording. The Linux x86-64 Flatpak is a preview; Fedora/Ubuntu real-device testing and SteamOS Desktop Mode testing are still needed. There is no macOS package. Electron and bundled FFmpeg make the download substantial; no claim that Latitude is smaller or faster than OBS has been benchmarked. Higher recording settings and extra sources use more resources.
+VST/AU hosting, AI restoration, per-application audio capture, simultaneous multiple webcams, independently recorded camera video, custom hotkey remapping, hardware video encoder selection, and automatic echo/latency correction are not included. The five scene slots are independent compositions, with up to 40 layers each. Each layer has its own crop. Templates replace the destination scene and legacy layout defaults. Applying a new template can reveal areas hidden by a previous crop, so review the preview before recording. The Linux x86-64 Flatpak is a preview; Fedora/Ubuntu real-device testing and SteamOS Desktop Mode testing are still needed. Mac packages are unsigned development previews; real-device capture and permissions testing remains outstanding. Electron and bundled FFmpeg make the download substantial; no claim that Latitude is smaller or faster than OBS has been benchmarked. Higher recording settings and extra sources use more resources.
 
 For Linux-specific prerequisites, permissions, limitations, and build steps, see [the Linux guide](docs/LINUX.md).
 

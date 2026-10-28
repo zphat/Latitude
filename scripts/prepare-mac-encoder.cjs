@@ -1,14 +1,27 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {execFileSync} = require('node:child_process');
-if (process.platform !== 'darwin') throw Error('Run on macOS');
-const binary = require('ffmpeg-static');
-execFileSync(binary, ['-version']);
-fs.mkdirSync('vendor/mac', {recursive:true});
-fs.copyFileSync(binary, 'vendor/ffmpeg');
-fs.chmodSync('vendor/ffmpeg', 0o755);
-for (const suffix of ['LICENSE','README']) {
- const source = `${binary}.${suffix}`;
- if (!fs.existsSync(source)) throw Error(`Missing encoder notice ${suffix}`);
- fs.copyFileSync(source, path.join('vendor/mac', `FFmpeg-${suffix}.txt`));
+function validateEncoder(configuration) {
+  if (configuration.includes('--enable-nonfree')) throw Error('Refusing to distribute a nonfree encoder');
+  for (const flag of ['--enable-gpl', '--enable-libx264', '--enable-libvpx', '--enable-libopus', '--enable-libmp3lame'])
+    if (!configuration.includes(flag)) throw Error(`Missing required encoder feature ${flag}`);
 }
+function prepare() {
+  if (process.platform !== 'darwin') throw Error('Run on macOS');
+  const binary = path.resolve('vendor/ffmpeg');
+  const configuration = execFileSync(binary, ['-buildconf'], {encoding:'utf8', stdio:['ignore','pipe','pipe']});
+  validateEncoder(configuration);
+  for (const file of ['ffmpeg', 'ffprobe']) {
+    const dependencies = execFileSync('otool', ['-L', path.resolve('vendor', file)], {encoding:'utf8'}).split('\n').slice(1).filter(l=>l.trim());
+    if (dependencies.some(l=>!/^\s+\/(System\/Library|usr\/lib)\//.test(l)))
+      throw Error(`${file} depends on a non-system library; the downloaded app must be self-contained`);
+  }
+  for (const name of ['ffmpeg/COPYING.GPLv2', 'x264/COPYING', 'libvpx/LICENSE', 'opus/COPYING', 'lame/COPYING', 'BUILD.json'])
+    if (!fs.existsSync(path.join('vendor/mac', name))) throw Error(`Missing encoder notice ${name}`);
+  for (const [source, dest] of [['LICENSE','Electron-LICENSE.txt'], ['LICENSES.chromium.html','Chromium-LICENSES.html']])
+    fs.copyFileSync(path.join('node_modules/electron/dist', source), path.join('vendor/mac', dest));
+  console.log(execFileSync(binary, ['-version'], {encoding:'utf8'}).split('\n')[0]);
+  console.log('Verified redistributable encoder features, system-only libraries and runtime notices.');
+}
+if (require.main === module) prepare();
+module.exports = {validateEncoder};
