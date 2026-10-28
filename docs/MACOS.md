@@ -77,7 +77,7 @@ Private recordings are not required.
 
 ## Build or fork
 
-On the matching native Mac, run `npm ci`, install Xcode command-line tools plus
+On the matching native Mac, run `npm ci` and `npm run setup`, install Xcode command-line tools plus
 `nasm` and `pkg-config`, then:
 
 ```sh

@@ -26,6 +26,10 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci
+      - name: Install the pinned Electron runtime and verify its notices before compiling
+        run: |
+          npm run setup
+          node scripts/prepare-mac-encoder.cjs --runtime-notices-only
       - run: python3 tests/mac-release.test.py
       - run: brew install nasm pkgconf
       - name: Build redistributable encoder from pinned sources
