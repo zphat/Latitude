@@ -1,4 +1,4 @@
-LATITUDE 0.9.4 — WINDOWS BETA / LINUX PREVIEW
+LATITUDE 0.9.4 — WINDOWS BETA / LINUX PREVIEW / MAC DEVELOPMENT PREVIEW
 
 Windows: run the Setup.exe from GitHub Releases. Open Latitude from its desktop
 or Start menu icon. No Node.js, source folder or separate encoder is needed.
@@ -6,6 +6,10 @@ For portable use, extract the whole ZIP and keep its files together.
 
 Linux: install the .flatpak through Discover or a Flatpak-capable software center,
 then launch Latitude from your application menu. See docs/LINUX.md.
+
+Mac: use the Apple Silicon or Intel DMG on macOS 14.2+. Drag Latitude into
+Applications. Unsigned and unnotarized; updates are manual. See docs/MACOS.md
+for permissions, first-use checks and the remaining real-device test gates.
 
 1. Choose your mic in onboarding; Voice 2 and facecam are optional.
 2. Add a screen/window and optional camera. Drag sources to arrange the scene.
@@ -19,7 +23,7 @@ then launch Latitude from your application menu. See docs/LINUX.md.
 
 Already using Latitude? Your saved tone settings remain. Use Voice Studio's
 Reapply to adopt the revised preset, then rerun Soundcheck. Input gain, channel,
-mute and delay are preserved. Updates are offered once at launch from 0.9.1.
+mute and delay are preserved. Windows/Linux updates are offered once at launch from 0.9.1.
 
 Downloads: https://github.com/zphat/Latitude/releases
 Help and feedback: https://discord.gg/EnPRdDutAn

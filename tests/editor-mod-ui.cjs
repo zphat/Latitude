@@ -143,7 +143,7 @@ const ff = (args) =>
       2,
     );
     await page.locator("#edit-divider").focus();
-    await page.keyboard.press("Control+z");
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+z" : "Control+z");
     await page.evaluate(() => window.__editor.preview.seek(0.5));
     await page.click("#edit-in");
     await page.evaluate(() => window.__editor.preview.seek(1));

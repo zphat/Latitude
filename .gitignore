@@ -16,4 +16,8 @@ vendor/ffmpeg
 
 vendor/latitude-audio
 vendor/linux/
+vendor/mac/
+vendor/ffprobe
+.mac-encoder-build/
+__pycache__/
 *.flatpak

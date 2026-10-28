@@ -1,0 +1,37 @@
+[
+  {
+    "name": "ffmpeg",
+    "url": "https://ffmpeg.org/releases/ffmpeg-6.1.6.tar.xz",
+    "file": "ffmpeg.tar.xz",
+    "sha256": "d4fcb164028dd3beee5d92c0ac72e46aac6973c75ea12dc14de07bf8f407370a",
+    "root": "ffmpeg-6.1.6"
+  },
+  {
+    "name": "x264",
+    "url": "https://codeload.github.com/mirror/x264/tar.gz/31e19f92f00c7003fa115047ce50978bc98c3a0d",
+    "file": "x264.tar.gz",
+    "sha256": "d053c9d86988d6bc78237ca5205865c5ddf99c98ef4cd9927eec8f6d388f6dd9",
+    "root": "x264-31e19f92f00c7003fa115047ce50978bc98c3a0d"
+  },
+  {
+    "name": "libvpx",
+    "url": "https://codeload.github.com/webmproject/libvpx/tar.gz/v1.15.2",
+    "file": "libvpx.tar.gz",
+    "sha256": "26fcd3db88045dee380e581862a6ef106f49b74b6396ee95c2993a260b4636aa",
+    "root": "libvpx-1.15.2"
+  },
+  {
+    "name": "opus",
+    "url": "https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz",
+    "file": "opus.tar.gz",
+    "sha256": "65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1",
+    "root": "opus-1.5.2"
+  },
+  {
+    "name": "lame",
+    "url": "https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz",
+    "file": "lame.tar.gz",
+    "sha256": "ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e",
+    "root": "lame-3.100"
+  }
+]
