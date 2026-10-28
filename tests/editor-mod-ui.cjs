@@ -324,9 +324,12 @@ const ff = (args) =>
       await page.locator("#edit-divider").focus();
       await page.keyboard.press("Home");
       assert.equal(await page.locator("#edit-divider").getAttribute("aria-valuenow"), "25");
+      const shortPreview = await page.locator(".editor-top").boundingBox();
       await page.keyboard.press("ArrowDown");
       assert.equal(await page.locator("#edit-divider").getAttribute("aria-valuenow"), "30");
       await page.keyboard.press("End");
+      const tallPreview = await page.locator(".editor-top").boundingBox();
+      assert.ok(tallPreview.height > shortPreview.height + 5, "Divider changes the actual preview area");
       await page.locator("#edit-divider").dblclick();
       assert.equal(await page.locator("#edit-divider").getAttribute("aria-valuenow"), "50");
       const divider = await page.locator("#edit-divider").boundingBox();
@@ -335,6 +338,19 @@ const ff = (args) =>
       await page.mouse.move(divider.x + divider.width / 2, divider.y + 30, { steps: 5 });
       await page.mouse.up();
       assert.ok(Number(await page.locator("#edit-divider").getAttribute("aria-valuenow")) > 50);
+      // Interrupted pointer gestures restore the prior layout and do not persist a partial drag.
+      await page.waitForFunction(() => JSON.parse(localStorage.getItem("latitude-v2"))?.modSettings?.["latitude-editor"]?.preview === parseFloat(document.querySelector("#page-editor").style.getPropertyValue("--edit-preview-share")));
+      const savedLayout = await page.evaluate(() => JSON.parse(localStorage.getItem("latitude-v2")).modSettings["latitude-editor"]);
+      const previousShare = await page.locator("#edit-divider").getAttribute("aria-valuenow");
+      const grip = await page.locator("#edit-divider").boundingBox();
+      await page.mouse.move(grip.x + grip.width / 2, grip.y + 6);
+      await page.mouse.down();
+      await page.mouse.move(grip.x + grip.width / 2, grip.y - 20);
+      await page.locator("#edit-divider").dispatchEvent("pointercancel");
+      await page.mouse.up();
+      assert.equal(await page.locator("#edit-divider").getAttribute("aria-valuenow"), previousShare);
+      await page.waitForTimeout(200); // Preference writes are debounced by 150 ms.
+      assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("latitude-v2")).modSettings["latitude-editor"]), savedLayout);
       await page.click("#edit-reset-layout");
       for (const id of ["#edit-save", "#edit-export", "#edit-play", "#edit-undo", "#edit-toggle-media", "#edit-toggle-inspector"]) {
         const b = await page.locator(id).boundingBox();
