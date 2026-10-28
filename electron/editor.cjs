@@ -724,7 +724,7 @@ class EditorStore {
               "target_offset",
             ].every((k) => Number.isFinite(Number(measured[k])))
           )
-            loud = `loudnorm=I=${p.target}:TP=-2:LRA=11:measured_I=${measured.input_i}:measured_TP=${measured.input_tp}:measured_LRA=${measured.input_lra}:measured_thresh=${measured.input_thresh}:offset=${measured.target_offset}:linear=true,aresample=48000,${CEILING}`;
+            loud = `loudnorm=I=${p.target}:TP=-2:LRA=11:measured_I=${measured.input_i}:measured_TP=${measured.input_tp}:measured_LRA=${measured.input_lra}:measured_thresh=${measured.input_thresh}:offset=${measured.target_offset}:linear=true,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,${CEILING}`;
         }
         const maps = [],
           filter = [`[0:a:0]${loud}[mix]`];

@@ -270,9 +270,19 @@ test("real editor export preserves layers, selected source audio, range timing, 
       3,
     );
     assert.ok(Math.abs(Number(meta.format.duration) - 1) < 0.08);
-    const dominant = stats(pcm(out.file, 1));
+    const encoded = pcm(out.file, 1);
+    // AAC padding and low-level edge ringing vary between encoder builds.
+    // Measure pitch in the steady signal, but retain the full-file peak check.
+    const dominant = stats(encoded.subarray(800 * 4, -800 * 4));
     assert.ok(Math.abs(dominant.frequency - 880) < 5, JSON.stringify(dominant));
-    assert.ok(dominant.peak <= 0.86);
+    assert.ok(stats(encoded).peak <= 0.86);
+    const stem = (await fs.readdir(out.folder)).find((name) =>
+      name.startsWith("Audio-1-") && name.endsWith(".wav"),
+    );
+    assert.ok(stem, "The selected source also exports a lossless stem");
+    const isolated = pcm(path.join(out.folder, stem));
+    assert.ok(Math.abs(isolated.length / 4 / 8000 - 1) < 0.02);
+    assert.ok(Math.abs(stats(isolated).frequency - 880) < 2);
     const pixel = ff([
       "-ss",
       "0.5",
