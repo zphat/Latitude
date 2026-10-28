@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.4 — 2026-10-28
+
+Adjustable editor workspace, collapsible/reopenable panels, remembered layout and reset, and small-window/scaling regression coverage. Normalized editor exports explicitly retain stereo after resampling. Mac remains a separate unsigned development preview. [Full notes](docs/releases/0.9.4.md).
+
 ## 0.9.3 — 2026-10-26
 
 Focused de-essing and restrained voice presets; live de-esser reduction, Reapply preset, encoded streaming FPS, on-demand performance diagnostics, long audio-clock QA and updated setup/contributor guidance. [Full notes](docs/releases/0.9.3.md).

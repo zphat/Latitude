@@ -7,9 +7,11 @@ The comfortable-workspace change leaves the project schema, render plan, media c
 - `TAKE_FFMPEG=/usr/bin/ffmpeg npm test`: 107 tests passed with Linux FFmpeg 6.1.1.
 - `TAKE_FFMPEG=/usr/bin/ffmpeg node tests/editor-mod-ui.cjs`: passed in real Linux Electron 44.8.0 with Playwright. Playwright is a development test prerequisite, not an app dependency.
 - The UI test imports local video/audio and an image, seeks decoded frames, plays audio, splits/undoes, inserts, detaches, copies/pastes, moves a title across layers, edits typography, changes aspect ratio, saves a project and performs a real separate-track export with a peak report.
-- Layout checks cover 960×640, 1280×720 and 1480×1000; Chromium zoom factors 1.25 and 1.5; long source/project names; layered clips; pointer and keyboard divider movement; keyboard playback/undo; panel reopening; saved preferences across mod deactivation/reactivation; reset; and listener removal.
+- Layout checks cover 960×640, 1280×720 and 1480×1000; Chromium zoom factors 1.25 and 1.5; long source/project names; layered clips; pointer and keyboard divider movement (including actual preview height); canceled drag rollback without persisting a partial move; keyboard playback/undo; panel reopening; saved preferences across mod deactivation/reactivation; reset; and listener removal.
 - Project contents, selected clip, playhead and undo history are compared before/after layout changes on an unsaved project. Existing media element identity is checked to reject replacement decoders. Save/export/play/undo and panel toggles are checked within the unscaled viewport; scaled layouts check that scrolling reaches the timeline.
 - Screenshots at all three sizes and both zoom factors were visually inspected. The script writes screenshots and export artifacts to a temporary folder printed at completion. `git diff --check` and JavaScript syntax checks pass.
+
+The 0.9.4 release preparation adds this native editor test to the Windows release job as well as the existing Linux job. It must pass there before publication; local Linux success is not a Windows hardware test.
 
 ## Limits and follow-up
 
