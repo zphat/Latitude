@@ -55,10 +55,11 @@ def build():
         run(name, "make", "install")
 
     install("x264", "--enable-static", "--enable-pic", "--disable-cli")
+    # libvpx treats unversioned arm64-darwin as iOS; Darwin 20 selects macOS.
     install("libvpx", "--enable-static", "--disable-shared", "--enable-pic",
             "--disable-tools", "--disable-examples", "--disable-unit-tests",
             "--enable-vp9-highbitdepth",
-            "--target=" + ("arm64-darwin-gcc" if arch == "arm64" else "x86_64-darwin20-gcc"))
+            "--target=" + ("arm64-darwin20-gcc" if arch == "arm64" else "x86_64-darwin20-gcc"))
     install("opus", "--enable-static", "--disable-shared", "--with-pic",
             "--disable-extra-programs", "--disable-doc")
     install("lame", "--enable-static", "--disable-shared", "--with-pic", "--disable-frontend",
