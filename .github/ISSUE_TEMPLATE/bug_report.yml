@@ -13,7 +13,7 @@ body:
     id: diagnostics
     attributes:
       label: Version and technical details
-      description: Paste Settings → Technical details. Add your Windows version if needed.
+      description: Paste Settings → Technical details after reviewing it. Include OS/version; on Linux add desktop and Wayland/X11. For Mac previews add Intel or Apple Silicon.
       render: json
     validations:
       required: true

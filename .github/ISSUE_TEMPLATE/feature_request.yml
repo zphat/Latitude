@@ -13,4 +13,4 @@ body:
     id: solution
     attributes:
       label: Suggested improvement
-      description: Include how it could stay simple and efficient. Streaming ideas may fit a future mod.
+      description: Include how it could stay simple and efficient, whether it belongs in Studio or an optional mod, and your window size if layout is the problem.

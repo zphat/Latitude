@@ -2,6 +2,8 @@
 
 Latitude's application source is MIT licensed. Start with settings packs for UI themes and layouts; edit source for new DSP, capture behavior, or scene types. Packs do **not** load JavaScript, CSS, URLs, native code, or VST plugins.
 
+New to this? Follow [Make your first pack](docs/MAKING-A-PACK.md). For executable modules or a separate app, read [Building and forking](docs/BUILDING-AND-FORKING.md) before changing the catalog or updater.
+
 ## Settings packs
 
 In Settings, **Export my layout** saves the selected theme, scene composition, source transforms, independent crops, and embedded local images. **Import pack** validates a JSON file and displays what will be added before applying it. One community pack is installed at a time; built-ins remain available. Packs never carry device IDs or credentials. A maximum of eight themes and eight templates fits in 12 MB, including image assets.
@@ -32,7 +34,7 @@ Coordinates are relative to the source for crops and the composition for facecam
 
 **Mods** in the sidebar manages the installed settings pack. Enable/disable persists across restarts. Disabling hides its theme/template choices and falls back to a built-in theme when necessary; existing compositions and local media remain intact. Removing a pack does not delete recordings. This beta supports one settings pack at a time.
 
-The executable module catalog is explicit and source-reviewed: `src/mods/catalog.js` includes the optional, off-by-default Latitude Streaming module. There is no arbitrary JavaScript installer or online marketplace. A trusted source build can register a lazy entry:
+The executable module catalog is explicit and source-reviewed: `src/mods/catalog.js` includes the optional, off-by-default Latitude Streaming and Latitude Editor modules. There is no arbitrary JavaScript installer or online marketplace. A trusted source build can register a lazy entry:
 
 ```js
 {

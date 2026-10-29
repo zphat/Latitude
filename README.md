@@ -10,6 +10,13 @@ A local screen recorder built around clear podcast audio. Version **0.9.4 — Wi
 
 Record your screen, optional facecam, microphones, and desktop audio. Shape your voice in a focused audio studio, arrange sources directly in the preview, and export synchronized isolated tracks for editing. No account or streaming setup is required to record.
 
+## Start here
+
+- **New user:** [Make your first recording](docs/START-HERE.md).
+- **Pack maker:** [Create and share a theme or scene](docs/MAKING-A-PACK.md).
+- **Developer:** [Build Latitude or maintain a fork](docs/BUILDING-AND-FORKING.md), then [contribute](CONTRIBUTING.md).
+- **Using the app family:** [Sundial → Latitude → Longitude](docs/ECOSYSTEM.md), with current handoff and compatibility limits.
+
 ## Open the Windows app
 
 1. Download **Latitude-0.9.4-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.4).
