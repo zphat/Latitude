@@ -75,8 +75,9 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
+      - run: npm run setup
       - name: Verify every format with the bundled Windows encoder
-        run: node --test tests/formats.test.cjs tests/streaming.test.cjs tests/editor-mod.test.cjs tests/updater.test.cjs
+        run: node --test tests/formats.test.cjs tests/streaming.test.cjs tests/editor-mod.test.cjs tests/updater.test.cjs tests/session-names.test.cjs tests/loudness.test.cjs
       - name: Verify native editor and update UI
         env:
           LATITUDE_UPDATE_LIVE_CHECK: "1"
@@ -84,6 +85,7 @@ jobs:
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
           node tests/editor-mod-ui.cjs
           node tests/updater-ui.cjs
+          node tests/session-names-ui.cjs
       - name: Prepare encoder and build unsigned Windows package
         shell: pwsh
         run: |

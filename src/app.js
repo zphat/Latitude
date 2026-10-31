@@ -13,6 +13,7 @@ import { TRUSTED_MODS } from "./mods/catalog.js";
 import { installModsPage } from "./mods/ui.js";
 import { installUpdates } from "./updates.js";
 import { AudioMeters, meterMarkup } from "./audio-meters.js";
+import { recordingName, sessionName } from "./session-names.js";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -41,7 +42,7 @@ let config = {
   codec: "auto",
   previewMode: "balanced",
   reconnectMic: true,
-  name: "Untitled session",
+  name: "",
   preset: ["natural", "natural"],
   width: 1920,
   height: 1080,
@@ -66,6 +67,7 @@ let config = {
   ...saved,
 };
 if (!EXPORT_FORMATS.some((f) => f.id === config.format)) config.format = "mp4";
+if (config.name === "Untitled session" || typeof config.name !== "string") config.name = "";
 config.profiles ??= {};
 if (!Array.isArray(config.noise)) config.noise = [false, false];
 if (!Array.isArray(config.preset)) config.preset = ["natural", "natural"];
@@ -199,11 +201,69 @@ function view(name) {
 }
 $$("[data-view]").forEach((b) => (b.onclick = () => view(b.dataset.view)));
 $("#go-soundcheck").onclick = () => view("soundcheck");
-$("#session-name").value = config.name;
-$("#session-name").oninput = (e) => {
-  config.name = e.target.value;
-  persist();
+const nameFields = () => $$("[data-session-name]");
+let nameRevision = 0;
+function showSessionName(value = config.name) {
+  for (const input of nameFields()) input.value = value;
+}
+showSessionName();
+for (const input of nameFields()) {
+  input.oninput = () => {
+    nameRevision++;
+    for (const other of nameFields()) if (other !== input) other.value = input.value;
+    if (!engine.session) { config.name = input.value; persist(); }
+  };
+  input.onchange = attempt(async () => {
+    const id = engine.session?.id;
+    const revision = nameRevision;
+    if (!id) { config.name = sessionName(input.value); showSessionName(); persist(); return; }
+    try {
+      const take = await window.take.renameSession(id, input.value);
+      if (engine.session?.id === id) {
+        engine.session.name = take.name;
+        if (revision === nameRevision) showSessionName(take.name);
+      }
+      await loadTakes();
+    } catch (e) {
+      if (engine.session?.id === id && revision === nameRevision) showSessionName(engine.session.name);
+      throw e;
+    }
+  });
+  input.onkeydown = (event) => {
+    if (event.key === "Enter") { event.preventDefault(); input.blur(); }
+    if (event.key === "Escape" && engine.session) { showSessionName(engine.session.name); input.blur(); }
+  };
+}
+function renameTake(take) {
+  modal("Rename take", `<form id="rename-take-form"><label>Take name<input id="rename-take-name" type="text" maxlength="70" required value="${escape(take.name)}" autocomplete="off"></label><p>The name updates in Latitude. Existing recording files and editor links stay in place.</p><div class="modal-footer"><button type="button" class="button" id="rename-cancel">Cancel</button><button type="submit" class="button primary" id="rename-save">Save name</button></div></form>`, "YOUR RECORDING");
+  const form = $("#rename-take-form"), input = $("#rename-take-name");
+  $("#rename-cancel").onclick = closeModal;
+  input.focus(); input.select();
+  form.onsubmit = attempt(async (event) => {
+    event.preventDefault();
+    if (!sessionName(input.value)) { input.setCustomValidity("Enter a name for this take."); input.reportValidity(); return; }
+    const save = $("#rename-save");
+    if (save.disabled) return;
+    save.disabled = true;
+    try {
+      const updated = await window.take.renameSession(take.id, input.value);
+      if (engine.session?.id === take.id) { engine.session.name = updated.name; showSessionName(updated.name); }
+      if (form.isConnected) closeModal();
+      await loadTakes();
+      toast("Take renamed.");
+    } finally { save.disabled = false; }
+  });
+  input.oninput = () => input.setCustomValidity("");
+}
+function syncAfterRecording() {
+  $("#after-recording").value = config.autoExport ? "export" : "save";
+  $("#auto-export").checked = config.autoExport;
+}
+$("#after-recording").onchange = () => {
+  config.autoExport = $("#after-recording").value === "export";
+  syncAfterRecording(); persist();
 };
+syncAfterRecording();
 
 function renderScenes() {
   $("#scene-list").innerHTML = SCENES.map(
@@ -819,6 +879,7 @@ $("#scene-settings").onclick = () => {
 };
 
 function previewTransport(state) {
+  nameFields().forEach((input) => { input.disabled = updateBusy || state === "saving" || state === "starting"; });
   const active = state === "recording" || state === "paused";
   $("#preview-transport").dataset.state = state;
   $("#preview-status").textContent = {
@@ -962,6 +1023,13 @@ engine.addEventListener("marker", ({ detail: m }) =>
   toast(`Marker added at ${formatTime(m.time)}.`),
 );
 engine.addEventListener("recording", ({ detail: on }) => {
+  showSessionName(on ? engine.session?.name || recordingName(config.name) : config.name);
+  nameFields().forEach((input) => { input.disabled = false; });
+  $("#header-session-label").textContent = on ? "Recording" : "Next take";
+  $("#session-name").setAttribute("aria-label", on ? "Recording name" : "Next take name");
+  $("#session-name-hint").textContent = on
+    ? "Rename this recording here. Press Enter or click away to save."
+    : "Optional · leave blank for a date and time. Rename any take later.";
   document.body.classList.toggle("recording-mode", on);
   $("#record-button").classList.toggle("recording", on);
   $("#record-label").textContent = on ? "Stop recording" : "Start recording";
@@ -1005,6 +1073,7 @@ engine.addEventListener("paused", ({ detail: paused }) => {
   previewTransport(paused ? "paused" : "recording");
 });
 engine.addEventListener("saving", () => {
+  nameFields().forEach((input) => { input.disabled = true; });
   $("#record-label").textContent = "Saving take…";
   $("#record-button").disabled = true;
   $("#record-state").textContent = "FINISHING";
@@ -1078,7 +1147,7 @@ async function loadTakes() {
           EXPORT_FORMATS.find((f) => f.id === report?.format)?.kind === "audio"
             ? "file"
             : "track";
-        return `<article class="take-card"><div class="take-art">${icon("wave")}</div><div class="take-info"><h3>${escape(s.name)}</h3><p>${escape(new Date(s.created).toLocaleString())} · ${formatTime(s.duration || 0)} · ${s.width || 1920} × ${s.height || 1080}</p><div class="take-meta"><span class="tag">${s.status === "interrupted" ? "Interrupted · recovery available" : s.status === "exported" ? "Ready to edit" : s.status === "recording" ? "Recording" : "Originals saved"}</span>${report ? `<span class="tag">${escape((report.format || "mp4").toUpperCase())} · ${trackCount} audio ${audioUnit}${trackCount === 1 ? "" : "s"}${report.mediaBytes ? ` · ${(report.mediaBytes / 1e6).toFixed(1)} MB` : ""}</span><span class="tag">${escape(report.measuredLUFS)} LUFS · ${escape(report.truePeakDBTP)} dBTP</span>` : ""}</div></div><div class="take-actions"><button class="button" data-edit-take="${s.id}" ${s.status === "recording" || modsBusy() ? "disabled" : ""}>Edit</button><button class="button" data-play-take="${s.id}" ${s.status === "recording" ? "disabled" : ""} title="Play in your media player">${icon("play")} Play</button><button class="button" data-open-take="${s.id}">${icon("folder")} Open files</button><button class="button ${s.id === lastSavedId ? "primary" : ""}" data-export-take="${s.id}" ${exporting || engine.recording || engine.finishing || engine.starting || s.status === "recording" ? "disabled" : ""}>${icon("download")} ${s.status === "interrupted" ? "Recover & export" : "Export"}</button></div></article>`;
+        return `<article class="take-card"><div class="take-art">${icon("wave")}</div><div class="take-info"><div class="take-heading"><h3><button class="take-title" data-rename-take="${s.id}" title="Rename this take">${escape(s.name)}</button></h3><button class="button small" data-rename-take="${s.id}" aria-label="Rename ${escape(s.name)}">Rename</button></div><p>${escape(new Date(s.created).toLocaleString())} · ${formatTime(s.duration || 0)} · ${s.width || 1920} × ${s.height || 1080}</p><div class="take-meta"><span class="tag">${s.status === "interrupted" ? "Interrupted · recovery available" : s.status === "exported" ? "Ready to edit" : s.status === "recording" ? "Recording" : "Originals saved"}</span>${report ? `<span class="tag">${escape((report.format || "mp4").toUpperCase())} · ${trackCount} audio ${audioUnit}${trackCount === 1 ? "" : "s"}${report.mediaBytes ? ` · ${(report.mediaBytes / 1e6).toFixed(1)} MB` : ""}</span><span class="tag">${escape(report.measuredLUFS)} LUFS · ${escape(report.truePeakDBTP)} dBTP</span>` : ""}</div></div><div class="take-actions"><button class="button" data-edit-take="${s.id}" ${s.status === "recording" || modsBusy() ? "disabled" : ""}>Edit</button><button class="button" data-play-take="${s.id}" ${s.status === "recording" ? "disabled" : ""} title="Play in your media player">${icon("play")} Play</button><button class="button" data-open-take="${s.id}">${icon("folder")} Open files</button><button class="button ${s.id === lastSavedId ? "primary" : ""}" data-export-take="${s.id}" ${exporting || engine.recording || engine.finishing || engine.starting || s.status === "recording" ? "disabled" : ""}>${icon("download")} ${s.status === "interrupted" ? "Recover & export" : "Export"}</button></div></article>`;
       })
       .join("");
     $$("[data-edit-take]").forEach(
@@ -1101,8 +1170,11 @@ async function loadTakes() {
         (b.onclick = attempt(() => window.take.openFolder(b.dataset.openTake))),
     );
     $$("[data-export-take]").forEach(
-      (b) => (b.onclick = () => exportDialog(b.dataset.exportTake)),
+      (b) => (b.onclick = attempt(() => exportDialog(b.dataset.exportTake))),
     );
+    $$("[data-rename-take]").forEach((b) => {
+      b.onclick = () => renameTake(sessions.find((s) => s.id === b.dataset.renameTake));
+    });
   } catch (e) {
     toast(e.message, true);
   }
@@ -1134,7 +1206,9 @@ function syncExportDefaults() {
     },
   );
 }
-function exportDialog(id) {
+async function exportDialog(id) {
+  const take = (await window.take.sessions()).find((s) => s.id === id);
+  if (!take) throw Error("This recording could not be found.");
   modal(
     "Your format. Your tracks.",
     `<div class="modal-grid export-grid"><section class="modal-section"><h3>Files to create</h3><div id="export-output-options"></div></section><section class="modal-section"><h3>The final mix</h3><label>Loudness target<select id="export-target"><option value="-16">−16 LUFS · Podcast</option><option value="-18">−18 LUFS · Natural</option><option value="-14">−14 LUFS · Louder</option><option value="-20">−20 LUFS · Gentle</option></select></label><label class="toggle-row"><span>Measure & normalize</span><input type="checkbox" id="export-normalize" ${config.normalize ? "checked" : ""}></label><p>Two-pass loudness processing. Live processing stays in the isolated tracks; only the final mix is normalized.</p><div class="notice">Every export goes into a new folder. You can try another format later without replacing your originals or earlier exports.</div><label class="toggle-row"><span>Use these choices for future recordings</span><input type="checkbox" id="export-remember"></label><p>Automatic export uses your saved defaults after you stop. Recording first saves recoverable video and separate audio originals.</p></section></div><div class="modal-footer"><button class="button primary" id="start-export">Export this take ${icon("arrow")}</button></div>`,
@@ -1145,8 +1219,40 @@ function exportDialog(id) {
     "export",
     exportDefaults(),
   );
+  const heading = document.createElement("div");
+  heading.className = "export-take-name";
+  heading.innerHTML = `<label>Take name<input id="export-take-name" type="text" maxlength="70" value="${escape(take.name)}" autocomplete="off"></label><button class="button small" id="export-rename" disabled>Save name</button>`;
+  $("#modal-content").prepend(heading);
+  const title = $("#export-take-name"), saveTitle = $("#export-rename");
+  title.oninput = () => { saveTitle.disabled = title.value === take.name; title.setCustomValidity(""); };
+  let savingTitle;
+  const commitTitle = () => {
+    if (savingTitle) return savingTitle;
+    if (title.value === take.name) return Promise.resolve();
+    if (!sessionName(title.value)) {
+      title.setCustomValidity("Enter a name for this take."); title.reportValidity();
+      return Promise.reject(Error("Enter a name for this take."));
+    }
+    const name = title.value;
+    saveTitle.disabled = title.disabled = true;
+    savingTitle = window.take.renameSession(id, name).then(async (updated) => {
+      take.name = title.value = updated.name;
+      await loadTakes();
+    }).finally(() => { savingTitle = null; title.disabled = false; saveTitle.disabled = title.value === take.name; });
+    return savingTitle;
+  };
+  saveTitle.onclick = attempt(commitTitle);
+  title.onkeydown = (event) => {
+    if (event.key === "Enter") { event.preventDefault(); attempt(commitTitle)(); }
+  };
   $("#export-target").value = config.target;
-  $("#start-export").onclick = () => {
+  $("#start-export").onclick = attempt(async () => {
+    const start = $("#start-export");
+    if (start.disabled) return;
+    start.disabled = true;
+    try { await commitTitle(); } catch (error) { start.disabled = false; throw error; }
+    // Closing or replacing the dialog while the rename saves must not export.
+    if (!heading.isConnected || !$("#modal").open) return;
     const options = {
       ...controls.read(),
       target: Number($("#export-target").value),
@@ -1163,8 +1269,8 @@ function exportDialog(id) {
       persist();
     }
     closeModal();
-    doExport(id, options);
-  };
+    await doExport(id, options);
+  });
 }
 async function doExport(id, options = exportDefaults()) {
   if (updateBusy) { toast("Finish or cancel the update before exporting."); return; }
@@ -1370,6 +1476,7 @@ for (const [id, key] of [
   $(id).checked = config[key];
   $(id).onchange = attempt(async (e) => {
     config[key] = e.target.checked;
+    if (key === "autoExport") syncAfterRecording();
     persist();
     if (key === "hotkeys" && window.take) {
       const failed = await window.take.shortcuts(config.hotkeys);
@@ -1399,7 +1506,7 @@ $("#choose-folder").onclick = attempt(async () => {
 function help() {
   modal(
     "Your first great take.",
-    `<div class="guide"><h3>1. Connect your sources</h3><p>Choose a screen or window. Open Camera for your facecam, then Inputs & outputs to select your microphone, desktop sound, and monitoring output.</p><h3>Arrange your scene</h3><p>Click any source in the preview to move it. Drag a corner to resize; hold Alt to bypass snapping. Scene layers has exact position, crop, visibility, lock, and layer order. Add text, gradients, images, and color panels with Add source. Ctrl Z undoes an edit; Ctrl D duplicates a layer. Preview editing locks automatically during recording.</p><h3>2. Get your voice comfortable</h3><p>Pick Natural voice or Podcast broadcast, then run Soundcheck. Reapply restores the latest preset while keeping input gain, channel, mute and sync delay. Natural voice starts with rumble filtering, gentle expansion, EQ, compression, de-essing and always-on peak limiting. Input shows the device signal; Protected output shows what goes to your processed mic track. Red outlines clear with the next clean meter window; Clipped earlier is a separate reminder. Soundcheck helps set input headroom. Noise suppression is optional for noisy rooms because it can alter voice detail. The left/right selector is useful for a microphone plugged into one side of a stereo interface.</p><h3>3. Make a short test</h3><p>Clap once, talk, play a desktop clip, and switch scenes. Check the result before a long session. Drivers and webcams can introduce different delays; use the audio delay controls if speech arrives early.</p><h3>4. Record, then edit</h3><p>Use Ctrl Shift R to record, Ctrl Shift P to pause/resume, Ctrl Shift M to mute Voice 1, Ctrl Shift B for markers, and Ctrl Shift 1–5 for scenes. Stop to save. Settings → Recording & export format chooses what automatic export creates after you stop. MP4 is the default. Choose MKV or MOV for lossless audio inside video, WebM for the open web, or an audio-only podcast file. Each choice explains its size and compatibility.</p><h3>5. CapCut: keep the tracks separate</h3><p>Keep microphone and desktop sources separate is on by default. In video files, the first track is the full mix. If your editor does not expose the other embedded tracks, import the WAV stems, align everything at the same timeline start, mute the video’s mix, and group/link the clips. Enable WAV editing files or optional audio-specific video copies to choose mic-only or desktop-only audio on each clip instance.</p><h3>Practical limits</h3><p>This is an early desktop build, not a replacement for a thoroughly tested production recorder yet. Windows captures the default playback output. Linux uses PipeWire/PulseAudio output monitoring; Wayland uses your desktop’s screen-sharing picker. SteamOS support targets Desktop Mode; Gaming Mode has not been validated. Hardware routing and long-session performance need testing on your computer. There is no VST hosting or AI voice restoration. Recording is local; no account or upload is required.</p></div>`,
+    `<div class="guide"><h3>1. Connect your sources</h3><p>Choose a screen or window. Open Camera for your facecam, then Inputs & outputs to select your microphone, desktop sound, and monitoring output.</p><h3>Arrange your scene</h3><p>Click any source in the preview to move it. Drag a corner to resize; hold Alt to bypass snapping. Scene layers has exact position, crop, visibility, lock, and layer order. Add text, gradients, images, and color panels with Add source. Ctrl Z undoes an edit; Ctrl D duplicates a layer. Preview editing locks automatically during recording.</p><h3>2. Get your voice comfortable</h3><p>Pick Natural voice or Podcast broadcast, then run Soundcheck. Reapply restores the latest preset while keeping input gain, channel, mute and sync delay. Natural voice starts with rumble filtering, gentle expansion, EQ, compression, de-essing and always-on peak limiting. Input shows the device signal; Protected output shows what goes to your processed mic track. Red outlines clear with the next clean meter window; Clipped earlier is a separate reminder. Soundcheck helps set input headroom. Noise suppression is optional for noisy rooms because it can alter voice detail. The left/right selector is useful for a microphone plugged into one side of a stereo interface.</p><h3>3. Make a short test</h3><p>Clap once, talk, play a desktop clip, and switch scenes. Check the result before a long session. Drivers and webcams can introduce different delays; use the audio delay controls if speech arrives early.</p><h3>4. Record, then edit</h3><p>Name the session beside Start recording or in the top bar, or leave it blank for a date and time. You can rename it while recording, from a take’s title or Rename button, or in Export. After recording chooses automatic editing files or Save originals · export later.</p><p>Use Ctrl Shift R to record, Ctrl Shift P to pause/resume, Ctrl Shift M to mute Voice 1, Ctrl Shift B for markers, and Ctrl Shift 1–5 for scenes. Stop to save. Settings → Recording & export format chooses what automatic export creates after you stop. MP4 is the default. Choose MKV or MOV for lossless audio inside video, WebM for the open web, or an audio-only podcast file. Each choice explains its size and compatibility.</p><h3>5. CapCut: keep the tracks separate</h3><p>Keep microphone and desktop sources separate is on by default. In video files, the first track is the full mix. If your editor does not expose the other embedded tracks, import the WAV stems, align everything at the same timeline start, mute the video’s mix, and group/link the clips. Enable WAV editing files or optional audio-specific video copies to choose mic-only or desktop-only audio on each clip instance.</p><h3>Practical limits</h3><p>This is an early desktop build, not a replacement for a thoroughly tested production recorder yet. Windows captures the default playback output. Linux uses PipeWire/PulseAudio output monitoring; Wayland uses your desktop’s screen-sharing picker. SteamOS support targets Desktop Mode; Gaming Mode has not been validated. Hardware routing and long-session performance need testing on your computer. There is no VST hosting or AI voice restoration. Recording is local; no account or upload is required.</p></div>`,
     "QUICK GUIDE",
   );
 }
@@ -1576,6 +1683,7 @@ const modsBusy = () =>
   starting ||
   exporting;
 function syncOutputLocks() {
+  nameFields().forEach((input) => { input.disabled = updateBusy || engine.finishing || engine.starting; });
   const busy =
     updateBusy || streamActive || engine.recording || engine.finishing || engine.starting;
   for (const id of [

@@ -1,7 +1,7 @@
 {
   "name": "latitude",
   "productName": "Latitude",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "A local-first screen recorder with a podcast-focused audio studio.",
   "main": "electron/main.cjs",
   "private": true,

@@ -12,6 +12,10 @@ const { RecordingStore, TRACKS } = require("../electron/recording.cjs");
   );
   const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
   const store = new RecordingStore(root);
+  const baseline = process.env.LATITUDE_BENCH_BASELINE;
+  const previous = baseline
+    ? new (require(path.resolve(baseline, "electron/recording.cjs")).RecordingStore)(root)
+    : null;
   try {
     const take = await store.begin({
       name: "Export benchmark",
@@ -51,9 +55,11 @@ const { RecordingStore, TRACKS } = require("../electron/recording.cjs");
     ]);
     const results = [];
     // Alternate order to reduce cache/order bias. Median of three exports each.
-    for (const editingFiles of [true, false, false, true, true, false]) {
+    const variants = baseline ? ["baseline", "current", "current", "baseline", "baseline", "current"] : [true, false, false, true, true, false];
+    for (const variant of variants) {
+      const editingFiles = baseline ? true : variant;
       const start = performance.now();
-      const result = await store.export(
+      const result = await (variant === "baseline" ? previous : store).export(
         take.id,
         {
           format: "mp4",
@@ -65,6 +71,7 @@ const { RecordingStore, TRACKS } = require("../electron/recording.cjs");
         binary,
       );
       results.push({
+        variant,
         editingFiles,
         elapsedMs: Math.round(performance.now() - start),
         mediaBytes: result.report.mediaBytes,
@@ -81,10 +88,12 @@ const { RecordingStore, TRACKS } = require("../electron/recording.cjs");
           sampleRate: 48000,
           video: "320×180 synthetic H.264",
           note: "Export-only, generated tones; wall time depends on hardware and cache. Both variants keep four embedded audio tracks. Excludes retained original recordings.",
-          modes: [true, false].map((editingFiles) => {
-            const runs = results.filter((r) => r.editingFiles === editingFiles);
+          baseline: baseline || null,
+          modes: [...new Set(variants)].map((variant) => {
+            const runs = results.filter((r) => r.variant === variant);
             return {
-              editingFiles,
+              variant,
+              editingFiles: runs[0].editingFiles,
               medianMs: median(runs.map((r) => r.elapsedMs)),
               mediaBytes: runs[0].mediaBytes,
               audioTracks: runs[0].audioTracks,

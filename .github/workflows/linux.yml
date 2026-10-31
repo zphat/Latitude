@@ -62,6 +62,7 @@ jobs:
           flatpak-builder --version
           dpkg --compare-versions "$(dpkg-query -W -f='${Version}' flatpak-builder)" ge 1.4
       - run: npm ci
+      - run: npm run setup
       - run: npm run build:linux-audio
       - run: node scripts/prepare-encoder.cjs
       - name: Test shared application and every bundled encoder format
@@ -73,6 +74,7 @@ jobs:
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
           node tests/editor-mod-ui.cjs
           node tests/updater-ui.cjs
+          node tests/session-names-ui.cjs
       - name: Validate application metadata
         run: appstreamcli validate --no-net packaging/studio.latitude.recorder.metainfo.xml
       - name: Install matching Flatpak runtimes

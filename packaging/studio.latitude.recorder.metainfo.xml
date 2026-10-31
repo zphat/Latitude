@@ -16,6 +16,9 @@
   <url type="help">https://github.com/zphat/Latitude/blob/main/docs/LINUX.md</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.9.5" date="2026-10-31" type="development">
+      <description><p>Easier session naming and take renaming, accessible export-later controls and less redundant export processing.</p></description>
+    </release>
     <release version="0.9.4" date="2026-10-28" type="development">
       <description><p>Adjustable editor preview and timeline, collapsible panels, remembered workspace layout and smaller-window usability.</p></description>
     </release>

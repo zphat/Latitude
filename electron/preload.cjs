@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld("take", {
   end: (opts) => call("record:end", opts),
   event: (id, event) => call("record:event", id, event),
   sessions: () => call("sessions:list"),
+  renameSession: (id, name) => call("sessions:rename", id, name),
   export: (id, options) => call("record:export", id, options),
   cancelExport: () => call("record:cancel-export"),
   feedback: () => call("app:feedback"),

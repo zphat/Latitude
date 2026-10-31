@@ -381,6 +381,12 @@ app.whenReady().then(async () => {
     }
   });
   handle("sessions:list", () => store.list());
+  handle("sessions:rename", (id, name) => {
+    if (updater?.busy) throw Error("Finish or cancel the update before renaming a take.");
+    if (typeof id !== "string" || id.length > 128 || typeof name !== "string" || name.length > 1000)
+      throw Error("Invalid take name.");
+    return store.rename(id, name);
+  });
   handle("record:play", async (id) => {
     const target = await store.playbackPath(id);
     const error = await shell.openPath(target);

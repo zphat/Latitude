@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.5 — 2026-10-31
+
+Session names beside Record, clickable take titles and explicit rename controls, date/time defaults, and an accessible export-later choice. Shared video/editing-WAV processing and a lighter final loudness scan reduce redundant export work without changing capture quality or isolated tracks. [Full notes](docs/releases/0.9.5.md).
+
 ## 0.9.4 — 2026-10-28
 
 Adjustable editor workspace, collapsible/reopenable panels, remembered layout and reset, and small-window/scaling regression coverage. Normalized editor exports explicitly retain stereo after resampling. Mac remains a separate unsigned development preview. [Full notes](docs/releases/0.9.4.md).
