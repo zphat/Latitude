@@ -35,10 +35,12 @@ class MacRelease(unittest.TestCase):
             (self.assets / f'SHA256SUMS-macOS-{arch}.txt').write_text(''.join(lines))
         self.enterContext(patch.object(release, 'ROOT', self.root))
         self.enterContext(patch.object(release, 'gh', self.gh))
-        self.enterContext(patch.dict(os.environ, GITHUB_EVENT_PATH=str(self.event), GH_REPO='zphat/Latitude'))
+        self.enterContext(patch.dict(os.environ, GITHUB_EVENT_PATH=str(self.event), GH_REPO='zphat/Latitude', GITHUB_SHA='tested-commit'))
 
     def gh(self, *args):
         self.calls.append(args)
+        if args == ('api', 'repos/zphat/Latitude/commits/v0.9.4'):
+            return json.dumps({'sha': self.tag_sha})
         if args[0] == 'api':
             return json.dumps(self.remote)
         if args[:2] == ('release', 'upload'):
@@ -83,6 +85,23 @@ class MacRelease(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'Incomplete'):
             release.publish()
         self.assertFalse(any(c[0] == 'release' for c in self.calls))
+
+    def test_combined_release_requires_the_exact_tested_commit(self):
+        self.event.write_text(json.dumps({'head_commit': {'message': 'Release Latitude v0.9.4'}}))
+        self.tag_sha = 'some-other-commit'
+        with self.assertRaisesRegex(RuntimeError, 'does not match'):
+            release.publish()
+        self.assertFalse(any(c[0] == 'release' for c in self.calls))
+        self.tag_sha = 'tested-commit'
+        release.publish()
+        self.assertEqual(len(self.remote['assets']), 8)
+
+    def test_near_matching_release_title_is_rejected(self):
+        for title in ['Release Latitude v0.9.5', 'Release Latitude v0.9.4 extra']:
+            self.event.write_text(json.dumps({'head_commit': {'message': title}}))
+            with self.assertRaisesRegex(RuntimeError, 'explicit matching'):
+                release.publish()
+        self.assertEqual(self.calls, [])
 
 
 if __name__ == '__main__':

@@ -35,3 +35,5 @@ jobs:
         run: npm test
         env:
           TAKE_FFMPEG: /usr/bin/ffmpeg
+      - name: Verify Mac publication guards without uploading
+        run: python3 tests/mac-release.test.py

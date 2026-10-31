@@ -2,7 +2,7 @@
 
 # Latitude
 
-A local screen recorder built around clear podcast audio. Version **0.9.4 — Windows beta, Linux preview and Mac development preview**.
+A local screen recorder built around clear podcast audio. Version **0.9.5 — Windows beta, Linux preview and Mac development preview**.
 
 [Beta homepage](https://latitude.pictures) · [Discord feedback and updates](https://discord.gg/EnPRdDutAn)
 
@@ -12,7 +12,7 @@ Record your screen, optional facecam, microphones, and desktop audio. Shape your
 
 ## Open the Windows app
 
-1. Download **Latitude-0.9.4-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.4).
+1. Download **Latitude-0.9.5-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.5).
 2. Double-click it. Latitude installs for your Windows account and creates desktop and Start menu shortcuts.
 3. Open either shortcut. No terminal, source folder, Node.js, OBS, or separate FFmpeg installation is needed.
 
@@ -24,9 +24,17 @@ The beta is unsigned, so Windows may identify it as an unknown publisher. It ins
 
 ## Open the Linux app
 
-Download **Latitude-0.9.4-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.4), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
+Download **Latitude-0.9.5-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.5), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
 
 The first Linux preview targets Fedora KDE/GNOME, Ubuntu/Mint with Flatpak, Bazzite, and SteamOS **Desktop Mode**. Gaming Mode and real-device performance remain unverified. Wayland uses the desktop screen-sharing portal; desktop audio uses PulseAudio or PipeWire 0.3.65+ with its PulseAudio service. The initial runtime download is shared with other Flatpak apps. Latitude is not on Flathub yet; preview updates come from GitHub Releases.
+
+## New in Latitude 0.9.5
+
+Name a session beside Record or in the top bar, including during a recording. Blank names become readable dates and times. In **Takes**, click a title or **Rename**; the Export dialog also lets you save a new name without resetting export choices. Renaming keeps existing file paths and editor links intact.
+
+Choose **After recording → Save originals · export later** to skip the automatic editing-pack wait. Automatic export remains the default. Video exports now share the normalized mix with the editing WAV and write processed stems in the same encoder pass. A lighter final loudness scanner still measures the actual delivered mix and true peaks. Video quality, isolated tracks and original recordings are preserved.
+
+[Release notes](docs/releases/0.9.5.md) · [Timing, checks and limits](docs/qa/session-names-0.9.5.md).
 
 ## New in Latitude 0.9.4
 
@@ -36,7 +44,7 @@ The optional Editor now fits smaller windows with a draggable preview/timeline d
 
 ## Try the Mac development preview
 
-Mac previews use the same **0.9.4 editor and voice tools**, with separate Apple Silicon (arm64) and Intel (x64) DMGs on the [0.9.4 release page](https://github.com/zphat/Latitude/releases/tag/v0.9.4). Requires macOS 14.2 or newer. Drag Latitude into Applications and launch it there. Mac updates are manual for now.
+Mac previews use the same **0.9.5 editor and voice tools**, with separate Apple Silicon (arm64) and Intel (x64) DMGs on the [0.9.5 release page](https://github.com/zphat/Latitude/releases/tag/v0.9.5). Requires macOS 14.2 or newer. Drag Latitude into Applications and launch it there. Mac updates are manual for now.
 
 These are **unsigned, unnotarized development previews**. Automated Mac encoder, editor/export and package-launch checks are required before upload; they do not verify real microphone/camera capture, privacy prompts or long recordings. Use a short test take first. [Mac installation, permissions and test guide](docs/MACOS.md). A signed, hardware-tested Mac beta remains a separate milestone.
 
@@ -119,15 +127,15 @@ The new near-black globe with lime latitude bands is used throughout the app, Wi
 
 ## Your first recording
 
-1. Name the session in the top bar.
+1. Name the session beside **Start recording** or in the top bar. Leave it blank for an automatic date/time name.
 2. Click **Choose a screen**, then select a monitor or window. Windows captures the default playback output. Linux captures the output selected in Inputs & outputs. Play something and verify the Desktop meter.
 3. Open **Inputs & outputs**. Choose your microphone under Voice 1, and leave Voice 2 off unless needed. Click **Connect selected devices**.
 4. If you want a facecam, click **Camera**, choose your webcam, and apply it. Its microphone is not automatically added. Camera is optional.
 5. Open **Check** for a 12-second soundcheck. Stay quiet for three seconds, then speak naturally. Apply the suggestion if appropriate.
 6. Pick **Natural voice** or **Podcast broadcast** in Voice Studio. Open a processing module for its controls. The **Rich clarity** slider adds fuller body, less boxiness, and focused vocal presence; start around 15–25% and toggle Clarity on/off to compare. It does not add an air shelf or remove noise underneath speech.
 7. Choose a scene. Click a source to move/resize it, or use **Crop this source** in Scene layers to remove tabs/taskbar. **Add source** adds titles, images, and backgrounds. Click **Start recording**. Pause, add edit markers, and switch scenes as needed.
-8. Stop. The original take is saved first. Automatic export then makes an editing pack; you can disable auto-export in Settings.
-9. In **Takes**, use **Edit** to open synchronized picture and source audio in Latitude Editor, **Play** for your media player, or **Open files** for the session/export folder.
+8. Stop. The original take is saved first. **After recording** chooses automatic editing files or **Save originals · export later**. You can cancel an export and return to it from Takes; originals remain safe.
+9. In **Takes**, click a title or **Rename** to name an existing take. Use **Edit** to open synchronized picture and source audio in Latitude Editor, **Play** for your media player, or **Open files** for the session/export folder.
 
 ## What is implemented
 

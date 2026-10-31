@@ -4,6 +4,7 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { spawn } = require("node:child_process");
 const { writeMedia } = require("./export-media.cjs");
+const { parseEBU128 } = require("./loudness.cjs");
 
 const TRACKS = [
   { id: "voice1", name: "Voice 1", channels: 1 },
@@ -127,21 +128,23 @@ class RecordingStore {
     }
   }
   async beginSession(options) {
+    const { recordingName } = await import("../src/session-names.js");
     await fsp.mkdir(this.root, { recursive: true });
     const stat = await fsp.statfs(this.root);
     if (Number(stat.bavail) * Number(stat.bsize) < 1024 ** 3)
       throw Error("Less than 1 GB is free. Choose another recording folder.");
+    const name = recordingName(options.name);
     const id = randomUUID(),
       stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const dir = path.join(
       this.root,
-      `${stamp.slice(0, 19)} ${safeName(options.name)} ${id.slice(0, 6)}`,
+      `${stamp.slice(0, 19)} ${safeName(name)} ${id.slice(0, 6)}`,
     );
     await fsp.mkdir(dir, { recursive: true });
     const manifest = {
       ...options,
       id,
-      name: safeName(options.name),
+      name,
       created: new Date().toISOString(),
       status: "recording",
       sampleRate: options.sampleRate || 48000,
@@ -174,7 +177,7 @@ class RecordingStore {
       );
       this.active.bytes.video = 0;
       await this.saveManifest();
-      return { id, dir };
+      return { id, dir, name };
     } catch (e) {
       await this.end({ error: e.message }).catch(() => {});
       throw e;
@@ -293,6 +296,37 @@ class RecordingStore {
     if (!m)
       throw Error("This recording could not be found in the selected folder.");
     return m;
+  }
+  // Serialize saved-take metadata edits with export completion. Never move a
+  // recording folder: existing editor projects and exports refer to its paths.
+  updateSession(id, change) {
+    const update = (this.metadataChain || Promise.resolve()).then(async () => {
+      if (this.ending) await this.ending;
+      const active = this.active?.manifest.id === id ? this.active : null;
+      if (active) {
+        Object.assign(active.manifest, change({ ...active.manifest }));
+        await this.saveManifest();
+        return { ...active.manifest, dir: active.dir };
+      }
+      const { dir, ...manifest } = await this.resolve(id);
+      const next = change(manifest);
+      const temp = path.join(dir, `session.${randomUUID()}.tmp`);
+      try {
+        await fsp.writeFile(temp, JSON.stringify(next, null, 2));
+        await fsp.rename(temp, path.join(dir, "session.json"));
+      } finally {
+        await fsp.unlink(temp).catch(() => {});
+      }
+      return { ...next, dir };
+    });
+    this.metadataChain = update.catch(() => {});
+    return update;
+  }
+  async rename(id, value) {
+    const { sessionName } = await import("../src/session-names.js");
+    const name = sessionName(value);
+    if (!name) throw Error("Enter a name for this take.");
+    return this.updateSession(id, (m) => ({ ...m, name }));
   }
   async playbackPath(id) {
     const m = await this.resolve(id);
@@ -444,19 +478,23 @@ class RecordingStore {
       report = parseLoudness(media.mixLog);
       notify({ stage: "Measuring the exported mix", percent: 94 });
       // Measure the delivered mix, since lossy encoding can alter true peaks.
-      const verified = parseLoudness(
-        await encode([
-          "-i",
-          path.join(output, media.file),
-          "-map",
-          "0:a:0",
-          "-af",
-          `loudnorm=I=${target}:TP=-1.5:LRA=11:print_format=json`,
-          "-f",
-          "null",
-          "-",
-        ]),
-      );
+      const verifyArgs = ["-i", path.join(output, media.file), "-map", "0:a:0", "-af"];
+      let verified, measurement = "ebur128";
+      try {
+        verified = parseEBU128(await encode([
+          ...verifyArgs, "ebur128=peak=true:framelog=verbose", "-f", "null", "-",
+        ]));
+      } catch (error) {
+        if (signal.aborted) throw error;
+        // Keep compatibility with custom encoders that lack the EBU scanner.
+      }
+      if (!verified) {
+        measurement = "loudnorm";
+        verified = parseLoudness(await encode([
+          ...verifyArgs, `loudnorm=I=${target}:TP=-1.5:LRA=11:print_format=json`, "-f", "null", "-",
+        ]));
+      }
+      if (!verified) throw Error("The exported mix could not be verified. Your originals are safe.");
       const mediaSizes = await Promise.all(
         [media.file, ...media.sidecars].map(
           async (file) => (await fsp.stat(path.join(output, file))).size,
@@ -477,6 +515,7 @@ class RecordingStore {
         measuredLUFS: verified?.input_i ?? null,
         truePeakDBTP: verified?.input_tp ?? null,
         loudnessRangeLU: verified?.input_lra ?? null,
+        loudnessMeasurement: measurement,
         normalization: report?.normalization_type ?? "off or silent",
         duration,
         sampleRate: m.sampleRate,
@@ -520,32 +559,18 @@ class RecordingStore {
           "Keep the parent session folder until you are done editing; it contains recoverable originals.",
         ].join("\n"),
       );
-      const { dir: _, ...manifest } = m;
-      Object.assign(manifest, {
-        status: "exported",
-        duration,
-        exports: [
-          ...(m.exports || []),
-          {
-            path: output,
-            file: media.file,
-            date: new Date().toISOString(),
-            report: exportReport,
-          },
-        ],
-      });
       if (signal.aborted) throw Error("Export canceled.");
       // Commit point: finish metadata atomically instead of canceling halfway
       // through it and leaving a manifest that references a deleted export.
       this.exportController = null;
-      await fsp.writeFile(
-        path.join(dir, "session.json.tmp"),
-        JSON.stringify(manifest, null, 2),
-      );
-      await fsp.rename(
-        path.join(dir, "session.json.tmp"),
-        path.join(dir, "session.json"),
-      );
+      await this.updateSession(id, (latest) => ({
+        ...latest,
+        status: "exported",
+        duration,
+        exports: [...(latest.exports || []), {
+          path: output, file: media.file, date: new Date().toISOString(), report: exportReport,
+        }],
+      }));
       await fsp.unlink(path.join(output, "INCOMPLETE.txt"));
       notify({ stage: "Ready to edit", percent: 100 });
       return { dir: output, file: media.file, report: exportReport };

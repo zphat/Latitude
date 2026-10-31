@@ -16,12 +16,19 @@ def publish():
     version = json.loads((ROOT / "package.json").read_text())["version"]
     tag = "v" + version
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
-    if event["head_commit"]["message"].splitlines()[0] != f"Publish Latitude macOS preview {tag}":
+    title = event["head_commit"]["message"].splitlines()[0]
+    if title not in [f"Publish Latitude macOS preview {tag}", f"Release Latitude {tag}"]:
         raise RuntimeError("Publication requires an explicit matching commit title")
     repo = os.environ["GH_REPO"]
     release = json.loads(gh("api", f"repos/{repo}/releases/tags/{tag}"))
     if release["draft"] or not release["prerelease"]:
         raise RuntimeError("Mac development previews may only join an existing published beta")
+    if title == f"Release Latitude {tag}":
+        # The shared concurrency group lets Windows/Linux publish first. A new
+        # multi-platform release must refer to this exact tested source commit.
+        tagged = json.loads(gh("api", f"repos/{repo}/commits/{tag}"))
+        if tagged["sha"] != os.environ["GITHUB_SHA"]:
+            raise RuntimeError("Release tag does not match the tested Mac commit")
     assets = ROOT / "release-assets"
     checksums = {}
     for arch in ["arm64", "x64"]:

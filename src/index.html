@@ -20,15 +20,18 @@
       </div>
       <div class="session-name">
         <span data-icon="folder"></span
-        ><input
+        ><label class="header-session-field"><span id="header-session-label">Next take</span><input
           id="session-name"
-          aria-label="Session name"
-          value="Untitled session"
+          type="text"
+          data-session-name
+          aria-label="Next take name"
+          placeholder="Name your session…"
+          title="Name your next take, or rename the current recording"
           maxlength="70"
-        /><span class="local-badge">LOCAL</span>
+        /></label><span class="local-badge">LOCAL</span>
       </div>
       <div class="top-actions">
-        <span class="beta">DESKTOP BETA · 0.9.4</span
+        <span class="beta">DESKTOP BETA · 0.9.5</span
         ><button
           class="icon-button"
           id="help-button"
@@ -241,6 +244,18 @@
             </div>
           </div>
           <div class="mixer" id="mixer"></div>
+          <div class="session-setup">
+            <label class="session-setup-name">Session name
+              <input id="studio-session-name" type="text" data-session-name maxlength="70" placeholder="e.g. Podcast · Episode 12" aria-describedby="session-name-hint" autocomplete="off">
+              <small id="session-name-hint">Optional · leave blank for a date and time. Rename any take later.</small>
+            </label>
+            <label>After recording
+              <select id="after-recording">
+                <option value="export">Prepare editing files automatically</option>
+                <option value="save">Save originals · export later</option>
+              </select>
+            </label>
+          </div>
           <div class="record-bar">
             <div class="record-time">
               <span class="record-state" id="record-state"
@@ -419,6 +434,7 @@
             <span class="spinner"></span>
             <div>
               <strong id="export-stage">Preparing export</strong>
+              <small class="export-saved-note">Originals saved · preparing your export. Cancel to export later.</small>
               <div class="progress-track"><i id="export-bar"></i></div>
             </div>
             <b id="export-percent">0%</b

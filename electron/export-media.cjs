@@ -1,4 +1,5 @@
 const fs = require("node:fs/promises");
+const { constants } = require("node:fs");
 const path = require("node:path");
 
 // One encoder process at a time. Compact exports read the recorded PCM directly,
@@ -32,41 +33,25 @@ async function writeMedia({
   const guard = () => {
     if (signal.aborted) throw Error("Export canceled.");
   };
-  // When requested, use the mastered editing WAV as the encoder input as well.
-  // Otherwise normalization happens directly in the final output, with no temp file.
-  if (options.editingFiles) {
-    notify({ stage: "Writing the mastered editing WAV", percent: 16, end: 19 });
-    mixLog = await encode([
-      "-y",
-      "-i",
-      source(tracks[0]),
-      "-af",
-      filter,
-      ...audioEncoding(wav, m.sampleRate),
-      ...containerFlags(wav),
-      path.join(output, "Mix.wav"),
-    ]);
-    sidecars.push("Mix.wav");
-  }
   notify({
     stage: video
       ? `Saving ${format.label} · ${tracks.length} audio track${tracks.length === 1 ? "" : "s"}`
       : `Saving the ${format.label} mix`,
     percent: 20,
-    end: 64,
+    end: video && options.editingFiles ? 84 : 64,
   });
   let videoMode = null;
   if (video) {
     const args = ["-y", "-i", path.join(m.dir, m.videoFile || "capture.webm")];
-    for (const t of tracks)
-      args.push(
-        "-i",
-        t.id === "mix" && options.editingFiles
-          ? path.join(output, "Mix.wav")
-          : source(t),
-      );
+    for (const t of tracks) args.push("-i", source(t));
+    // Decode each source once and share one normalized mix between the movie
+    // and its editing WAV. No intermediate full-length master to reread.
+    if (options.editingFiles)
+      args.push("-filter_complex",
+        `[1:a:0]${filter},aresample=${m.sampleRate},aformat=sample_fmts=fltp:channel_layouts=stereo,asplit=2[movieMix][editingMix]`);
     args.push("-map", "0:v:0");
-    for (let i = 0; i < tracks.length; i++) args.push("-map", `${i + 1}:a:0`);
+    for (let i = 0; i < tracks.length; i++)
+      args.push("-map", i === 0 && options.editingFiles ? "[movieMix]" : `${i + 1}:a:0`);
     const plan = videoEncoding(format, m.captureMime, options.quality);
     videoMode = plan.mode;
     args.push(...plan.args, ...audioEncoding(format, m.sampleRate));
@@ -87,8 +72,16 @@ async function writeMedia({
       ...containerFlags(format),
       path.join(output, file),
     );
+    if (options.editingFiles) {
+      for (const [i, t] of tracks.entries()) {
+        const name = i === 0 ? "Mix.wav" : `${t.name}.wav`;
+        args.push("-map", i === 0 ? "[editingMix]" : `${i + 1}:a:0`,
+          ...audioEncoding(wav, m.sampleRate), ...containerFlags(wav), path.join(output, name));
+        sidecars.push(name);
+      }
+    }
     const log = await encode(args);
-    if (!options.editingFiles) mixLog = log;
+    mixLog = log;
   } else {
     mixLog = await encode([
       "-y",
@@ -104,7 +97,6 @@ async function writeMedia({
   const extraTracks = video
     ? options.editingFiles
       ? [
-          ...sourceTracks,
           ...sourceTracks
             .filter((t) => t.id.startsWith("voice"))
             .map((t) => ({
@@ -119,12 +111,14 @@ async function writeMedia({
     guard();
     notify({
       stage: `Writing ${t.name}`,
-      percent: Math.floor(65 + (i * 19) / extraTracks.length),
-      end: Math.floor(65 + ((i + 1) * 19) / extraTracks.length),
+      percent: video ? 84 : Math.floor(65 + (i * 19) / extraTracks.length),
+      end: video ? 84 : Math.floor(65 + ((i + 1) * 19) / extraTracks.length),
     });
     const trackFormat = video ? wav : format;
     const name = `${t.name}.${trackFormat.extension}`;
-    if (t.raw) await fs.copyFile(source(t), path.join(output, name));
+    // Copy-on-write when the filesystem supports it; otherwise Node falls back
+    // to a normal copy. These remain independent files, never hard links.
+    if (t.raw) await fs.copyFile(source(t), path.join(output, name), constants.COPYFILE_FICLONE);
     else
       await encode([
         "-y",

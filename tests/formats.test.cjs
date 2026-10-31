@@ -259,3 +259,29 @@ test("playback opens legacy MP4 exports and rejects a manifest path outside the 
   m.exports[0].file = "../../outside.mp4";
   await assert.rejects(store.playbackPath("one"), /Invalid recording path/);
 });
+
+test("shared video/WAV export keeps normalized stereo, sample-aligned stems and independent raw backups", async () => {
+  for (const rate of [44100, 48000]) {
+    const { root, store, s } = await fixture(rate);
+    try {
+      const out = await store.export(s.id, { format: "mp4", normalize: true, editingFiles: true }, binary);
+      assert.equal(out.report.embeddedAudioTracks, 4);
+      assert.equal(out.report.videoMode, "H.264 stream copy");
+      const wav = path.join(out.dir, "Mix.wav");
+      assert.match(probe(wav).input, new RegExp(`${rate} Hz, stereo`));
+      assert.ok(Math.abs(decode(wav).length / 4 / 48000 - 1) < 0.002);
+      assert.ok(Math.abs(dominant(decode(wav)) - 550) < 4);
+      assert.ok(Math.abs(Number(out.report.measuredLUFS) + 16) < 1);
+      assert.ok(Number(out.report.truePeakDBTP) <= -1);
+      const pcm24 = (file) => execFileSync(binary, ["-v", "error", "-i", file,
+        "-c:a", "pcm_s24le", "-f", "s24le", "pipe:1"]);
+      for (const [id, name] of [["voice1", "Voice 1"], ["voice2", "Voice 2"], ["desktop", "Desktop"]])
+        assert.deepEqual(pcm24(path.join(out.dir, `${name}.wav`)), pcm24(path.join(s.dir, `${id}.wav`)));
+      const original = await fs.readFile(path.join(s.dir, "raw1.wav"));
+      const backup = path.join(out.dir, "Voice 1 original.wav");
+      assert.deepEqual(await fs.readFile(backup), original);
+      await fs.writeFile(backup, Buffer.from("Edit the copied file"));
+      assert.deepEqual(await fs.readFile(path.join(s.dir, "raw1.wav")), original, "editing a backup never changes the original");
+    } finally { await fs.rm(root, { recursive: true, force: true }); }
+  }
+});

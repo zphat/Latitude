@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['electron/**', 'audio/**', 'src/**', 'package*.json', 'scripts/*mac*', 'packaging/mac/**', 'tests/mac.test.cjs', 'tests/editor-mod-ui.cjs', '.github/workflows/mac.yml']
+    paths: ['electron/**', 'audio/**', 'src/**', 'package*.json', 'scripts/*mac*', 'packaging/mac/**', 'tests/mac.test.cjs', 'tests/editor-mod-ui.cjs', 'tests/session-names*', 'tests/loudness*', '.github/workflows/mac.yml']
 permissions:
   contents: read
 jobs:
@@ -45,6 +45,7 @@ jobs:
         run: |
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
           node tests/editor-mod-ui.cjs
+          node tests/session-names-ui.cjs
         env:
           TAKE_FFMPEG: ${{ github.workspace }}/vendor/ffmpeg
           TMPDIR: ${{ runner.temp }}
@@ -68,12 +69,14 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: Mac-editor-QA-${{ matrix.arch }}
-          path: ${{ runner.temp }}/latitude-edit-ui-*/shots/*.png
+          path: |
+            ${{ runner.temp }}/latitude-edit-ui-*/shots/*.png
+            ${{ runner.temp }}/latitude-names-ui-*/shots/*.png
           if-no-files-found: ignore
 
   publish:
     needs: package
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Publish Latitude macOS preview v')
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'Publish Latitude macOS preview v') || startsWith(github.event.head_commit.message, 'Release Latitude v'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
