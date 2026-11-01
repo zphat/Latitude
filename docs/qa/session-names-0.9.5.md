@@ -20,6 +20,8 @@ Final verification still scans the delivered encoded audio and its true peaks. E
 
 Native Windows/Mac validation belongs to the release workflows, not these local Linux results. Physical capture devices, permissions, 70-minute takes, signed installation and actual user-hardware performance are outside this local test.
 
+The first 0.9.5 pipeline passed both native Mac packages and Linux, but Windows exposed a test-fixture startup race: the app had already saved initial preferences, so the test skipped seeding its setup-complete fixture and typed behind onboarding. This was reproduced locally with a slower test attachment. The test now waits for initial startup, seeds its fixture exactly once and verifies onboarding is closed; reload persistence and all naming/export assertions remain. Windows also checks each native test's exit code individually. Release publication remains blocked until the corrected run passes.
+
 ## Export comparison
 
 Same Linux host and FFmpeg 6.1.1; 0.9.4 commit `81f82f0` versus this change. Six sequential exports alternate baseline/current order on the same generated 30-second H.264 320×180 take with two voices, desktop, full mix and original voice backups. Both modes normalize, preserve four embedded tracks and write editing WAVs; optional per-source video copies are off. No other media tests or benchmarks ran during the comparison.

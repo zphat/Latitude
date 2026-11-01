@@ -83,9 +83,13 @@ jobs:
           LATITUDE_UPDATE_LIVE_CHECK: "1"
         run: |
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/editor-mod-ui.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/updater-ui.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/session-names-ui.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Prepare encoder and build unsigned Windows package
         shell: pwsh
         run: |

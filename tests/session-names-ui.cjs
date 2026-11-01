@@ -39,13 +39,23 @@ const ffmpeg = process.env.TAKE_FFMPEG || require("ffmpeg-static");
       env: { ...process.env, TAKE_STUDIO_TEST: "1", LATITUDE_TEST_PROFILE: profile, TAKE_FFMPEG: ffmpeg } });
     const page = await app.firstWindow(), errors = [];
     page.on("pageerror", (error) => { errors.push(error.message); console.error("Renderer:", error.message); });
+    // The first launch saves theme/default preferences before this test can seed
+    // its fixture. Wait for that document, then replace its defaults exactly once.
+    // Testing only for absent preferences made onboarding nondeterministic and
+    // could leave our name field behind an open modal on faster Windows runners.
+    await page.waitForURL("take://app/src/index.html", { waitUntil: "load" });
+    await page.waitForFunction(() => localStorage.getItem("latitude-v2") !== null);
     await page.addInitScript(() => {
-      if (!localStorage.getItem("latitude-v2")) localStorage.setItem("latitude-v2", JSON.stringify({
-        name: "Untitled session", onboarded: true, reconnectMic: false, countdown: false, autoExport: false,
-      }));
+      if (!sessionStorage.getItem("latitude-names-fixture")) {
+        localStorage.setItem("latitude-v2", JSON.stringify({
+          name: "Untitled session", onboarded: true, reconnectMic: false, countdown: false, autoExport: false,
+        }));
+        sessionStorage.setItem("latitude-names-fixture", "1");
+      }
     });
     await page.goto("take://app/src/index.html?test");
     await page.waitForSelector('[data-scene="break"]');
+    await page.locator("#modal").waitFor({ state: "hidden" });
     assert.equal(await page.inputValue("#studio-session-name"), "");
     await page.fill("#studio-session-name", "Podcast: episode 12 / Q&A");
     await page.locator("#studio-session-name").press("Enter");
