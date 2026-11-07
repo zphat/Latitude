@@ -298,10 +298,28 @@ const ff = (args) =>
     await page.click(`[data-track-select="${targetTrack}"]`);
     await page.click("#edit-track-remove");
     await page.evaluate((id) => window.__editor.select(id), titleId);
-    await page.selectOption("#edit-format", "portrait");
-    const tall = await page.locator("#edit-canvas").boundingBox();
-    assert.ok(Math.abs(tall.width / tall.height - 9 / 16) < 0.03);
-    await page.selectOption("#edit-format", "compact");
+    // Format changes deliberately redraw on the next animation frame. Wait for
+    // the new backing size and completed picture, not the old canvas immediately
+    // after dispatching change (a race on native Windows runners).
+    for (const [format, width, height, ratio] of [
+      ["portrait", 304, 540, 9 / 16],
+      ["square", 540, 540, 1],
+      ["compact", 960, 540, 16 / 9],
+    ]) {
+      await page.selectOption("#edit-format", format);
+      await page.waitForFunction(({ format, width, height }) => {
+        const canvas = document.querySelector("#edit-canvas");
+        return window.__editor.project.format === format &&
+          canvas.width === width && canvas.height === height &&
+          canvas.getAttribute("aria-busy") === "false";
+      }, { format, width, height });
+      const picture = await page.locator("#edit-canvas").boundingBox();
+      const stage = await page.locator("#edit-stage").boundingBox();
+      assert.ok(Math.abs(picture.width / picture.height - ratio) < 0.03,
+        `${format} preview keeps the project aspect ratio`);
+      assert.ok(picture.width <= stage.width + 1 && picture.height <= stage.height + 1,
+        `${format} preview fits its stage`);
+    }
     await page.setViewportSize({ width: 1480, height: 1000 });
     await page.screenshot({
       path: path.join(shots, "editor.png"),
@@ -474,6 +492,12 @@ const ff = (args) =>
       console.error(
         await page.evaluate(() => ({
           time: window.__editor?.preview.time,
+          format: window.__editor?.project.format,
+          canvas: (() => {
+            const c = document.querySelector("#edit-canvas");
+            return c && { width: c.width, height: c.height,
+              busy: c.getAttribute("aria-busy"), bounds: c.getBoundingClientRect().toJSON() };
+          })(),
           clips: window.__editor?.project.clips,
           toast: document.querySelector("#toast")?.textContent,
         })),

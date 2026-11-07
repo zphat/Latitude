@@ -82,6 +82,8 @@ jobs:
       - name: Verify native editor and update UI
         env:
           LATITUDE_UPDATE_LIVE_CHECK: "1"
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
         run: |
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -118,6 +120,18 @@ jobs:
             dist/SHA256SUMS.txt
           if-no-files-found: error
           compression-level: 0
+          retention-days: 14
+      - name: Retain native editor screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Windows-editor-QA
+          path: |
+            ${{ runner.temp }}/latitude-edit-ui-*/shots/*.png
+            ${{ runner.temp }}/latitude-scrub-ui-*/*.png
+            ${{ runner.temp }}/latitude-gestures-ui-*/*.png
+            ${{ runner.temp }}/latitude-names-ui-*/shots/*.png
+          if-no-files-found: ignore
           retention-days: 14
 
   linux:
