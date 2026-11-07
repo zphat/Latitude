@@ -27,7 +27,7 @@ async function writeMedia({
   const file = video
     ? `Recording.${format.extension}`
     : `Mix.${format.extension}`;
-  const wav = exportFormat("wav");
+  const wav = exportFormat(options.stemFormat || "wav");
   const sidecars = [];
   let mixLog = "";
   const guard = () => {
@@ -52,9 +52,9 @@ async function writeMedia({
     args.push("-map", "0:v:0");
     for (let i = 0; i < tracks.length; i++)
       args.push("-map", i === 0 && options.editingFiles ? "[movieMix]" : `${i + 1}:a:0`);
-    const plan = videoEncoding(format, m.captureMime, options.quality);
+    const plan = videoEncoding(format, m.captureMime, options.quality, options.videoCompression);
     videoMode = plan.mode;
-    args.push(...plan.args, ...audioEncoding(format, m.sampleRate));
+    args.push(...plan.args, ...audioEncoding(format, m.sampleRate, options.audioBitrate));
     if (!options.editingFiles) args.push("-filter:a:0", filter);
     for (let i = 0; i < tracks.length; i++) {
       args.push(
@@ -74,7 +74,7 @@ async function writeMedia({
     );
     if (options.editingFiles) {
       for (const [i, t] of tracks.entries()) {
-        const name = i === 0 ? "Mix.wav" : `${t.name}.wav`;
+        const name = `${i === 0 ? "Mix" : t.name}.${wav.extension}`;
         args.push("-map", i === 0 ? "[editingMix]" : `${i + 1}:a:0`,
           ...audioEncoding(wav, m.sampleRate), ...containerFlags(wav), path.join(output, name));
         sidecars.push(name);
@@ -89,7 +89,7 @@ async function writeMedia({
       source(tracks[0]),
       "-af",
       filter,
-      ...audioEncoding(format, m.sampleRate),
+      ...audioEncoding(format, m.sampleRate, options.audioBitrate),
       ...containerFlags(format),
       path.join(output, file),
     ]);
@@ -98,7 +98,7 @@ async function writeMedia({
     ? options.editingFiles
       ? [
           ...sourceTracks
-            .filter((t) => t.id.startsWith("voice"))
+            .filter((t) => t.id.startsWith("voice") && m.keepRaw !== false && wav.id === "wav")
             .map((t) => ({
               id: `raw${t.id.at(-1)}`,
               name: `${t.name} original`,
@@ -124,7 +124,7 @@ async function writeMedia({
         "-y",
         "-i",
         source(t),
-        ...audioEncoding(trackFormat, m.sampleRate),
+        ...audioEncoding(trackFormat, m.sampleRate, options.audioBitrate),
         ...containerFlags(trackFormat),
         path.join(output, name),
       ]);

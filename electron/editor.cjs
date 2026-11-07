@@ -104,6 +104,9 @@ function parseProbe(log, file, knownDuration = 0) {
     height: Number(size?.[2] || 0),
     duration: image ? 5 : duration,
     audio,
+    needsIndex: !!video && !image && !match,
+    startTime: Number(log.match(/start: (-?[\d.]+)/)?.[1] || 0),
+    videoCodec: video?.[0].match(/Video: (\w+)/)?.[1],
   };
 }
 class EditorStore {
@@ -159,12 +162,36 @@ class EditorStore {
       ],
       { signal, timeout: 20000, allowFailure: true },
     );
-    return {
+    const result = {
       ...parseProbe(log, file, knownDuration),
       path: file,
       size: stat.size,
       modified: stat.mtimeMs,
     };
+    // MediaRecorder originals have no finalized seek table. Give Chromium an
+    // indexed container, copying compressed packets without decoding/re-encoding.
+    // The edit/export still references the original file. Cache dies with the mod.
+    if (result.needsIndex && result.kind === "video") {
+      const key = createHash("sha256").update(`${file}:${stat.mtimeMs}:${stat.size}:index-v1`).digest("hex");
+      if (!this.previews.has(key)) {
+        const extension = result.videoCodec === "h264" ? ".mp4" : ".webm";
+        const target = path.join(await this.temp(), key + extension);
+        const free = await fs.statfs(path.dirname(target));
+        if (Number(free.bavail) * Number(free.bsize) < stat.size + 256 * 1024 ** 2)
+          throw Error("Not enough temporary space to index this recording for accurate seeking. Free space or import an exported MP4.");
+        this.onProgress({ message: "Indexing recording for accurate seeking · no quality loss…" });
+        try {
+          await command(this.ffmpeg, ["-y", "-copyts", "-protocol_whitelist", "file,pipe",
+            ...(result.startTime > 0 ? ["-itsoffset", String(-result.startTime)] : []), "-i", file,
+            "-map", "0:v:0", "-map", "0:a:0?", "-c", "copy",
+            "-avoid_negative_ts", "disabled",
+            ...(extension === ".mp4" ? ["-movflags", "+faststart"] : []), target], { signal });
+          this.previews.set(key, target);
+        } catch (error) { await fs.rm(target, { force: true }); throw error; }
+      }
+      result.videoUrl = `take://app/editor-media/${key}`;
+    }
+    return result;
   }
   public(a) {
     const { path: _, size, modified, ...data } = a;
@@ -400,6 +427,7 @@ class EditorStore {
           "26",
           "-pix_fmt",
           "yuv420p",
+          "-g", "15", "-keyint_min", "15", "-sc_threshold", "0", "-bf", "0",
         );
       else args.push("-vn");
       if (a.audio)

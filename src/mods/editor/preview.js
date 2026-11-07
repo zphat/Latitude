@@ -1,4 +1,4 @@
-import { FORMATS, audible, envelope, visualRect, duration } from "./model.js";
+import { FORMATS, audible, envelope, visualRect, duration, frame } from "./model.js";
 export function titleCanvas(c, project, scale = 1) {
   const [W, H] = FORMATS[project.format],
     canvas = document.createElement("canvas");
@@ -50,8 +50,8 @@ export function titleCanvas(c, project, scale = 1) {
   return canvas;
 }
 export class Preview {
-  constructor({ canvas, project, media, onTime, onError, onMeter }) {
-    Object.assign(this, { canvas, project, media, onTime, onError, onMeter });
+  constructor({ canvas, project, media, onTime, onError, onMeter, onStatus }) {
+    Object.assign(this, { canvas, project, media, onTime, onError, onMeter, onStatus });
     this.items = new Map();
     this.titles = new Map();
     this.time = 0;
@@ -80,11 +80,15 @@ export class Preview {
     if (!this.destroyed) await this.ctx.resume();
   }
   clear() {
+    cancelAnimationFrame(this.drawRaf);
+    this.drawRaf = null;
     for (const item of this.items.values()) this.release(item);
     this.items.clear();
     this.titles.clear();
   }
   release(item) {
+    item.released = true;
+    for (const remove of item.listeners || []) remove();
     for (const el of [item.el, item.alt])
       if (el) {
         el.pause?.();
@@ -115,6 +119,7 @@ export class Preview {
     }
   }
   pause() {
+    const wasPlaying = this.playing;
     this.generation++;
     this.playing = false;
     cancelAnimationFrame(this.raf);
@@ -124,13 +129,40 @@ export class Preview {
     }
     this.ctx?.suspend().catch(() => {});
     this.onMeter?.(0);
+    if (wasPlaying) {
+      const p = this.project();
+      this.time = Math.min(duration(p), frame(this.time, p.fps));
+      this.scheduleDraw();
+    }
     this.onTime?.(this.time, false);
   }
   seek(time) {
-    this.time = Math.max(0, Math.min(duration(this.project()), time));
+    if (this.destroyed || !Number.isFinite(time)) return;
+    const p = this.project();
+    this.time = Math.max(0, Math.min(duration(p), frame(time, p.fps)));
+    this.presentedTime = null;
+    this.onStatus?.("Seeking frame…");
     this.anchor = performance.now() - this.time * 1000;
-    this.draw(true);
+    this.scheduleDraw();
     this.onTime?.(this.time, this.playing);
+  }
+  scheduleDraw() {
+    if (this.destroyed || this.drawRaf != null) return;
+    this.drawRaf = requestAnimationFrame(() => {
+      this.drawRaf = null;
+      this.draw();
+    });
+  }
+  // One in-flight seek per decoder. Pointer moves replace the desired position;
+  // completing an older seek redraws only the newest requested frame.
+  position(el, target, exact) {
+    const epsilon = exact ? 0.00001 : 0.18;
+    if (el.readyState < 1 || el.seeking) return false;
+    if (Math.abs(el.currentTime - target) > epsilon) {
+      el.currentTime = target;
+      return false;
+    }
+    return el.readyState >= 2;
   }
   tick() {
     if (!this.playing || this.destroyed) return;
@@ -190,35 +222,38 @@ export class Preview {
           : document.createElement(
               c.kind === "video" && !t.hidden ? "video" : "audio",
             );
+      item = { key, el, listeners: [] };
+      const listen = (element, event, handler) => {
+        element.addEventListener(event, handler);
+        item.listeners.push(() => element.removeEventListener(event, handler));
+      };
+      const redraw = () => { if (!item.released) this.scheduleDraw(); };
       if (c.kind !== "image") {
         el.preload = "auto";
         el.playsInline = true;
         el.muted = true;
-        el.addEventListener("seeked", () => {
-          if (!this.playing) this.draw();
-        });
-        el.addEventListener("loadeddata", () => {
-          if (!this.playing) this.draw(true);
-        });
-        el.addEventListener("error", () =>
+        for (const event of ["seeked", "loadedmetadata", "loadeddata", "canplay"])
+          listen(el, event, redraw);
+        listen(el, "error", () =>
           this.onError(
             `“${a.name}” needs a compatible preview. Select it in Media and choose Make preview; export still uses the original.`,
           ),
         );
-      } else el.onload = () => this.draw();
+      } else listen(el, "load", redraw);
       el.src =
         c.kind === "video" && !t.hidden
           ? a.videoUrl || a.url
           : c.kind === "audio" || t.hidden
             ? a.audioUrls?.[c.audio] || a.url
             : a.url;
-      item = { key, el };
       if (c.kind === "video" && c.audio > 0 && !t.hidden) {
         el.muted = true;
         if (a.audioUrls?.[c.audio]) {
           item.alt = new Audio(a.audioUrls[c.audio]);
           item.alt.preload = "auto";
           item.alt.muted = true;
+          for (const event of ["seeked", "loadedmetadata", "loadeddata"])
+            listen(item.alt, event, redraw);
         }
       }
       this.items.set(c.id, item);
@@ -252,7 +287,7 @@ export class Preview {
     }
     return item;
   }
-  draw(force = false) {
+  draw() {
     if (this.destroyed) return;
     const p = this.project(),
       [W, H] = FORMATS[p.format],
@@ -264,10 +299,12 @@ export class Preview {
       this.canvas.height = h;
     }
     const ctx = this.canvas.getContext("2d");
-    ctx.fillStyle = p.background;
-    ctx.fillRect(0, 0, w, h);
+    // End is a valid cut boundary, but display the last picture instead of black.
+    const viewTime = Math.min(this.time, Math.max(0, duration(p) - 1 / p.fps));
+    const layers = [];
+    let waiting = false;
     const active = p.clips
-        .filter((c) => c.start <= this.time && c.start + c.duration > this.time)
+        .filter((c) => c.start <= viewTime + 1e-8 && c.start + c.duration > viewTime + 1e-8)
         .sort(
           (a, b) =>
             p.tracks.findIndex((t) => t.id === a.track) -
@@ -306,13 +343,15 @@ export class Preview {
         used.add(c.id);
         for (const el of [item.el, item.alt]) {
           if (!el || c.kind === "image") continue;
-          const target = c.in + this.time - c.start;
-          if (
-            el.duration > 0 &&
-            (force || Math.abs(el.currentTime - target) > 0.12)
-          )
-            el.currentTime = Math.min(el.duration, target);
-          if (this.playing && el.paused)
+          // Matroska timestamps can round a frame boundary to milliseconds.
+          // Avoid a quarter-project-frame bias: that selects a later source
+          // frame when, for example, 60 fps footage is edited at 24 fps.
+          const offset = !this.playing && el.tagName === "VIDEO" ? 0.001 : 0;
+          const target = Math.max(0, Math.min(el.duration || Infinity,
+            c.in + viewTime - c.start + offset));
+          const ready = this.position(el, target, !this.playing);
+          if (el === item.el && c.kind === "video" && !t.hidden && !ready) waiting = true;
+          if (this.playing && el.paused && ready)
             el.play().catch((e) => {
               if (e.name !== "AbortError")
                 this.onError(
@@ -324,10 +363,17 @@ export class Preview {
         source = item.el;
       }
       if (c.kind === "audio" || t.hidden) continue;
+      layers.push({ c, source });
+    }
+    this.onStatus?.(waiting ? "Seeking frame…" : "");
+    if (!waiting) {
+      ctx.fillStyle = p.background;
+      ctx.fillRect(0, 0, w, h);
+      for (const { c, source } of layers) {
       const sw = source.videoWidth || source.naturalWidth || source.width,
         sh = source.videoHeight || source.naturalHeight || source.height;
       if (!sw || !sh) continue;
-      const r = visualRect(c, this.time),
+      const r = visualRect(c, viewTime),
         x = r.x * w,
         y = r.y * h,
         bw = r.w * w,
@@ -361,6 +407,9 @@ export class Preview {
         dh,
       );
       ctx.restore();
+      }
+      this.presentedTime = this.time;
+      this.onDraw?.();
     }
     // Prepare the next nearby cut, with a strict cap. No background decoding while idle.
     if (this.playing) {
@@ -398,7 +447,6 @@ export class Preview {
       }
     for (const id of this.titles.keys())
       if (!active.some((c) => c.id === id)) this.titles.delete(id);
-    this.onDraw?.();
   }
   async destroy() {
     this.destroyed = true;

@@ -11,7 +11,7 @@ export const EXPORT_FORMATS = Object.freeze([
     codecs: "H.264 video · AAC audio",
     compatibility:
       "Best starting point for CapCut, sharing, and most players and editors.",
-    size: "Compact audio. Video is copied at its recorded quality when possible; choose Efficient recording quality for smaller future takes.",
+    size: "Compact audio. Video is copied at its recorded quality when possible; choose Balanced compression below to shrink existing footage, or Smaller recording quality for future takes.",
     effort: "Usually the fastest export with Auto / H.264 capture.",
   },
   {
@@ -87,10 +87,10 @@ export const EXPORT_FORMATS = Object.freeze([
     extension: "mp3",
     kind: "audio",
     audio: "libmp3lame",
-    codecs: "192 kbps MP3 audio · no video",
+    codecs: "MP3 audio · selectable bitrate · no video",
     compatibility:
       "A widely supported podcast delivery file. Lossy; keep WAV or FLAC for further editing.",
-    size: "One of the smallest choices here: about 86 MB/hour per file at 192 kbps. Separate sources add more files.",
+    size: "One of the smallest choices here: about 58–144 MB/hour per file at 128–320 kbps. Separate sources add more files.",
     effort: "Audio-only encoding, with much less work than video conversion.",
   },
   {
@@ -99,10 +99,10 @@ export const EXPORT_FORMATS = Object.freeze([
     extension: "m4a",
     kind: "audio",
     audio: "aac",
-    codecs: "192 kbps AAC audio · no video",
+    codecs: "AAC audio · selectable bitrate · no video",
     compatibility:
       "A compact listening file supported by many phones and players. Check your podcast host accepts M4A. Lossy audio.",
-    size: "One of the smallest choices here: roughly 86 MB/hour per file at the target bitrate. Actual AAC size varies.",
+    size: "One of the smallest choices here: roughly 58–144 MB/hour per file at 128–320 kbps. Actual AAC size varies.",
     effort: "Audio-only encoding, with much less work than video conversion.",
   },
 ]);
@@ -127,13 +127,16 @@ export function exportOptions(options = {}) {
     target: [-14, -16, -18, -20].includes(Number(options.target))
       ? Number(options.target)
       : -16,
-    quality: ["high", "efficient"].includes(options.quality)
+    quality: ["high", "efficient", "compact"].includes(options.quality)
       ? options.quality
       : "balanced",
+    videoCompression: ["balanced", "small"].includes(options.videoCompression) ? options.videoCompression : "original",
+    audioBitrate: [128, 192, 256, 320].includes(Number(options.audioBitrate)) ? Number(options.audioBitrate) : 256,
+    stemFormat: options.stemFormat === "flac" ? "flac" : "wav",
   };
 }
 
-export function audioEncoding(format, sampleRate = 48000) {
+export function audioEncoding(format, sampleRate = 48000, bitrate) {
   const args = [
     "-c:a",
     format.audio,
@@ -141,9 +144,9 @@ export function audioEncoding(format, sampleRate = 48000) {
     String(format.audio === "libopus" ? 48000 : sampleRate),
   ];
   if (format.audio === "aac")
-    args.push("-b:a", format.kind === "audio" ? "192k" : "256k");
-  if (format.audio === "libopus") args.push("-b:a", "192k");
-  if (format.audio === "libmp3lame") args.push("-b:a", "192k");
+    args.push("-b:a", `${bitrate || (format.kind === "audio" ? 192 : 256)}k`);
+  if (format.audio === "libopus") args.push("-b:a", `${bitrate || 192}k`);
+  if (format.audio === "libmp3lame") args.push("-b:a", `${bitrate || 192}k`);
   if (format.audio === "flac")
     args.push(
       "-sample_fmt",
@@ -162,10 +165,10 @@ export function containerFlags(format) {
   return format.id === "wav" ? ["-rf64", "auto"] : [];
 }
 
-export function videoEncoding(format, captureMime, quality = "balanced") {
+export function videoEncoding(format, captureMime, quality = "balanced", compression = "original") {
   const h264 = /h264|avc1/i.test(captureMime || "");
   const vp9 = /vp9|vp09/i.test(captureMime || "");
-  const copy = format.video === "h264" ? h264 : vp9;
+  const copy = compression === "original" && (format.video === "h264" ? h264 : vp9);
   const codecName = format.video === "h264" ? "H.264" : "VP9";
   if (copy)
     return {
@@ -173,18 +176,22 @@ export function videoEncoding(format, captureMime, quality = "balanced") {
       mode: `${codecName} stream copy`,
       args: ["-c:v", "copy"],
     };
-  const crf =
+  const crf = compression !== "original"
+    ? (format.video === "vp9" ? (compression === "small" ? 36 : 31) : (compression === "small" ? 26 : 21))
+    :
     format.video === "vp9"
       ? quality === "high"
         ? 26
-        : quality === "efficient"
+        : ["efficient", "compact"].includes(quality)
           ? 36
           : 31
       : quality === "high"
         ? 18
-        : quality === "efficient"
-          ? 24
-          : 21;
+        : quality === "compact"
+          ? 26
+          : quality === "efficient"
+            ? 24
+            : 21;
   const args =
     format.video === "vp9"
       ? [
@@ -199,7 +206,7 @@ export function videoEncoding(format, captureMime, quality = "balanced") {
           "-row-mt",
           "1",
         ]
-      : ["-c:v", "libx264", "-preset", "veryfast"];
+      : ["-c:v", "libx264", "-preset", compression === "original" ? "veryfast" : "fast"];
   args.push(
     "-crf",
     String(crf),
@@ -210,5 +217,5 @@ export function videoEncoding(format, captureMime, quality = "balanced") {
     "-vf",
     "tpad=stop_mode=clone:stop_duration=1",
   );
-  return { copy: false, mode: `${codecName} encode`, args };
+  return { copy: false, mode: `${codecName} encode${compression === "original" ? "" : ` · ${compression} compression`}`, args };
 }

@@ -31,7 +31,7 @@
         /></label><span class="local-badge">LOCAL</span>
       </div>
       <div class="top-actions">
-        <span class="beta">DESKTOP BETA · 0.9.5</span
+        <span class="beta">DESKTOP BETA · 0.9.6</span
         ><button
           class="icon-button"
           id="help-button"
@@ -248,6 +248,10 @@
             <label class="session-setup-name">Session name
               <input id="studio-session-name" type="text" data-session-name maxlength="70" placeholder="e.g. Podcast · Episode 12" aria-describedby="session-name-hint" autocomplete="off">
               <small id="session-name-hint">Optional · leave blank for a date and time. Rename any take later.</small>
+            </label>
+            <label>Picture quality / size
+              <select id="studio-video-quality"><option value="compact">Smallest · podcasts / documents</option><option value="efficient">Smaller · everyday recording</option><option value="balanced">Balanced · clearer motion</option><option value="high">High detail · largest files</option></select>
+              <small id="studio-size-estimate"></small>
             </label>
             <label>After recording
               <select id="after-recording">
@@ -514,7 +518,8 @@
                 </select></label
               ><label
                 >Recording quality<select id="video-quality">
-                  <option value="efficient">Efficient · smaller files</option>
+                  <option value="compact">Smallest · podcasts / documents, less motion detail</option>
+                  <option value="efficient">Smaller · everyday recording</option>
                   <option value="balanced">
                     Balanced · clear everyday recording
                   </option>
@@ -534,6 +539,9 @@
                   <option value="detail">Detailed · 1080p preview</option>
                 </select></label
               >
+              <label>Original audio storage<select id="audio-storage"><option value="24">24-bit PCM · studio quality, 25% smaller processed audio</option><option value="32">32-bit float · original precision, larger files</option></select></label>
+              <label class="toggle-row"><span>Keep unprocessed mic safety copies</span><input type="checkbox" id="keep-raw" checked></label>
+              <p>Mic safety copies remain 32-bit float and let you redo voice processing later. Turning them off saves about 0.69 GB/hour per mic; your processed mic and desktop tracks still stay separate. Changes apply to the next recording.</p>
               <p id="quality-estimate"></p>
               <p>
                 Screen capture keeps native pixels until your crop is applied.
@@ -559,7 +567,7 @@
               /></label>
               <p>
                 Live audio runs at 48 kHz. Processing backups are 32-bit float;
-                editing stems export as 24-bit WAV.
+                editing stems export as 24-bit WAV or lossless FLAC.
               </p>
             </article>
             <article class="settings-card">

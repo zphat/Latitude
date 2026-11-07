@@ -2,7 +2,7 @@
 
 # Latitude
 
-A local screen recorder built around clear podcast audio. Version **0.9.5 — Windows beta, Linux preview and Mac development preview**.
+A local screen recorder built around clear podcast audio. Version **0.9.6 — Windows beta, Linux preview and Mac development preview**.
 
 [Beta homepage](https://latitude.pictures) · [Discord feedback and updates](https://discord.gg/EnPRdDutAn)
 
@@ -12,7 +12,7 @@ Record your screen, optional facecam, microphones, and desktop audio. Shape your
 
 ## Open the Windows app
 
-1. Download **Latitude-0.9.5-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.5).
+1. Download **Latitude-0.9.6-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.6).
 2. Double-click it. Latitude installs for your Windows account and creates desktop and Start menu shortcuts.
 3. Open either shortcut. No terminal, source folder, Node.js, OBS, or separate FFmpeg installation is needed.
 
@@ -24,9 +24,17 @@ The beta is unsigned, so Windows may identify it as an unknown publisher. It ins
 
 ## Open the Linux app
 
-Download **Latitude-0.9.5-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.5), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
+Download **Latitude-0.9.6-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.6), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
 
 The first Linux preview targets Fedora KDE/GNOME, Ubuntu/Mint with Flatpak, Bazzite, and SteamOS **Desktop Mode**. Gaming Mode and real-device performance remain unverified. Wayland uses the desktop screen-sharing portal; desktop audio uses PulseAudio or PipeWire 0.3.65+ with its PulseAudio service. The initial runtime download is shared with other Flatpak apps. Latitude is not on Flathub yet; preview updates come from GitHub Releases.
+
+## New in Latitude 0.9.6
+
+Drag the timeline ruler or playhead to scrub; use **Scrub · C** over clips and **Select · V** to move/trim. Preview waits for the requested decoded picture instead of showing an old frame as ready. Frame stepping, editable timecode, Fit and a better small-window layout make precise cuts easier. Raw takes gain a temporary lossless seek index; the optional editor still unloads when disabled.
+
+**Picture quality / size** beside Record now includes Smallest and Smaller choices with a video-space estimate. Export offers **Original**, **Balanced compression**, **Smaller file**, selectable compressed-audio bitrates and optional lossless FLAC stems. **Use space-saving export settings** skips extra copies while keeping isolated tracks. New processed audio uses 24-bit PCM by default; float raw mic backups remain on unless explicitly disabled. Existing recordings stay unchanged.
+
+[Release notes](docs/releases/0.9.6.md) · [Checks and limits](docs/qa/editor-storage-0.9.6.md) · [Format and storage guide](docs/FORMATS.md).
 
 ## New in Latitude 0.9.5
 
@@ -44,7 +52,7 @@ The optional Editor now fits smaller windows with a draggable preview/timeline d
 
 ## Try the Mac development preview
 
-Mac previews use the same **0.9.5 editor and voice tools**, with separate Apple Silicon (arm64) and Intel (x64) DMGs on the [0.9.5 release page](https://github.com/zphat/Latitude/releases/tag/v0.9.5). Requires macOS 14.2 or newer. Drag Latitude into Applications and launch it there. Mac updates are manual for now.
+Mac previews use the same **0.9.6 editor and voice tools**, with separate Apple Silicon (arm64) and Intel (x64) DMGs on the [0.9.6 release page](https://github.com/zphat/Latitude/releases/tag/v0.9.6). Requires macOS 14.2 or newer. Drag Latitude into Applications and launch it there. Mac updates are manual for now.
 
 These are **unsigned, unnotarized development previews**. Automated Mac encoder, editor/export and package-launch checks are required before upload; they do not verify real microphone/camera capture, privacy prompts or long recordings. Use a short test take first. [Mac installation, permissions and test guide](docs/MACOS.md). A signed, hardware-tested Mac beta remains a separate milestone.
 
@@ -156,7 +164,7 @@ The new near-black globe with lime latitude bands is used throughout the app, Wi
 
 ## Recording and export formats
 
-Choose a preferred format in **Settings → Recording & export format**. Automatic export creates it after you stop. Live capture first saves recoverable MKV/WebM video and separate float WAV originals. It does not encode eight formats at once or put an expensive VP9 conversion in the live recording path.
+Choose a preferred format in **Settings → Recording & export format**. Automatic export creates it after you stop. Live capture first saves recoverable MKV/WebM video and separate WAV originals (24-bit processed audio by default, float raw mic safety copies). It does not encode eight formats at once or put an expensive VP9 conversion in the live recording path.
 
 **Keep microphone and desktop sources separate** defaults to on. Video outputs contain the full mix followed by named tracks for each recorded mic and desktop source. Audio-only outputs put the mix and each source in separate files. Turn it off for a mix-only delivery; the originals stay available.
 
@@ -171,9 +179,9 @@ Choose a preferred format in **Settings → Recording & export format**. Automat
 | MP3                 | Podcast delivery                              | One 192 kbps file per source     | About 86 MB/hour per file; lossy, broadly supported                             |
 | M4A                 | Listening on phones/players                   | One 192 kbps AAC file per source | Roughly 86 MB/hour per file; lossy, check your host accepts it                  |
 
-Video bitrate and duration matter more than the filename extension. Choose **Efficient** recording quality to reduce future capture size; MP4/MKV/MOV copy an existing H.264 recording at its existing quality. WebM conversion may reduce size, with a CPU/time cost and another lossy video generation. No format is always the smallest for every scene.
+Video bitrate and duration matter more than the filename extension. Choose **Smallest** or **Smaller** recording quality for future capture. At export, **Original** copies compatible H.264 video; **Balanced compression** and **Smaller file** re-encode existing footage at the same resolution and frame rate. WebM conversion may reduce size, with a CPU/time cost and another lossy video generation. No format is always the smallest for every scene.
 
-Turn off **Also save WAV editing files** and per-source video copies for a smaller export folder. That skips duplicate files and, when WAVs are off, normalizes directly into the final output without a temporary WAV. A new export never replaces older exports. Takes shows the last format, track/file count and total media size. The Play button opens the correct video or audio file, including old MP4 exports.
+Turn off **Also save separate editing files** and per-source video copies for a smaller export folder. That skips duplicate files and normalizes directly into the final output without a temporary WAV. Optional FLAC editing stems preserve the same decoded 24-bit samples as WAV in less space for many recordings. A new export never replaces older exports. Takes shows the last format, track/file count and total media size. The Play button opens the correct video or audio file, including old MP4 exports.
 
 See [format details and technical references](docs/FORMATS.md). In-app notes describe each choice. The export dialog can remember a choice for future recordings or apply it to just one take.
 
@@ -230,7 +238,7 @@ Conflicts are shown in Settings; unavailable global bindings still work while La
 
 ## Recovery
 
-Every take lives in its own folder under your recording location, initially `Videos\Latitude`. The raw capture (`capture.mkv` for H.264, `capture.webm` for VP8), float WAVs, and `session.json` stay there after export.
+Every take lives in its own folder under your recording location, initially `Videos\Latitude`. The raw capture (`capture.mkv` for H.264, `capture.webm` for VP8), separate WAVs, and `session.json` stay there after export.
 
 If the app crashes, reopen it and look in **Takes** for an interrupted session. **Recover & export** repairs WAV sizes and attempts to process the partial capture. A partial/corrupted final video cluster may be unrecoverable, so recovery is best effort. Do not delete or rename session contents until your editing project is finished.
 

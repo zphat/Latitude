@@ -640,6 +640,8 @@ export class StudioEngine extends EventTarget {
         quality: options.quality,
         captureMime: this.recorder.mimeType,
         bitrate: options.bitrate,
+        audioBitDepth: options.audioBitDepth,
+        keepRaw: options.keepRaw !== false,
         sourceFormats: Object.fromEntries(
           ["screen", "screenB", "camera"]
             .filter((k) => this.streams[k])
@@ -655,8 +657,8 @@ export class StudioEngine extends EventTarget {
       this.activeTracks = new Set([
         "mix",
         "video",
-        ...(state.mic1 ? ["voice1", "raw1"] : []),
-        ...(state.mic2 ? ["voice2", "raw2"] : []),
+        ...(state.mic1 ? ["voice1", ...(options.keepRaw !== false ? ["raw1"] : [])] : []),
+        ...(state.mic2 ? ["voice2", ...(options.keepRaw !== false ? ["raw2"] : [])] : []),
         ...(state.desktop ? ["desktop"] : []),
       ]);
       this.queue = Promise.resolve();

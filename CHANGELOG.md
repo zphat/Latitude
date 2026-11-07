@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.6 — 2026-11-07
+
+Responsive ruler/playhead and clip scrubbing, decoded-frame preview synchronization, raw-take indexing, mixed-frame-rate cut alignment, precise timecode and Fit controls, and more usable small-window preview space. Recording/export size controls, 24-bit processed originals, optional raw mic backups, and FLAC editing stems preserve isolated audio without unnecessary copies. [Full notes](docs/releases/0.9.6.md).
+
 ## 0.9.5 — 2026-10-31
 
 Session names beside Record, clickable take titles and explicit rename controls, date/time defaults, and an accessible export-later choice. Shared video/editing-WAV processing and a lighter final loudness scan reduce redundant export work without changing capture quality or isolated tracks. [Full notes](docs/releases/0.9.5.md).

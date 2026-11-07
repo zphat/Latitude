@@ -39,6 +39,11 @@ const read = () => {
 const saved = read();
 let config = {
   quality: "balanced",
+  audioBitDepth: 24,
+  keepRaw: true,
+  videoCompression: "original",
+  audioBitrate: 256,
+  stemFormat: "wav",
   codec: "auto",
   previewMode: "balanced",
   reconnectMic: true,
@@ -1000,6 +1005,8 @@ async function record() {
       bitrate: bitrateFor(config.height, config.fps, config.quality),
       quality: config.quality,
       codec: config.codec,
+      audioBitDepth: config.audioBitDepth,
+      keepRaw: config.keepRaw,
     });
   } finally {
     // A cancelled countdown must not reset a newer countdown.
@@ -1053,6 +1060,9 @@ engine.addEventListener("recording", ({ detail: on }) => {
     "#video-size",
     "#video-fps",
     "#video-quality",
+    "#studio-video-quality",
+    "#audio-storage",
+    "#keep-raw",
     "#video-codec",
     "#preview-quality",
     "#choose-folder",
@@ -1182,6 +1192,9 @@ async function loadTakes() {
 function exportDefaults() {
   return {
     format: config.format,
+    videoCompression: config.videoCompression,
+    audioBitrate: config.audioBitrate,
+    stemFormat: config.stemFormat,
     separateTracks: config.separateTracks,
     editingFiles: config.editingFiles,
     editorClips: config.editorClips,
@@ -1195,12 +1208,12 @@ function syncExportDefaults() {
     "default",
     exportDefaults(),
     (options) => {
-      const { format, separateTracks, editingFiles, editorClips } = options;
+      const { format, separateTracks, editingFiles, editorClips, videoCompression, audioBitrate, stemFormat } = options;
       Object.assign(config, {
         format,
         separateTracks,
         editingFiles,
-        editorClips,
+        editorClips, videoCompression, audioBitrate, stemFormat,
       });
       persist();
     },
@@ -1442,6 +1455,7 @@ $("#video-fps").onchange = (e) => {
 };
 for (const [id, key] of [
   ["video-quality", "quality"],
+  ["studio-video-quality", "quality"],
   ["video-codec", "codec"],
   ["preview-quality", "previewMode"],
 ]) {
@@ -1451,7 +1465,12 @@ for (const [id, key] of [
     updateVideo();
   };
 }
+$("#audio-storage").value = config.audioBitDepth === 24 ? "24" : "32";
+$("#audio-storage").onchange = (e) => { config.audioBitDepth = Number(e.target.value); updateVideo(); };
+$("#keep-raw").checked = config.keepRaw !== false;
+$("#keep-raw").onchange = (e) => { config.keepRaw = e.target.checked; updateVideo(); };
 function updateVideo() {
+  $("#video-quality").value = $("#studio-video-quality").value = config.quality;
   compositor.configure(
     config.width,
     config.height,
@@ -1461,8 +1480,10 @@ function updateVideo() {
   );
   $("#resolution-label").textContent = `${config.height}p · ${config.fps} fps`;
   const mbps = bitrateFor(config.height, config.fps, config.quality) / 1e6;
+  const audioGB = (6 * (config.audioBitDepth === 24 ? 3 : 4) + (config.keepRaw !== false ? 8 : 0)) * 48000 * 3600 / 1e9;
   $("#quality-estimate").textContent =
-    `Target video bitrate: ${mbps.toFixed(1)} Mbps · about ${((mbps * 3600) / 8 / 1000).toFixed(1)} GB/hour, plus up to 6.9 GB/hour for all audio originals. Actual size varies.`;
+    `Target video: ${mbps.toFixed(1)} Mbps · about ${(mbps * 0.45).toFixed(1)} GB/hour, plus up to ${audioGB.toFixed(1)} GB/hour of original audio with every input active. Exports add space; actual size varies.`;
+  $("#studio-size-estimate").textContent = `Video ≈ ${(mbps * 0.45).toFixed(1)} GB/hour + separate audio. More options in Settings.`;
   persist();
   window.dispatchEvent(new Event("latitude-quality"));
 }
@@ -1697,6 +1718,9 @@ function syncOutputLocks() {
     "#video-size",
     "#video-fps",
     "#video-quality",
+    "#studio-video-quality",
+    "#audio-storage",
+    "#keep-raw",
     "#video-codec",
     "#preview-quality",
     "#choose-folder",

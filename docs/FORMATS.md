@@ -1,6 +1,6 @@
 # Choosing your recording's files
 
-Latitude saves recoverable MKV/WebM video and separate float WAV originals while recording. Your preferred export format is made after you stop; this keeps conversion out of the live capture path. Settings supplies the automatic-export defaults. Takes → Export can override them for one take, or remember the new choice. Every attempt uses a new export folder.
+Latitude saves recoverable MKV/WebM video and separate WAV originals (24-bit processed audio by default, with optional 32-bit float storage and float raw mic safety copies) while recording. Your preferred export format is made after you stop; this keeps conversion out of the live capture path. Settings supplies the automatic-export defaults. Takes → Export can override them for one take, or remember the new choice. Every attempt uses a new export folder.
 
 ## Three suggested video formats
 
@@ -8,7 +8,7 @@ Latitude saves recoverable MKV/WebM video and separate float WAV originals while
 - **MKV (H.264 + 24-bit FLAC):** keep lossless audio inside the video container. FLAC compresses the same 24-bit samples used in WAV editing files. Editor support varies; keep the originals and re-export to MP4 if needed. The video is still compressed H.264, not lossless video.
 - **MOV (H.264 + 24-bit PCM):** uncompressed audio in a QuickTime container for editing. Larger audio than MP4 or MKV. This is not a ProRes export and does not reconstruct extra picture detail.
 
-All three copy an existing H.264 picture stream without re-encoding it. VP8 capture is converted to H.264 when exporting to these formats. Switching the container alone does not make the picture smaller. Select Efficient capture quality before recording to lower future video bitrates.
+**Original** video quality copies an existing H.264 picture stream without re-encoding it in these three containers. VP8 capture is converted to H.264 when exporting to these formats. Switching the container alone does not make the picture smaller. Select **Smallest** or **Smaller** picture quality beside Record before capturing to lower future video bitrates. **Balanced compression** or **Smaller file** at export re-encode existing footage at the same resolution and frame rate; they cost more CPU/time and can visibly reduce detail, especially text and fast motion. Already-efficient footage may not shrink.
 
 ## Other choices
 
@@ -31,11 +31,19 @@ Numbers below use decimal MB/GB and exclude metadata, video and original recordi
 | 256 kbps AAC in MP4                       |                     Up to roughly 115 MB/hour per track at the target rate; actual size varies |
 | FLAC                                      | Content dependent; typically smaller than PCM speech, with no change to decoded 24-bit samples |
 
-For the smallest audio-only delivery from these choices, start with MP3 or M4A and turn separate sources off if you need only a finished mix. For video, MP4 is the easiest balanced choice; Efficient capture quality matters more than MP4 versus MKV as a container. WebM may give a smaller picture at the cost of conversion work. There is no universally smallest format across all scenes and quality levels.
+For the smallest audio-only delivery from these choices, start with MP3 or M4A and turn separate sources off if you need only a finished mix. For video, MP4 is the easiest balanced choice; Smallest/Smaller capture quality or explicit video compression matters more than MP4 versus MKV as a container. WebM may give a smaller picture at the cost of conversion work. There is no universally smallest format across all scenes and quality levels.
 
-**Also save WAV editing files** duplicates the processed mix and selected sources as 24-bit WAV, plus raw float mic backups when separate sources are enabled. Turning it off avoids those copies and the intermediate mix WAV. **A video copy for each isolated source** duplicates the picture for each source; it copies the already encoded streams instead of encoding the video again. These copies retain the chosen format. Choose MP4 for the CapCut workflow.
+**Also save separate editing files** adds the processed mix and selected sources as 24-bit WAV or lossless FLAC. FLAC decodes to the same 24-bit samples as WAV and is often much smaller for speech; check your editor supports it. WAV packs also include raw float mic backups if recorded. FLAC packs leave those backups in the original take folder. Turning it off avoids those copies and the intermediate mix WAV. **A video copy for each isolated source** duplicates the picture for each source; it copies the already encoded streams instead of encoding the video again. These copies retain the chosen format. Choose MP4 for the CapCut workflow.
 
 Takes shows the total size of delivered media, excluding small reports and the separately retained originals. Original recordings are never deleted by an export. Plan disk space for both originals and exports.
+
+## Quick space-saving choices
+
+- **Studio → Picture quality / size** shows a video-only space estimate. At 1080p30, targets are 3.5 / 5.85 / 12 / 20 Mbps from Smallest to High detail. Actual encoder output depends on the scene and device. Try Smallest for speech/documents and Smaller for general recording; detailed gameplay may need Balanced or High detail.
+- **Export → Use space-saving export settings** selects Balanced video compression and 192 kbps audio, skips duplicate editing files and per-source video copies, and preserves your separate-source choice. Original takes and older exports remain intact; compressing an export does not automatically free that storage.
+- Compressed audio offers 128 / 192 / 256 / 320 kbps per track. Lossless formats ignore this setting. 128 is the smallest speech delivery option; use higher rates for complex stereo material or repeated editing.
+- New processed recordings default to **24-bit PCM**, saving 25% of their audio storage versus float32. Raw mic safety copies stay float32. Settings can retain float32 processed recordings or explicitly disable raw backups; disabling backups saves about 0.69 GB/hour per active mono mic at 48 kHz but removes the unprocessed safety copy. Processed mic and desktop tracks remain isolated. Existing recordings are not converted.
+- Compression runs after recording, with bounded encoder threads. Choosing **Original** and skipping extra files is faster. It is a size/quality/time tradeoff, not free compression.
 
 ## Audio safety and compatibility
 
