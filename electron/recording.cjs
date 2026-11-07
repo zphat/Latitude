@@ -20,7 +20,9 @@ const safeName = (value) =>
     .replace(/[. ]+$/, "")
     .slice(0, 70) || "Untitled session";
 
-function wavHeader(bytes, channels, sampleRate = 48000) {
+const trackDepth = (manifest, id) => id.startsWith("raw") ? 32 : manifest.audioBitDepth === 24 ? 24 : 32;
+function wavHeader(bytes, channels, sampleRate = 48000, bits = 32) {
+  const sampleBytes = bits / 8;
   const b = Buffer.alloc(80),
     large = bytes > 0xffffff00;
   b.write(large ? "RF64" : "RIFF", 0);
@@ -31,32 +33,32 @@ function wavHeader(bytes, channels, sampleRate = 48000) {
   if (large) {
     b.writeBigUInt64LE(BigInt(bytes + 72), 20);
     b.writeBigUInt64LE(BigInt(bytes), 28);
-    b.writeBigUInt64LE(BigInt(bytes / channels / 4), 36);
+    b.writeBigUInt64LE(BigInt(bytes / channels / sampleBytes), 36);
   }
   b.write("fmt ", 48);
   b.writeUInt32LE(16, 52);
-  b.writeUInt16LE(3, 56);
+  b.writeUInt16LE(bits === 24 ? 1 : 3, 56);
   b.writeUInt16LE(channels, 58);
   b.writeUInt32LE(sampleRate, 60);
-  b.writeUInt32LE(sampleRate * channels * 4, 64);
-  b.writeUInt16LE(channels * 4, 68);
-  b.writeUInt16LE(32, 70);
+  b.writeUInt32LE(sampleRate * channels * sampleBytes, 64);
+  b.writeUInt16LE(channels * sampleBytes, 68);
+  b.writeUInt16LE(bits, 70);
   b.write("data", 72);
   b.writeUInt32LE(large ? 0xffffffff : bytes, 76);
   return b;
 }
-async function repairWav(file, channels, rate) {
+async function repairWav(file, channels, rate, bits = 32) {
   const stat = await fsp.stat(file),
     size = Math.max(0, stat.size - 80);
-  const bytes = size - (size % (channels * 4));
+  const bytes = size - (size % (channels * bits / 8));
   const h = await fsp.open(file, "r+");
   try {
     await h.truncate(bytes + 80);
-    await h.write(wavHeader(bytes, channels, rate), 0, 80, 0);
+    await h.write(wavHeader(bytes, channels, rate, bits), 0, 80, 0);
   } finally {
     await h.close();
   }
-  return bytes / (channels * 4);
+  return bytes / (channels * bits / 8);
 }
 function runFFmpeg(binary, args, onProgress, signal) {
   return new Promise((resolve, reject) => {
@@ -151,6 +153,8 @@ class RecordingStore {
       markers: [],
       scenes: [],
       version: 1,
+      audioBitDepth: options.audioBitDepth === 24 ? 24 : 32,
+      keepRaw: options.keepRaw !== false,
     };
     this.active = {
       dir,
@@ -165,7 +169,7 @@ class RecordingStore {
       for (const t of TRACKS) {
         const h = await fsp.open(path.join(dir, `${t.id}.wav`), "wx");
         this.active.handles[t.id] = h;
-        await h.writeFile(wavHeader(0, t.channels, manifest.sampleRate));
+        await h.writeFile(wavHeader(0, t.channels, manifest.sampleRate, trackDepth(manifest, t.id)));
         this.active.bytes[t.id] = 0;
       }
       manifest.videoFile = /h264|avc1/i.test(manifest.captureMime || "")
@@ -198,9 +202,19 @@ class RecordingStore {
     const a = this.active;
     if (!a || a.manifest.id !== id || !a.handles[key])
       return Promise.reject(Error("The recording is no longer active."));
-    const data = Buffer.from(bytes);
+    let data = Buffer.from(bytes);
     if (data.length > 16 * 1024 * 1024)
       return Promise.reject(Error("Recording chunk is too large."));
+    if (key !== "video" && data.length % (TRACKS.find(t => t.id === key).channels * 4))
+      return Promise.reject(Error("Audio chunk must contain whole sample frames."));
+    if (key !== "video" && trackDepth(a.manifest, key) === 24) {
+      const packed = Buffer.allocUnsafe(data.length / 4 * 3);
+      for (let i = 0; i < data.length / 4; i++) {
+        const value = data.readFloatLE(i * 4);
+        packed.writeIntLE(Number.isFinite(value) ? Math.max(-8388608, Math.min(8388607, Math.round(value * 8388608))) : 0, i * 3, 3);
+      }
+      data = packed;
+    }
     a.chain = a.chain
       .then(async () => {
         if (a.error) throw a.error;
@@ -253,8 +267,9 @@ class RecordingStore {
         path.join(a.dir, `${t.id}.wav`),
         t.channels,
         a.manifest.sampleRate,
+        trackDepth(a.manifest, t.id),
       ).catch(() => {});
-    const frames = (a.bytes.mix || 0) / 8;
+    const frames = (a.bytes.mix || 0) / (2 * trackDepth(a.manifest, "mix") / 8);
     Object.assign(a.manifest, extra, {
       duration: frames / a.manifest.sampleRate,
       status: a.error || extra.error ? "interrupted" : "recorded",
@@ -421,9 +436,10 @@ class RecordingStore {
           path.join(dir, `${t.id}.wav`),
           t.channels,
           m.sampleRate,
+          trackDepth(m, t.id),
         );
       const frames =
-        ((await fsp.stat(path.join(dir, "mix.wav"))).size - 80) / 8;
+        ((await fsp.stat(path.join(dir, "mix.wav"))).size - 80) / (2 * trackDepth(m, "mix") / 8);
       const duration = frames / m.sampleRate;
       exportDuration = duration;
       if (duration < 0.1)
@@ -545,11 +561,14 @@ class RecordingStore {
           `${media.file}: ${format.codecs}. ${format.kind === "video" ? `Full mix is the default audio stream. ${options.separateTracks ? "Isolated microphone and desktop streams follow for each recorded source." : "This export contains only the full mix."}` : `The mix is in this file. ${options.separateTracks ? "Each recorded source has its own audio file." : "This export contains only the full mix."}`}`,
           `Format guidance: ${format.compatibility} ${format.size}`,
           format.kind === "video"
-            ? "For CapCut, MP4 is the recommended format. Some versions do not expose alternate embedded audio streams. Use the aligned WAV editing files or the per-source video copies."
+            ? "For CapCut, MP4 is the recommended format. Some versions do not expose alternate embedded audio streams. Use aligned editing audio files (WAV has the widest support) or per-source video copies."
             : "For sample-aligned editing, choose WAV or FLAC. MP3/AAC decoder handling of encoder delay can vary between editors.",
           options.editingFiles && options.separateTracks
-            ? "Put the video and Voice / Desktop WAVs at the same timeline start, mute the video audio, then group/link clips before cutting. Original voice WAVs are pre-processing floating-point backups; input mute is respected."
-            : "Your original voice, desktop, and mix recordings remain in the parent session folder. Re-export with separate sources and WAV editing files whenever needed.",
+            ? `Put the video and Voice / Desktop ${(options.stemFormat || "wav").toUpperCase()} files at the same timeline start, mute the video audio, then group/link clips before cutting.`
+            : "Your original voice, desktop, and mix recordings remain in the parent session folder. Re-export with separate sources and editing files whenever needed.",
+          m.keepRaw !== false
+            ? "Raw mic safety copies, when recorded, are pre-processing float WAVs in the parent session folder. A WAV editing pack includes them; FLAC packs leave them in the original folder. Input mute is respected."
+            : "Raw mic safety copies were disabled for this recording. Processed source tracks remain in the parent session folder.",
           options.editorClips
             ? `The “only.${format.extension}” clips each contain the same video and one isolated audio track. They preserve the selected format and use extra disk space.`
             : "For video, enable separate sources and per-source video copies if you need to choose a mic-only or desktop-only file for individual clip instances.",

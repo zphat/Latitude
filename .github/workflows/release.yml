@@ -59,6 +59,7 @@ jobs:
         run: |
           node tests/audio-meters-ui.cjs
           node tests/streaming-ui.cjs
+          node tests/formats-ui.cjs
         env:
           TAKE_FFMPEG: /usr/bin/ffmpeg
 
@@ -77,7 +78,7 @@ jobs:
       - run: npm ci
       - run: npm run setup
       - name: Verify every format with the bundled Windows encoder
-        run: node --test tests/formats.test.cjs tests/streaming.test.cjs tests/editor-mod.test.cjs tests/updater.test.cjs tests/session-names.test.cjs tests/loudness.test.cjs
+        run: node --test tests/formats.test.cjs tests/streaming.test.cjs tests/editor-mod.test.cjs tests/updater.test.cjs tests/session-names.test.cjs tests/loudness.test.cjs tests/storage-quality.test.cjs
       - name: Verify native editor and update UI
         env:
           LATITUDE_UPDATE_LIVE_CHECK: "1"
@@ -85,6 +86,8 @@ jobs:
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/editor-mod-ui.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tests/editor-scrub-ui.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/updater-ui.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

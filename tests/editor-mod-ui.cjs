@@ -103,7 +103,8 @@ const ff = (args) =>
       () => window.__editor.project.clips.length === 1,
     );
     await page.waitForFunction(
-      () => [...window.__editor.preview.items.values()][0]?.el.readyState >= 2,
+      () => window.__editor.preview.presentedTime === 0 &&
+        document.querySelector("#edit-canvas").getAttribute("aria-busy") === "false",
     );
     const pixel = () =>
       page.evaluate(() => [

@@ -782,6 +782,9 @@
 body:has(#page-editor.active) { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 body:has(#page-editor.active) > .topbar,
 body:has(#page-editor.active) > .statusbar { flex-shrink: 0; }
+body:has(#page-editor.active) > .topbar { height: 48px; }
+body:has(#page-editor.active) .topbar .logo { font-size: 23px; }
+body:has(#page-editor.active) .topbar .logo img { max-height: 30px; width: auto; }
 .app-body:has(#page-editor.active) { height: auto; flex: 1; min-height: 0; overflow: hidden; }
 #workspace:has(#page-editor.active) { padding: 12px 16px; overflow: auto; }
 body:has(#page-editor.active) .rail { overflow: auto; }
@@ -796,7 +799,7 @@ body:has(#page-editor.active) .rail { overflow: auto; }
 .editor-layout-tools .button { padding: 8px 12px; border-radius: 10px; font-size: 12px; }
 .editor-layout-tools [aria-expanded="true"] { border-color: var(--accent); }
 #edit-save-state { font-size: 10px; max-width: 165px; }
-.editor-workspace { display: grid; grid-template-rows: minmax(140px, var(--edit-preview-share, 50fr)) 12px minmax(230px, var(--edit-timeline-share, 50fr)); flex: 1; min-height: 0; }
+.editor-workspace { display: grid; grid-template-rows: minmax(205px, var(--edit-preview-share, 50fr)) 12px minmax(220px, var(--edit-timeline-share, 50fr)); flex: 1; min-height: 450px; }
 #page-editor .editor-top { grid-template-columns: minmax(165px, 195px) minmax(0, 1fr) minmax(205px, 245px); align-items: stretch; gap: 12px; min-height: 0; }
 #page-editor[data-media="false"] .editor-top { grid-template-columns: minmax(0, 1fr) minmax(205px, 245px); }
 #page-editor[data-inspector="false"] .editor-top { grid-template-columns: minmax(165px, 195px) minmax(0, 1fr); }
@@ -805,10 +808,10 @@ body:has(#page-editor.active) .rail { overflow: auto; }
 #page-editor .editor-media, #page-editor .editor-inspector { overflow: auto; max-height: none; grid-column: auto; scrollbar-gutter: stable; }
 #page-editor [hidden] { display: none !important; }
 #edit-media-list { max-height: none; }
-#page-editor .editor-viewer { display: flex; flex-direction: column; gap: 7px; }
-#page-editor .editor-stage { flex: 1; min-height: 0; }
+#page-editor .editor-viewer { display: flex; flex-direction: column; gap: 7px; container-type: inline-size; }
+#page-editor .editor-stage { flex: 1; min-height: 110px; }
 #page-editor #edit-canvas { max-height: 100%; max-width: 100%; width: auto; height: auto; }
-#page-editor .editor-transport { margin: 0; gap: 7px; flex-shrink: 0; }
+#page-editor .editor-transport { margin: 0; gap: 7px; flex-shrink: 0; flex-wrap: nowrap; }
 #page-editor .editor-meter { display: flex; width: 85px; }
 #page-editor #edit-scrub { margin: 0; flex-shrink: 0; }
 #page-editor .editor-preview-note { margin: 0 !important; font-size: 10px; }
@@ -822,15 +825,17 @@ body:has(#page-editor.active) .rail { overflow: auto; }
 #page-editor .editor-timeline-panel { margin: 0; min-height: 0; display: flex; flex-direction: column; padding: 10px 12px !important; overflow: visible; }
 #page-editor .editor-tools, #page-editor .editor-range-tools { flex-wrap: nowrap; overflow-x: auto; flex-shrink: 0; gap: 8px; padding: 5px 0; scrollbar-width: thin; }
 #page-editor .editor-tools > *, #page-editor .editor-range-tools > * { flex-shrink: 0; white-space: nowrap; }
+#page-editor .editor-navigation { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; flex-shrink: 0; }
+#page-editor .editor-tool-select, #page-editor .editor-zoom-tools { display: flex; align-items: center; gap: 7px; }
+#page-editor #edit-range-label:empty { display: none; }
 #page-editor .editor-tools .button { font-size: 12px; border-radius: 9px; }
-#page-editor .editor-timeline { flex: 1; min-height: 54px; max-height: none; }
+#page-editor .editor-timeline { flex: 1; min-height: 100px; max-height: none; }
 #page-editor .editor-timeline-footer { position: relative; flex-direction: row; padding-top: 5px; flex-shrink: 0; }
 #page-editor .editor-timeline-footer > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #page-editor .editor-timeline-footer details { flex-shrink: 0; }
 #page-editor .editor-timeline-footer details[open] { position: absolute; bottom: 0; right: 0; padding: 14px; width: min(400px, 100%); max-height: 250px; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; z-index: 10; font-size: 12px; box-shadow: 0 8px 30px #0006; }
 #page-editor .editor-operation, #page-editor #edit-recovery { margin: 0; flex-shrink: 0; }
 @media (max-width: 1100px) {
-  #page-editor .editor-project-line #edit-save-state { flex-basis: 100%; max-width: none; margin: 0; }
   #page-editor .editor-project-line { row-gap: 4px; }
   #page-editor .editor-preview-note { display: none; }
 }
@@ -852,4 +857,23 @@ body:has(#page-editor.active) .rail { overflow: auto; }
   #page-editor .editor-top .editor-inspector { position: absolute; z-index: 3; top: 0; bottom: 70px; width: min(245px, 46%); background: var(--panel); border: 1px solid var(--line); box-shadow: 0 4px 16px #0005; }
   #page-editor .editor-media { left: 0; }
   #page-editor .editor-inspector { right: 0; }
+}
+/* Timeline navigation remains usable with a mouse, touch, and keyboard. */
+#edit-timeline { touch-action: none; }
+#edit-ruler { cursor: ew-resize; }
+.editor-playhead { width: 14px; margin-left: -6px; background: linear-gradient(90deg, transparent 6px, var(--highlight) 6px, var(--highlight) 8px, transparent 8px); pointer-events: auto; cursor: ew-resize; touch-action: none; }
+.editor-playhead:before { left: 2px; height: 12px; }
+.editor-playhead:focus-visible { outline: 2px solid var(--accent); }
+.scrub-tool .editor-clip { cursor: ew-resize; }
+.editor-timecode { width: 118px; min-width: 100px; font: 12px monospace; padding: 6px 8px; }
+.editor-tool-select [aria-pressed="true"] { background: var(--accent); color: var(--ink); }
+#edit-seek-state { position: absolute; top: 8px; left: 8px; padding: 4px 7px; border-radius: 6px; color: #f1f5e8; background: #080d0ccc; font-size: 11px; pointer-events: none; }
+#edit-seek-state:empty { display: none; }
+@container (max-width: 480px) {
+  #page-editor .editor-meter { display: none; }
+  #page-editor .editor-preview-note { display: none; }
+}
+@container (max-width: 350px) {
+  #page-editor #edit-length { display: none; }
+  #page-editor .editor-transport { gap: 4px; }
 }

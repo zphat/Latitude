@@ -77,15 +77,26 @@ export function segmentPlan(
       throw Error(`Relink the missing media for ${c.name} before exporting.`);
     const image = c.kind === "title" || c.kind === "image";
     args.push("-threads", "2", "-protocol_whitelist", "file,pipe");
+    const sourceTime = c.in + offset;
+    // Keep up to one second before a cut so the fps filter can hold the source
+    // frame containing that instant. Seeking directly to a fractional source
+    // frame discards it and makes mixed-frame-rate cuts jump to the next frame.
+    const seekStart = Math.floor(sourceTime), lead = image ? 0 : sourceTime - seekStart;
+    // Raw capture may start with negative Opus encoder priming. Its lossless
+    // indexed preview preserves picture time zero; undo FFmpeg's automatic
+    // shift by that negative container start when rendering the original.
+    const origin = a?.needsIndex ? Math.min(0, a.startTime || 0) : 0;
     if (image) args.push("-loop", "1", "-framerate", String(fps));
-    else args.push("-ss", String(n(c.in + offset)));
-    args.push("-t", String(d), "-i", file);
+    else args.push("-ss", String(seekStart));
+    args.push("-t", String(n(d + lead)), "-i", file);
     const index = input++;
     if (isVisual) {
       const w = even(c.w * W),
         h = even(c.h * H),
         tag = `v${index}`;
-      let chain = `[${index}:v:0]setpts=PTS-STARTPTS,fps=${fps},`;
+      // Hold the source picture at the requested timeline instant, matching
+      // browser seeking. Default rounding can select a future source frame.
+      let chain = `[${index}:v:0]setpts=PTS+${n(origin - lead)}/TB,fps=${fps}:round=up:start_time=0,`;
       if (c.kind !== "title" && c.crop)
         chain += `crop=w=iw*${c.crop.w}:h=ih*${c.crop.h}:x=iw*${c.crop.x}:y=ih*${c.crop.y},`;
       if (c.brightness !== 1 || c.contrast !== 1 || c.saturation !== 1)
@@ -121,7 +132,7 @@ export function segmentPlan(
       visuals.push({ tag, x, y: n(c.y * H) });
     }
     if (isAudio) {
-      let chain = `[${index}:a:${c.audio}]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=PTS-STARTPTS,atrim=duration=${d},apad=whole_dur=${d}`;
+      let chain = `[${index}:a:${c.audio}]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=PTS+${n(origin)}/TB,atrim=start=${n(lead)}:duration=${d},asetpts=PTS-STARTPTS,apad=whole_dur=${d}`;
       const head = c.audioIn ? `min(1,(t+${n(offset)})/${n(c.audioIn)})` : "1",
         tail = c.audioOut
           ? `min(1,(${n(c.duration - offset)}-t)/${n(c.audioOut)})`
@@ -172,9 +183,9 @@ export function segmentPlan(
       "-c:v",
       "libx264",
       "-preset",
-      quality === "sharp" ? "fast" : "veryfast",
+      quality === "balanced" ? "veryfast" : "fast",
       "-crf",
-      quality === "sharp" ? "18" : "20",
+      quality === "sharp" ? "18" : quality === "small" ? "25" : "20",
       "-pix_fmt",
       "yuv420p",
       "-r",

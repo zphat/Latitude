@@ -256,6 +256,7 @@ export function resizeBox(o, dx, dy, handle = "se", lock = true) {
 }
 export function bitrateFor(height, fps, quality = "balanced") {
   const rates = {
+    compact: { 720: 2, 1080: 3.5, 1440: 6.5, 2160: 12 },
     efficient: { 720: 3.25, 1080: 5.85, 1440: 10.4, 2160: 20.8 },
     balanced: { 720: 6, 1080: 12, 1440: 21, 2160: 42 },
     high: { 720: 10, 1080: 20, 1440: 32, 2160: 64 },

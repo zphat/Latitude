@@ -19,6 +19,7 @@ import {
 } from "./model.js";
 import { Preview, titleCanvas } from "./preview.js";
 import { installLayout } from "./layout.js";
+import { timecode, parseTimecode } from "./timecode.js";
 let teardown;
 const esc = (s) =>
   String(s ?? "").replace(
@@ -65,21 +66,21 @@ export async function activate({ services }) {
     title: "Edit",
     icon: "scissors",
     html: `
-    <div class="page-heading editor-heading"><div><h1>Editor</h1></div><div class="editor-file-actions"><button class="button small" id="edit-new">New</button><button class="button small" id="edit-open">Open project</button><button class="button small" id="edit-save">Save project</button><button class="button primary" id="edit-export">Export edit</button></div></div>
-    <div class="editor-project-line"><input id="edit-name" aria-label="Edit name" maxlength="100" value="Untitled edit"><select id="edit-format" aria-label="Picture shape"><option value="landscape">16:9 · 1080p episode</option><option value="portrait">9:16 · vertical clip</option><option value="square">1:1 · square</option><option value="compact">16:9 · 720p lightweight</option><option value="uhd">16:9 · 4K</option></select><select id="edit-fps" aria-label="Frame rate"><option>24</option><option selected>30</option><option>60</option></select><div class="editor-layout-tools" aria-label="Workspace layout"><button class="button small" id="edit-toggle-media" aria-controls="edit-media-panel">Media</button><button class="button small" id="edit-toggle-inspector" aria-controls="edit-inspector">Inspector</button><button class="text-button" id="edit-reset-layout">Reset layout</button></div><span class="fine-print" id="edit-save-state" role="status">Sources stay untouched</span></div>
+    <div class="page-heading editor-heading"><div><h1>Latitude Editor</h1><span class="fine-print">Optional editing mod · <span class="fine-print" id="edit-save-state" role="status">Sources stay untouched</span></span></div><div class="editor-file-actions"><button class="button small" id="edit-new">New</button><button class="button small" id="edit-open">Open project</button><button class="button small" id="edit-save">Save project</button><button class="button primary" id="edit-export">Export edit</button></div></div>
+    <div class="editor-project-line"><input id="edit-name" aria-label="Edit name" maxlength="100" value="Untitled edit"><select id="edit-format" aria-label="Picture shape"><option value="landscape">16:9 · 1080p episode</option><option value="portrait">9:16 · vertical clip</option><option value="square">1:1 · square</option><option value="compact">16:9 · 720p lightweight</option><option value="uhd">16:9 · 4K</option></select><select id="edit-fps" aria-label="Frame rate"><option>24</option><option selected>30</option><option>60</option></select><div class="editor-layout-tools" aria-label="Workspace layout"><button class="button small" id="edit-toggle-media" aria-controls="edit-media-panel">Media</button><button class="button small" id="edit-toggle-inspector" aria-controls="edit-inspector">Inspector</button><button class="text-button" id="edit-reset-layout">Reset layout</button></div></div>
     <div class="editor-operation" id="edit-operation" hidden><div><b id="edit-progress-label">Working…</b><progress id="edit-progress" max="100"></progress></div><button class="button small" id="edit-cancel">Cancel</button></div>
     <div id="edit-recovery" class="notice" hidden><span id="edit-recovery-name"></span> <button class="text-button" id="edit-restore">Restore draft</button></div>
     <div class="editor-workspace">
     <div class="editor-top">
       <section class="panel editor-media" id="edit-media-panel" aria-label="Media library"><div class="editor-section-title"><h2>Media</h2><button class="button small" id="edit-import">+ Import</button></div><button class="button small" id="edit-takes">Use a Latitude take</button><p class="fine-print">Video, audio, intros, ads and images. Add a source to the timeline to use it.</p><div id="edit-media-list"></div><div id="edit-media-tools" hidden><button class="button small" id="edit-add-media" title="Place media over the current timeline">Add at playhead</button><div class="editor-pair"><button class="button small" id="edit-insert-media" title="Insert here and move all later clips together">Insert</button><button class="button small" id="edit-append-media" title="Place at the end of the timeline">Append</button></div><button class="text-button" id="edit-proxy">Make lighter / compatible preview</button><button class="text-button" id="edit-waveform">Build audio waveform</button><button class="text-button" id="edit-relink">Relink source</button></div></section>
-      <section class="panel editor-viewer"><div class="editor-stage" id="edit-stage"><canvas id="edit-canvas" aria-label="Edit preview; drag a selected picture or title to reposition it"></canvas><div id="edit-empty"><b>Open Media to begin.</b><span>Import a file or choose a Latitude take.</span></div></div><div class="editor-transport"><button class="button small" id="edit-back" title="Previous frame">‹</button><button class="button primary" id="edit-play">Play</button><button class="button small" id="edit-forward" title="Next frame">›</button><output id="edit-time">00:00.00</output><span id="edit-length" class="fine-print">/ 00:00.00</span><label class="editor-meter" title="Protected preview mix; final loudness is set at export"><meter id="edit-meter" min="0" max="1" low=".25" high=".71" optimum=".1" value="0"></meter><small id="edit-meter-db">Mix · silent</small></label></div><input id="edit-scrub" type="range" min="0" max="1" step=".033333" value="0" aria-label="Preview playhead"><p class="editor-preview-note fine-print">Lightweight preview · originals used for export · drag to position, corners to resize</p></section>
+      <section class="panel editor-viewer"><div class="editor-stage" id="edit-stage"><canvas id="edit-canvas" aria-label="Edit preview; drag a selected picture or title to reposition it"></canvas><span id="edit-seek-state" role="status"></span><div id="edit-empty"><b>Open Media to begin.</b><span>Import a file or choose a Latitude take.</span></div></div><div class="editor-transport"><button class="button small" id="edit-back" title="Previous frame">‹</button><button class="button primary" id="edit-play">Play</button><button class="button small" id="edit-forward" title="Next frame">›</button><input id="edit-time" class="editor-timecode" aria-label="Playhead time in hours:minutes:seconds:frames" title="Type a time in seconds or HH:MM:SS:FF, then Enter" value="00:00:00:00"><span id="edit-length" class="fine-print">/ 00:00.00</span><label class="editor-meter" title="Protected preview mix; final loudness is set at export"><meter id="edit-meter" min="0" max="1" low=".25" high=".71" optimum=".1" value="0"></meter><small id="edit-meter-db">Mix · silent</small></label></div><input id="edit-scrub" type="range" min="0" max="1" step=".033333" value="0" aria-label="Preview playhead"><p class="editor-preview-note fine-print">Lightweight preview · originals used for export · drag to position, corners to resize</p></section>
       <section class="panel editor-inspector" id="edit-inspector"></section>
     </div>
     <div id="edit-divider" role="separator" tabindex="0" aria-label="Resize preview and timeline" aria-orientation="horizontal" aria-valuemin="25" aria-valuemax="75" aria-valuenow="50" title="Drag to resize · Up/Down arrows · double-click to balance"></div>
     <section class="panel editor-timeline-panel"><div class="editor-tools"><button class="button small" id="edit-undo" title="Undo · Ctrl Z">Undo</button><button class="button small" id="edit-redo" title="Redo · Ctrl Shift Z">Redo</button><button class="button small" id="edit-split">Split · S</button><button class="button small" id="edit-delete">Delete</button><button class="button small" id="edit-duplicate">Duplicate</button><button class="button small" id="edit-copy" title="Copy linked selection · Ctrl C">Copy</button><button class="button small" id="edit-cut" title="Cut linked selection · Ctrl X">Cut</button><button class="button small" id="edit-paste" title="Paste at playhead · Ctrl V">Paste</button><button class="button small" id="edit-title">+ Title</button><button class="button small" id="edit-video-layer">+ Video layer</button><button class="button small" id="edit-audio-layer">+ Audio layer</button><label class="check-line"><input type="checkbox" id="edit-linked" checked>Linked clips</label></div>
-      <div class="editor-range-tools"><button class="text-button" id="edit-in">Mark in · I</button><button class="text-button" id="edit-out">Mark out · O</button><span id="edit-range-label" class="fine-print">Select a range to make a clip or remove a section</span><button class="button small" id="edit-ripple">Remove range & close gap</button><button class="text-button" id="edit-clear-range">Clear</button><label class="editor-zoom">Zoom <input id="edit-zoom" type="range" min="5" max="160" value="45" aria-label="Timeline zoom"></label></div>
-      <div class="editor-timeline" id="edit-timeline"><div id="edit-timeline-content"><div class="editor-ruler" id="edit-ruler"></div><div id="edit-track-rows"></div><div class="editor-playhead" id="edit-playhead"></div><div id="edit-range-shade"></div></div></div>
-      <div class="editor-timeline-footer"><span>Drag clips across time or layers · drag their edges to trim · higher video layers cover lower ones</span><details><summary>Shortcuts & tips</summary><p>Space play/pause · S split linked selection · Delete remove selection · Ctrl C/X/V copy/cut/paste · Ctrl D duplicate · Ctrl Z undo · Ctrl Shift Z redo · I/O range · ←/→ one frame · M marker. Shift-click Split cuts every unlocked layer at the playhead. Overlap picture clips and fade the incoming clip for a dissolve. Use Remove range to cut all layers together without losing sync. Save a project before starting a different edit; the local recovery draft holds the latest edit only.</p></details></div>
+      <div class="editor-navigation"><div class="editor-tool-select"><button class="button small" id="edit-select-tool" aria-pressed="true" title="Select and move clips · V">Select · V</button><button class="button small" id="edit-scrub-tool" aria-pressed="false" title="Drag anywhere on clips to preview · C">Scrub · C</button></div><div class="editor-range-tools"><button class="text-button" id="edit-in">Mark in · I</button><button class="text-button" id="edit-out">Mark out · O</button><span id="edit-range-label" class="fine-print"></span><button class="button small" id="edit-ripple">Remove range & close gap</button><button class="text-button" id="edit-clear-range">Clear</button></div><div class="editor-zoom-tools"><label class="editor-zoom">Zoom <input id="edit-zoom" type="range" min="0.05" max="240" step="0.05" value="45" aria-label="Timeline zoom"></label><button class="button small" id="edit-fit" title="Fit the whole edit in the timeline">Fit</button></div></div>
+      <div class="editor-timeline" id="edit-timeline" tabindex="0" aria-label="Timeline. Drag the ruler or playhead to scrub; select a clip to edit."><div id="edit-timeline-content"><div class="editor-ruler" id="edit-ruler"></div><div id="edit-track-rows"></div><div class="editor-playhead" id="edit-playhead" role="slider" tabindex="0" aria-label="Timeline playhead" aria-valuemin="0"></div><div id="edit-range-shade"></div></div></div>
+      <div class="editor-timeline-footer"><span>Drag ruler or playhead to preview · Select to move/trim · Scrub to preview over clips</span><details><summary>Shortcuts & tips</summary><p>V select tool · C scrub tool · Home/End start/end · Shift ←/→ ten frames · Space play/pause · S split linked selection · Delete remove selection · Ctrl C/X/V copy/cut/paste · Ctrl D duplicate · Ctrl Z undo · Ctrl Shift Z redo · I/O range · ←/→ one frame · M marker. Shift-click Split cuts every unlocked layer at the playhead. Overlap picture clips and fade the incoming clip for a dissolve. Use Remove range to cut all layers together without losing sync. Save a project before starting a different edit; the local recovery draft holds the latest edit only.</p></details></div>
     </section>
     </div>
     <dialog id="edit-dialog" class="editor-dialog"></dialog>
@@ -107,8 +108,12 @@ export async function activate({ services }) {
           ? `Mix · ${(20 * Math.log10(peak)).toFixed(1)} dBFS`
           : "Mix · silent";
     },
+    onStatus: (status) => { $("#edit-seek-state").textContent = status; canvas.setAttribute("aria-busy", String(!!status)); },
     onTime: (t, playing) => {
-      $("#edit-time").textContent = time(t);
+      if (document.activeElement !== $("#edit-time")) $("#edit-time").value = timecode(t, p.fps);
+      $("#edit-playhead").setAttribute("aria-valuenow", t.toFixed(3));
+      $("#edit-playhead").setAttribute("aria-valuemax", duration(p));
+      $("#edit-playhead").setAttribute("aria-valuetext", timecode(t, p.fps));
       $("#edit-play").textContent = playing ? "Pause" : "Play";
       $("#edit-scrub").value = t;
       $("#edit-playhead").style.left = `${150 + t * zoom}px`;
@@ -222,6 +227,7 @@ export async function activate({ services }) {
     librarySelected = p.assets[0]?.id || null;
     preview.time = 0;
     rangeIn = null;
+    fitTimeline();
     render();
     autosave();
     $("#edit-recovery").hidden = true;
@@ -243,15 +249,14 @@ export async function activate({ services }) {
       ? `${time(p.range.in)} → ${time(p.range.out)} · ${(p.range.out - p.range.in).toFixed(2)}s`
       : rangeIn !== null
         ? `In ${time(rangeIn)} · move the playhead and mark out`
-        : "Select a range to make a clip or remove a section";
+        : "";
     $("#edit-ripple").disabled = !p.range;
     $("#edit-paste").disabled = !clipboard.length;
     renderMedia();
     renderInspector(inspectorTrack);
     renderTimeline();
     preview.time = Math.min(preview.time, duration(p));
-    preview.draw(true);
-    $("#edit-playhead").style.left = `${150 + preview.time * zoom}px`;
+    preview.seek(preview.time);
   }
   function renderMedia() {
     $("#edit-media-list").innerHTML = p.assets.length
@@ -288,13 +293,13 @@ export async function activate({ services }) {
     return `<svg class="editor-wave" viewBox="0 0 ${points} 30" preserveAspectRatio="none" aria-hidden="true"><path d="${vals.map((v, i) => `M${i},${15 - v * 14}V${15 + v * 14}`).join("")}"/></svg>`;
   }
   function renderTimeline() {
-    const length = Math.max(30, duration(p) + 5),
+    const length = Math.max(1, duration(p) + 1),
       width = 150 + length * zoom;
     $("#edit-timeline-content").style.width = `${width}px`;
     const visibleStart = Math.max(0, (timeline.scrollLeft - 150) / zoom - 3),
       visibleEnd =
         visibleStart + Math.max(1000, timeline.clientWidth) / zoom + 6;
-    const interval = zoom < 10 ? 30 : zoom < 30 ? 10 : zoom < 80 ? 5 : 1;
+    const interval = [0.1, 0.5, 1, 5, 10, 30, 60, 300, 600, 1800, 3600].find(n => n * zoom >= 70) || 3600;
     let ruler = "";
     for (
       let t = Math.floor(visibleStart / interval) * interval;
@@ -773,17 +778,18 @@ export async function activate({ services }) {
         await prepareAudio(c.asset, c.audio);
     await preview.play();
   });
-  $("#edit-back").onclick = () => {
+  $("#edit-back").onclick = (e) => {
     stop();
-    preview.seek(preview.time - 1 / p.fps);
+    preview.seek(preview.time - (e.shiftKey ? 10 : 1) / p.fps);
   };
-  $("#edit-forward").onclick = () => {
+  $("#edit-forward").onclick = (e) => {
     stop();
-    preview.seek(preview.time + 1 / p.fps);
+    preview.seek(preview.time + (e.shiftKey ? 10 : 1) / p.fps);
   };
   $("#edit-scrub").oninput = (e) => {
+    const target = Number(e.target.value);
     stop();
-    preview.seek(Number(e.target.value));
+    preview.seek(target);
   };
   $("#edit-undo").onclick = () => {
     if (busy) return;
@@ -903,11 +909,42 @@ export async function activate({ services }) {
     rangeIn = null;
     preview.seek(at);
   });
-  $("#edit-zoom").oninput = (e) => {
-    zoom = Number(e.target.value);
+  function setZoom(value) {
+    const position = 150 + preview.time * zoom - timeline.scrollLeft;
+    zoom = clamp(value, 0.05, 240);
+    $("#edit-zoom").value = zoom;
+    renderTimeline();
+    timeline.scrollLeft = Math.max(0, 150 + preview.time * zoom - clamp(position, 170, timeline.clientWidth - 30));
+    $("#edit-playhead").style.left = `${150 + preview.time * zoom}px`;
+  }
+  function fitTimeline() {
+    zoom = clamp((timeline.clientWidth - 175) / Math.max(1, duration(p)), 0.05, 240);
+    $("#edit-zoom").value = zoom;
+    timeline.scrollLeft = 0;
     renderTimeline();
     $("#edit-playhead").style.left = `${150 + preview.time * zoom}px`;
+  }
+  $("#edit-zoom").oninput = (e) => setZoom(Number(e.target.value));
+  $("#edit-fit").onclick = fitTimeline;
+  let scrubTool = false;
+  const selectTool = (scrub) => {
+    scrubTool = scrub;
+    $("#edit-select-tool").setAttribute("aria-pressed", !scrub);
+    $("#edit-scrub-tool").setAttribute("aria-pressed", scrub);
+    timeline.classList.toggle("scrub-tool", scrub);
   };
+  $("#edit-select-tool").onclick = () => selectTool(false);
+  $("#edit-scrub-tool").onclick = () => selectTool(true);
+  $("#edit-time").onkeydown = (e) => {
+    if (e.key === "Escape") { e.target.value = timecode(preview.time, p.fps); e.target.blur(); }
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const value = parseTimecode(e.target.value, p.fps);
+    if (value == null) { e.target.setCustomValidity("Use seconds, MM:SS, HH:MM:SS, or HH:MM:SS:FF."); e.target.reportValidity(); return; }
+    e.target.setCustomValidity(""); stop(); preview.seek(value); e.target.blur();
+    e.target.value = timecode(preview.time, p.fps);
+  };
+  $("#edit-time").oninput = (e) => e.target.setCustomValidity("");
   $("#edit-cancel").onclick = run(() => io.call("cancel"));
   let scrollRaf;
   timeline.onscroll = () => {
@@ -943,14 +980,17 @@ export async function activate({ services }) {
     const b = e.target.closest("[data-clip]"),
       rect = timeline.getBoundingClientRect(),
       x = e.clientX - rect.left + timeline.scrollLeft - 150;
-    if (!b) {
+    timeline.focus({ preventScroll: true });
+    if (!b || scrubTool || e.target.closest("#edit-playhead")) {
+      drag = { mode: "scrub", pointer: e.pointerId };
+      timeline.setPointerCapture(e.pointerId);
       preview.seek(Math.max(0, x / zoom));
+      e.preventDefault();
       return;
     }
     selected = b.dataset.clip;
     const c = p.clips.find((c) => c.id === selected);
-    if (preview.time < c.start || preview.time >= c.start + c.duration)
-      preview.seek(c.start);
+    if (!e.target.dataset.trim) preview.seek(Math.max(c.start, Math.min(c.start + c.duration - 1 / p.fps, x / zoom)));
     renderInspector();
     renderTimeline();
     if (
@@ -964,6 +1004,10 @@ export async function activate({ services }) {
     drag = {
       mode: e.target.dataset.trim || "move",
       x: e.clientX,
+      y: e.clientY,
+      scroll: timeline.scrollLeft,
+      pointer: e.pointerId,
+      changed: false,
       base: structuredClone(p),
       ids: groupIds(),
       clip: c,
@@ -974,7 +1018,16 @@ export async function activate({ services }) {
   timeline.onpointermove = (e) => {
     if (!drag) return;
     const d = drag;
-    let delta = frame((e.clientX - d.x) / zoom, p.fps);
+    if (d.mode === "scrub") {
+      const rect = timeline.getBoundingClientRect();
+      if (e.clientX > rect.right - 20) timeline.scrollLeft += 20;
+      if (e.clientX < rect.left + 165) timeline.scrollLeft -= 20;
+      preview.seek(Math.max(0, (e.clientX - rect.left + timeline.scrollLeft - 150) / zoom));
+      return;
+    }
+    if (!d.changed && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 4) return;
+    d.changed = true;
+    let delta = frame((e.clientX - d.x + timeline.scrollLeft - d.scroll) / zoom, p.fps);
     const clips = d.base.clips.filter((c) => d.ids.includes(c.id));
     p = structuredClone(d.base);
     if (d.mode === "move") {
@@ -1039,17 +1092,20 @@ export async function activate({ services }) {
   };
   const finishDrag = () => {
     if (!drag) return;
+    const d = drag;
     drag = null;
-    commit(p);
+    if (timeline.hasPointerCapture(d.pointer)) timeline.releasePointerCapture(d.pointer);
+    if (d.mode !== "scrub" && d.changed) commit(p);
+    else preview.scheduleDraw();
   };
   timeline.onpointerup = finishDrag;
-  timeline.onpointercancel = () => {
-    if (drag) {
-      p = drag.base;
-      drag = null;
-      render();
-    }
+  const cancelDrag = () => {
+    if (!drag) return;
+    const d = drag; drag = null;
+    if (d.base) { p = d.base; render(); }
   };
+  timeline.onpointercancel = cancelDrag;
+  timeline.onlostpointercapture = cancelDrag;
   preview.onDraw = () => {
     const c = p.clips.find(
       (c) =>
@@ -1175,13 +1231,19 @@ export async function activate({ services }) {
     if (
       !active() ||
       busy ||
-      e.repeat ||
+      (e.repeat && !["ArrowLeft", "ArrowRight"].includes(e.key)) ||
       io.isBusy() ||
       document.querySelector("dialog[open]") ||
       ["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)
     )
       return;
     const key = e.key.toLowerCase();
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && ["home", "end", "v", "c"].includes(key) && e.target.id !== "edit-divider") {
+      e.preventDefault();
+      if (["v", "c"].includes(key)) selectTool(key === "c");
+      else { stop(); preview.seek(key === "home" ? 0 : duration(p)); }
+      return;
+    }
     let button;
     if ((e.ctrlKey || e.metaKey) && key === "z")
       button = e.shiftKey ? "redo" : "undo";
@@ -1241,7 +1303,7 @@ export async function activate({ services }) {
       throw Error("Add a take or media to your timeline first.");
     stop();
     showDialog(
-      `<h2>Export your finished edit</h2><p>${esc(p.name)} · ${time(duration(p))} · ${FORMATS[p.format].join(" × ")} · ${p.fps} fps</p><label>Format<select id="edit-export-format"><option value="mp4">MP4 · recommended, easiest to share · H.264 / AAC</option><option value="mkv">MKV · editable archive, lossless audio · H.264 / FLAC</option><option value="wav">WAV · audio-only podcast master, larger lossless file</option></select></label><label>Picture quality<select id="edit-export-quality"><option value="balanced">Balanced · faster, smaller render</option><option value="sharp">Sharper · more encoding time and disk space</option></select></label><label class="check-line"><input id="edit-export-separate" type="checkbox">Keep separate audio layers + WAV stems</label><p class="fine-print">MP4/MKV can carry the mix and individual audio tracks. WAV stems make importing individual layers into editors such as CapCut straightforward. The audio-only option exports the finished mix.</p><label class="check-line"><input id="edit-export-normalize" type="checkbox" ${p.normalize ? "checked" : ""}>Match podcast loudness</label><label>Loudness target<select id="edit-export-target"><option value="-16" ${p.target === -16 ? "selected" : ""}>−16 LUFS · stereo podcast</option><option value="-14" ${p.target === -14 ? "selected" : ""}>−14 LUFS · louder social clip</option><option value="-20" ${p.target === -20 ? "selected" : ""}>−20 LUFS · more natural dynamics</option></select></label><label class="check-line"><input id="edit-export-range" type="checkbox" ${p.range ? "" : "disabled"}>${p.range ? `Only selected range · ${time(p.range.in)} → ${time(p.range.out)}` : "Mark in/out to export just a clip"}</label><p class="notice">Exports run locally from your originals. A new folder holds the finished file, optional audio stems and a loudness report. Temporary rendering uses extra disk space; originals are never overwritten.</p><div class="editor-file-actions"><button class="button" data-close>Cancel</button><button class="button primary" id="edit-export-confirm">Choose folder & export</button></div>`,
+      `<h2>Export your finished edit</h2><p>${esc(p.name)} · ${time(duration(p))} · ${FORMATS[p.format].join(" × ")} · ${p.fps} fps</p><label>Format<select id="edit-export-format"><option value="mp4">MP4 · recommended, easiest to share · H.264 / AAC</option><option value="mkv">MKV · editable archive, lossless audio · H.264 / FLAC</option><option value="wav">WAV · audio-only podcast master, larger lossless file</option></select></label><label>Picture quality<select id="edit-export-quality"><option value="small">Smaller file · more compression, less motion detail</option><option value="balanced" selected>Balanced · clear everyday footage</option><option value="sharp">Sharper · more encoding time and disk space</option></select></label><label class="check-line"><input id="edit-export-separate" type="checkbox">Keep separate audio layers + WAV stems</label><p class="fine-print">MP4/MKV can carry the mix and individual audio tracks. WAV stems make importing individual layers into editors such as CapCut straightforward. The audio-only option exports the finished mix.</p><label class="check-line"><input id="edit-export-normalize" type="checkbox" ${p.normalize ? "checked" : ""}>Match podcast loudness</label><label>Loudness target<select id="edit-export-target"><option value="-16" ${p.target === -16 ? "selected" : ""}>−16 LUFS · stereo podcast</option><option value="-14" ${p.target === -14 ? "selected" : ""}>−14 LUFS · louder social clip</option><option value="-20" ${p.target === -20 ? "selected" : ""}>−20 LUFS · more natural dynamics</option></select></label><label class="check-line"><input id="edit-export-range" type="checkbox" ${p.range ? "" : "disabled"}>${p.range ? `Only selected range · ${time(p.range.in)} → ${time(p.range.out)}` : "Mark in/out to export just a clip"}</label><p class="notice">Exports run locally from your originals. A new folder holds the finished file, optional audio stems and a loudness report. Temporary rendering uses extra disk space; originals are never overwritten.</p><div class="editor-file-actions"><button class="button" data-close>Cancel</button><button class="button primary" id="edit-export-confirm">Choose folder & export</button></div>`,
     );
     $("#edit-export-format").onchange = () => {
       $("#edit-export-separate").disabled =

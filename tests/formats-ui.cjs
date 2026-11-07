@@ -58,7 +58,18 @@ require("../scripts/preview.cjs");
   });
   await page.goto("http://127.0.0.1:4173/src/index.html?test");
   await page.waitForFunction(() => !!window.__studio);
+  // Recording choices stay in sync between Studio and Settings and survive a
+  // restart. The raw-mic switch is an explicit choice, not a side effect of size.
+  assert.equal(await page.inputValue("#studio-video-quality"), "high");
+  await page.selectOption("#studio-video-quality", "compact");
   await page.click('[data-view="settings"]');
+  assert.equal(await page.inputValue("#video-quality"), "compact");
+  assert.match(await page.textContent("#quality-estimate"), /3.5 Mbps/);
+  assert.equal(await page.inputValue("#audio-storage"), "24");
+  assert.equal(await page.locator("#keep-raw").isChecked(), true);
+  await page.uncheck("#keep-raw");
+  await page.selectOption("#audio-storage", "32");
+  await page.selectOption("#video-quality", "high");
   assert.equal(await page.inputValue("#default-format"), "mp4");
   assert.equal(await page.locator("#default-separate").isChecked(), true);
   assert.equal(await page.locator("#default-format option").count(), 8);
@@ -89,12 +100,21 @@ require("../scripts/preview.cjs");
       await page.locator("#default-video-options").isVisible(),
       ["mp4", "mkv", "mov", "webm"].includes(format),
     );
+    assert.equal(await page.locator("#default-audio-bitrate").isDisabled(), ["mkv", "mov", "wav", "flac"].includes(format));
   }
   await page.selectOption("#default-format", "mkv");
   await page.uncheck("#default-separate");
   assert.equal(await page.locator("#default-copies").isDisabled(), true);
   await page.check("#default-separate");
   await page.check("#default-copies");
+  await page.uncheck("#default-wav");
+  await page.click("#default-compact");
+  assert.equal(await page.locator("#default-separate").isChecked(), true, "Compact preset preserves isolated audio");
+  assert.equal(await page.locator("#default-copies").isChecked(), false);
+  assert.equal(await page.locator("#default-stems").isDisabled(), true);
+  await page.check("#default-copies");
+  await page.check("#default-wav");
+  await page.selectOption("#default-stems", "flac");
   await page.uncheck("#default-wav");
   await page.waitForFunction(() => {
     const c = JSON.parse(localStorage.getItem("latitude-v2"));
@@ -109,6 +129,11 @@ require("../scripts/preview.cjs");
   assert.equal(await page.inputValue("#target-loudness"), "-18");
   assert.equal(await page.locator("#normalize").isChecked(), false);
   assert.equal(await page.inputValue("#video-quality"), "high");
+  assert.equal(await page.inputValue("#audio-storage"), "32");
+  assert.equal(await page.locator("#keep-raw").isChecked(), false);
+  assert.equal(await page.inputValue("#default-compression"), "balanced");
+  assert.equal(await page.inputValue("#default-audio-bitrate"), "192");
+  assert.equal(await page.inputValue("#default-stems"), "flac");
   await page.click('[data-view="recordings"]');
   await page.click('[data-export-take="format-test"]');
   assert.equal(await page.inputValue("#export-format"), "mkv");
@@ -149,6 +174,9 @@ require("../scripts/preview.cjs");
   assert.equal(exports.length, 1);
   assert.deepEqual(exports[0].options, {
     quality: "high",
+    videoCompression: "balanced",
+    audioBitrate: 192,
+    stemFormat: "flac",
     format: "mp4",
     separateTracks: false,
     editingFiles: false,
