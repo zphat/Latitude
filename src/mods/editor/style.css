@@ -401,6 +401,7 @@
 .editor-ruler {
   height: 30px;
   position: relative;
+  overflow: hidden;
   background: var(--panel2);
   border-bottom: 1px solid var(--line);
 }
@@ -539,6 +540,8 @@
 .editor-trim:hover {
   background: var(--accent);
 }
+.editor-clip.selected .editor-trim { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.editor-clip.selected .editor-trim:hover { background: var(--accent); }
 .editor-trim.left {
   left: 0;
 }
@@ -789,7 +792,7 @@ body:has(#page-editor.active) .topbar .logo img { max-height: 30px; width: auto;
 #workspace:has(#page-editor.active) { padding: 12px 16px; overflow: auto; }
 body:has(#page-editor.active) .rail { overflow: auto; }
 #page-editor.active { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 400px; }
-#page-editor .editor-heading { margin: 0; align-items: center; gap: 12px; flex-wrap: nowrap; }
+#page-editor .editor-heading { margin: 0; align-items: center; gap: 12px; flex-wrap: nowrap; position: sticky; top: -12px; z-index: 12; background: var(--bg); padding: 4px 0; }
 #page-editor .editor-heading h1 { font-size: 24px; margin: 0; }
 #page-editor .editor-file-actions .button { padding: 9px 14px; font-size: 12px; border-radius: 12px; }
 #page-editor .editor-project-line { margin: 0; gap: 8px; flex-shrink: 0; }
@@ -867,6 +870,13 @@ body:has(#page-editor.active) .rail { overflow: auto; }
 .scrub-tool .editor-clip { cursor: ew-resize; }
 .editor-timecode { width: 118px; min-width: 100px; font: 12px monospace; padding: 6px 8px; }
 .editor-tool-select [aria-pressed="true"] { background: var(--accent); color: var(--ink); }
+.editor-cut-controls { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.editor-cut-controls .text-button { font-size: 11px; white-space: nowrap; }
+#page-editor #edit-snap { padding: 4px 8px; font-size: 11px; border-radius: 7px; }
+#edit-snap[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+#edit-snap-guide { position: absolute; top: 0; bottom: 0; width: 1px; background: #70e2dc; box-shadow: 0 0 4px #70e2dc; pointer-events: none; z-index: 6; }
+#edit-snap-guide::before { content: ""; position: absolute; top: 0; left: -4px; width: 9px; height: 7px; background: #70e2dc; }
+#edit-drag-feedback { position: fixed; z-index: 100; max-width: min(300px, calc(100vw - 16px)); padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); font: 11px/1.7 ui-monospace, monospace; white-space: pre-line; box-shadow: 0 6px 24px #0005; pointer-events: none; }
 #edit-seek-state { position: absolute; top: 8px; left: 8px; padding: 4px 7px; border-radius: 6px; color: #f1f5e8; background: #080d0ccc; font-size: 11px; pointer-events: none; }
 #edit-seek-state:empty { display: none; }
 @container (max-width: 480px) {

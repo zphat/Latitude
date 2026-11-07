@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.7 — 2026-11-07
+
+Live first/last-frame trim previews, linked-source trim bounds, snapping at both clip edges with a visible guide, cancelable drags, cursor-centered zoom, cut navigation and edge scrolling. Fixes disabled clip actions after Undo, a zoomed end-trim scroll jump, and keeps Save/Export visible in short windows. [Full notes](docs/releases/0.9.7.md).
+
 ## 0.9.6 — 2026-11-07
 
 Responsive ruler/playhead and clip scrubbing, decoded-frame preview synchronization, raw-take indexing, mixed-frame-rate cut alignment, precise timecode and Fit controls, and more usable small-window preview space. Recording/export size controls, 24-bit processed originals, optional raw mic backups, and FLAC editing stems preserve isolated audio without unnecessary copies. [Full notes](docs/releases/0.9.6.md).

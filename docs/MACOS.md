@@ -1,17 +1,17 @@
-# Latitude 0.9.6 for Mac — development preview
+# Latitude 0.9.7 for Mac — development preview
 
 The Mac preview includes the same recording, voice-processing and optional
-Streaming/Editor tools as 0.9.6 for Windows and Linux, including the adjustable
+Streaming/Editor tools as 0.9.7 for Windows and Linux, including the adjustable
 editor workspace. It targets **macOS 14.2 or newer**.
 
 ## Choose and install
 
 Use **Apple menu → About This Mac** to identify your computer:
 
-| Your Mac | Download from the [0.9.6 release](https://github.com/zphat/Latitude/releases/tag/v0.9.6) |
+| Your Mac | Download from the [0.9.7 release](https://github.com/zphat/Latitude/releases/tag/v0.9.7) |
 | --- | --- |
-| Chip: Apple M-series | `Latitude-0.9.6-macOS-arm64.dmg` |
-| Processor: Intel | `Latitude-0.9.6-macOS-x64.dmg` |
+| Chip: Apple M-series | `Latitude-0.9.7-macOS-arm64.dmg` |
+| Processor: Intel | `Latitude-0.9.7-macOS-x64.dmg` |
 
 Open the DMG, drag **Latitude** onto **Applications**, eject the disk image,
 then open Latitude from Applications. No Node.js, source folder or separate

@@ -74,6 +74,7 @@ jobs:
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
           node tests/editor-mod-ui.cjs
           node tests/editor-scrub-ui.cjs
+          node tests/editor-gestures-ui.cjs
           node tests/updater-ui.cjs
           node tests/session-names-ui.cjs
       - name: Validate application metadata

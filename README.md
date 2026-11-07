@@ -2,7 +2,7 @@
 
 # Latitude
 
-A local screen recorder built around clear podcast audio. Version **0.9.6 — Windows beta, Linux preview and Mac development preview**.
+A local screen recorder built around clear podcast audio. Version **0.9.7 — Windows beta, Linux preview and Mac development preview**.
 
 [Beta homepage](https://latitude.pictures) · [Discord feedback and updates](https://discord.gg/EnPRdDutAn)
 
@@ -12,7 +12,7 @@ Record your screen, optional facecam, microphones, and desktop audio. Shape your
 
 ## Open the Windows app
 
-1. Download **Latitude-0.9.6-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.6).
+1. Download **Latitude-0.9.7-Windows-x64-Setup.exe** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.7).
 2. Double-click it. Latitude installs for your Windows account and creates desktop and Start menu shortcuts.
 3. Open either shortcut. No terminal, source folder, Node.js, OBS, or separate FFmpeg installation is needed.
 
@@ -24,9 +24,17 @@ The beta is unsigned, so Windows may identify it as an unknown publisher. It ins
 
 ## Open the Linux app
 
-Download **Latitude-0.9.6-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.6), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
+Download **Latitude-0.9.7-Linux-x86_64.flatpak** from [Releases](https://github.com/zphat/Latitude/releases/tag/v0.9.7), open it with Discover or a Flatpak-capable software center, install, then launch **Latitude** from your application menu. No source folder or development tools are needed. [Linux installation and testing guide](docs/LINUX.md).
 
 The first Linux preview targets Fedora KDE/GNOME, Ubuntu/Mint with Flatpak, Bazzite, and SteamOS **Desktop Mode**. Gaming Mode and real-device performance remain unverified. Wayland uses the desktop screen-sharing portal; desktop audio uses PulseAudio or PipeWire 0.3.65+ with its PulseAudio service. The initial runtime download is shared with other Flatpak apps. Latitude is not on Flathub yet; preview updates come from GitHub Releases.
+
+## New in Latitude 0.9.7
+
+Trim clip edges with a live view of the first or last retained frame and a clear length readout. Linked picture and microphones share the same source limits. Move either clip edge into a cut, marker or the playhead with a visible snap guide; **N** toggles snapping and **Alt** temporarily bypasses it. **Escape** cancels a drag without changing the edit.
+
+**↑/↓** jump between cuts, **Ctrl/Cmd-wheel** zooms around your pointer, **Shift-wheel** scrolls sideways, and **+/−** or **F** zoom or fit. Edge holds scroll longer timelines. Save and Export stay visible in short windows, and selecting after Undo correctly restores clip actions. No new dependency, background decoder or audio-processing change.
+
+[Release notes](docs/releases/0.9.7.md) · [Checks and limits](docs/qa/editor-gestures-0.9.7.md).
 
 ## New in Latitude 0.9.6
 
@@ -52,7 +60,7 @@ The optional Editor now fits smaller windows with a draggable preview/timeline d
 
 ## Try the Mac development preview
 
-Mac previews use the same **0.9.6 editor and voice tools**, with separate Apple Silicon (arm64) and Intel (x64) DMGs on the [0.9.6 release page](https://github.com/zphat/Latitude/releases/tag/v0.9.6). Requires macOS 14.2 or newer. Drag Latitude into Applications and launch it there. Mac updates are manual for now.
+Mac previews use the same **0.9.7 editor and voice tools**, with separate Apple Silicon (arm64) and Intel (x64) DMGs on the [0.9.7 release page](https://github.com/zphat/Latitude/releases/tag/v0.9.7). Requires macOS 14.2 or newer. Drag Latitude into Applications and launch it there. Mac updates are manual for now.
 
 These are **unsigned, unnotarized development previews**. Automated Mac encoder, editor/export and package-launch checks are required before upload; they do not verify real microphone/camera capture, privacy prompts or long recordings. Use a short test take first. [Mac installation, permissions and test guide](docs/MACOS.md). A signed, hardware-tested Mac beta remains a separate milestone.
 
