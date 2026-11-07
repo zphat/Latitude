@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['electron/**', 'audio/**', 'src/**', 'package*.json', 'scripts/*mac*', 'packaging/mac/**', 'tests/mac.test.cjs', 'tests/editor-mod-ui.cjs', 'tests/editor-scrub-ui.cjs', 'tests/session-names*', 'tests/loudness*', '.github/workflows/mac.yml']
+    paths: ['electron/**', 'audio/**', 'src/**', 'package*.json', 'scripts/*mac*', 'packaging/mac/**', 'tests/mac.test.cjs', 'tests/editor-mod-ui.cjs', 'tests/editor-scrub-ui.cjs', 'tests/editor-gestures*', 'tests/session-names*', 'tests/loudness*', '.github/workflows/mac.yml']
 permissions:
   contents: read
 jobs:
@@ -46,6 +46,7 @@ jobs:
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
           node tests/editor-mod-ui.cjs
           node tests/editor-scrub-ui.cjs
+          node tests/editor-gestures-ui.cjs
           node tests/session-names-ui.cjs
         env:
           TAKE_FFMPEG: ${{ github.workspace }}/vendor/ffmpeg
@@ -73,6 +74,7 @@ jobs:
           path: |
             ${{ runner.temp }}/latitude-edit-ui-*/shots/*.png
             ${{ runner.temp }}/latitude-scrub-ui-*/*.png
+            ${{ runner.temp }}/latitude-gestures-ui-*/*.png
             ${{ runner.temp }}/latitude-names-ui-*/shots/*.png
           if-no-files-found: ignore
 

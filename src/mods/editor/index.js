@@ -14,12 +14,12 @@ import {
   insertSpace,
   detachAudio,
   pasteClips,
-  snap,
   FORMATS,
 } from "./model.js";
 import { Preview, titleCanvas } from "./preview.js";
 import { installLayout } from "./layout.js";
 import { timecode, parseTimecode } from "./timecode.js";
+import { snapPoints, dragPlacement, applyDrag, adjacentCut, zoomAnchor } from "./timeline-edit.js";
 let teardown;
 const esc = (s) =>
   String(s ?? "").replace(
@@ -79,10 +79,11 @@ export async function activate({ services }) {
     <div id="edit-divider" role="separator" tabindex="0" aria-label="Resize preview and timeline" aria-orientation="horizontal" aria-valuemin="25" aria-valuemax="75" aria-valuenow="50" title="Drag to resize · Up/Down arrows · double-click to balance"></div>
     <section class="panel editor-timeline-panel"><div class="editor-tools"><button class="button small" id="edit-undo" title="Undo · Ctrl Z">Undo</button><button class="button small" id="edit-redo" title="Redo · Ctrl Shift Z">Redo</button><button class="button small" id="edit-split">Split · S</button><button class="button small" id="edit-delete">Delete</button><button class="button small" id="edit-duplicate">Duplicate</button><button class="button small" id="edit-copy" title="Copy linked selection · Ctrl C">Copy</button><button class="button small" id="edit-cut" title="Cut linked selection · Ctrl X">Cut</button><button class="button small" id="edit-paste" title="Paste at playhead · Ctrl V">Paste</button><button class="button small" id="edit-title">+ Title</button><button class="button small" id="edit-video-layer">+ Video layer</button><button class="button small" id="edit-audio-layer">+ Audio layer</button><label class="check-line"><input type="checkbox" id="edit-linked" checked>Linked clips</label></div>
       <div class="editor-navigation"><div class="editor-tool-select"><button class="button small" id="edit-select-tool" aria-pressed="true" title="Select and move clips · V">Select · V</button><button class="button small" id="edit-scrub-tool" aria-pressed="false" title="Drag anywhere on clips to preview · C">Scrub · C</button></div><div class="editor-range-tools"><button class="text-button" id="edit-in">Mark in · I</button><button class="text-button" id="edit-out">Mark out · O</button><span id="edit-range-label" class="fine-print"></span><button class="button small" id="edit-ripple">Remove range & close gap</button><button class="text-button" id="edit-clear-range">Clear</button></div><div class="editor-zoom-tools"><label class="editor-zoom">Zoom <input id="edit-zoom" type="range" min="0.05" max="240" step="0.05" value="45" aria-label="Timeline zoom"></label><button class="button small" id="edit-fit" title="Fit the whole edit in the timeline">Fit</button></div></div>
-      <div class="editor-timeline" id="edit-timeline" tabindex="0" aria-label="Timeline. Drag the ruler or playhead to scrub; select a clip to edit."><div id="edit-timeline-content"><div class="editor-ruler" id="edit-ruler"></div><div id="edit-track-rows"></div><div class="editor-playhead" id="edit-playhead" role="slider" tabindex="0" aria-label="Timeline playhead" aria-valuemin="0"></div><div id="edit-range-shade"></div></div></div>
-      <div class="editor-timeline-footer"><span>Drag ruler or playhead to preview · Select to move/trim · Scrub to preview over clips</span><details><summary>Shortcuts & tips</summary><p>V select tool · C scrub tool · Home/End start/end · Shift ←/→ ten frames · Space play/pause · S split linked selection · Delete remove selection · Ctrl C/X/V copy/cut/paste · Ctrl D duplicate · Ctrl Z undo · Ctrl Shift Z redo · I/O range · ←/→ one frame · M marker. Shift-click Split cuts every unlocked layer at the playhead. Overlap picture clips and fade the incoming clip for a dissolve. Use Remove range to cut all layers together without losing sync. Save a project before starting a different edit; the local recovery draft holds the latest edit only.</p></details></div>
+      <div class="editor-timeline" id="edit-timeline" tabindex="0" aria-label="Timeline. Drag the ruler or playhead to scrub; select a clip to edit."><div id="edit-timeline-content"><div class="editor-ruler" id="edit-ruler"></div><div id="edit-track-rows"></div><div class="editor-playhead" id="edit-playhead" role="slider" tabindex="0" aria-label="Timeline playhead" aria-valuemin="0"></div><div id="edit-range-shade"></div><div id="edit-snap-guide" hidden></div></div></div>
+      <div class="editor-timeline-footer"><div class="editor-cut-controls"><button class="text-button" id="edit-previous-cut" title="Previous cut · Up arrow">↑ Previous cut</button><button class="text-button" id="edit-next-cut" title="Next cut · Down arrow">Next cut ↓</button><button class="button small" id="edit-snap" aria-pressed="true" title="Snap clip edges to cuts, markers and the playhead · N · Alt bypasses">Snap · N</button></div><details><summary>Shortcuts & tips</summary><p>Drag clip edges to trim with a live preview. Escape cancels a drag. N toggles snapping; Alt temporarily bypasses it. Ctrl/Cmd-wheel zooms around the pointer; Shift-wheel scrolls sideways. +/− zoom · F fits · ↑/↓ previous/next cut · V select tool · C scrub tool · Home/End start/end · Shift ←/→ ten frames · Space play/pause · S split linked selection · Delete remove selection · Ctrl C/X/V copy/cut/paste · Ctrl D duplicate · Ctrl Z undo · Ctrl Shift Z redo · I/O range · ←/→ one frame · M marker. Shift-click Split cuts every unlocked layer at the playhead. Overlap picture clips and fade the incoming clip for a dissolve. Use Remove range to cut all layers together without losing sync. Save a project before starting a different edit; the local recovery draft holds the latest edit only.</p></details></div>
     </section>
     </div>
+    <div id="edit-drag-feedback" aria-live="off" hidden></div>
     <dialog id="edit-dialog" class="editor-dialog"></dialog>
   `,
   });
@@ -203,18 +204,6 @@ export async function activate({ services }) {
   const syncAssets = (next) => {
     next.assets = [...media.values()].map((a) => ({ ...a }));
   };
-  function editSelection(fn) {
-    const selectedClips = selectedGroup(p, selected, linked);
-    if (!selectedClips.length) return;
-    const ids = selectedClips.map((c) => c.id);
-    if (
-      p.tracks.some(
-        (t) => t.locked && selectedClips.some((c) => c.track === t.id),
-      )
-    )
-      throw Error("Unlock the selected layer before editing.");
-    change((next) => next.clips.filter((c) => ids.includes(c.id)).forEach(fn));
-  }
   function reset(next, items) {
     stop();
     preview.clear();
@@ -243,8 +232,6 @@ export async function activate({ services }) {
     $("#edit-empty").hidden = !!p.clips.length;
     $("#edit-undo").disabled = !history.undoStack.length;
     $("#edit-redo").disabled = !history.redoStack.length;
-    for (const id of ["split", "delete", "duplicate", "copy", "cut"])
-      $(`#edit-${id}`).disabled = !selected;
     $("#edit-range-label").textContent = p.range
       ? `${time(p.range.in)} → ${time(p.range.out)} · ${(p.range.out - p.range.in).toFixed(2)}s`
       : rangeIn !== null
@@ -293,12 +280,13 @@ export async function activate({ services }) {
     return `<svg class="editor-wave" viewBox="0 0 ${points} 30" preserveAspectRatio="none" aria-hidden="true"><path d="${vals.map((v, i) => `M${i},${15 - v * 14}V${15 + v * 14}`).join("")}"/></svg>`;
   }
   function renderTimeline() {
-    const length = Math.max(1, duration(p) + 1),
+    for (const id of ["split", "delete", "duplicate", "copy", "cut"]) $(`#edit-${id}`).disabled = !selected;
+    const length = Math.max(1, duration(p) + 1, drag?.base ? duration(drag.base) + 1 : 0),
       width = 150 + length * zoom;
     $("#edit-timeline-content").style.width = `${width}px`;
-    const visibleStart = Math.max(0, (timeline.scrollLeft - 150) / zoom - 3),
+    const visibleStart = Math.min(length, Math.max(0, (timeline.scrollLeft - 150) / zoom - 3)),
       visibleEnd =
-        visibleStart + Math.max(1000, timeline.clientWidth) / zoom + 6;
+        Math.min(length, visibleStart + Math.max(1000, timeline.clientWidth) / zoom + 6);
     const interval = [0.1, 0.5, 1, 5, 10, 30, 60, 300, 600, 1800, 3600].find(n => n * zoom >= 70) || 3600;
     let ruler = "";
     for (
@@ -449,14 +437,10 @@ export async function activate({ services }) {
             await prepareAudio(c.asset, v);
         }
         if (["start", "duration", "in"].includes(key)) {
-          const delta = v - c[key];
-          editSelection((x) => {
-            if (key === "in") {
-              x.in += delta;
-              x.duration -= delta;
-              x.start += delta;
-            } else x[key] += delta;
-          });
+          const mode = { start: "move", duration: "right", in: "left" }[key];
+          const ids = groupIds();
+          const { delta } = dragPlacement(p, c.id, ids, mode, v - c[key]);
+          commit(applyDrag(p, ids, mode, delta));
           return;
         }
         if (input.id.startsWith("crop-")) {
@@ -909,12 +893,14 @@ export async function activate({ services }) {
     rangeIn = null;
     preview.seek(at);
   });
-  function setZoom(value) {
-    const position = 150 + preview.time * zoom - timeline.scrollLeft;
+  function setZoom(value, cursorX) {
+    if (drag) return;
+    const position = cursorX ?? clamp(150 + preview.time * zoom - timeline.scrollLeft, 170, timeline.clientWidth - 30);
+    const oldZoom = zoom, oldScroll = timeline.scrollLeft;
     zoom = clamp(value, 0.05, 240);
     $("#edit-zoom").value = zoom;
     renderTimeline();
-    timeline.scrollLeft = Math.max(0, 150 + preview.time * zoom - clamp(position, 170, timeline.clientWidth - 30));
+    timeline.scrollLeft = zoomAnchor(oldScroll, oldZoom, zoom, position);
     $("#edit-playhead").style.left = `${150 + preview.time * zoom}px`;
   }
   function fitTimeline() {
@@ -925,7 +911,37 @@ export async function activate({ services }) {
     $("#edit-playhead").style.left = `${150 + preview.time * zoom}px`;
   }
   $("#edit-zoom").oninput = (e) => setZoom(Number(e.target.value));
-  $("#edit-fit").onclick = fitTimeline;
+  $("#edit-fit").onclick = () => { if (!drag) fitTimeline(); };
+  const jumpCut = (direction) => {
+    if (drag || busy) return;
+    stop(); preview.seek(adjacentCut(p, preview.time, direction));
+    const x = 150 + preview.time * zoom;
+    if (x < timeline.scrollLeft + 170 || x > timeline.scrollLeft + timeline.clientWidth - 30)
+      timeline.scrollLeft = Math.max(0, x - 150 - (timeline.clientWidth - 150) / 2);
+  };
+  $("#edit-previous-cut").onclick = () => jumpCut(-1);
+  $("#edit-next-cut").onclick = () => jumpCut(1);
+  let snapping = true;
+  try { snapping = ui.readSettings?.("latitude-editor-timeline")?.snap !== false; } catch {}
+  $("#edit-snap").setAttribute("aria-pressed", String(snapping));
+  const toggleSnap = () => {
+    snapping = !snapping;
+    $("#edit-snap").setAttribute("aria-pressed", String(snapping));
+    try { ui.writeSettings?.("latitude-editor-timeline", { snap: snapping }); } catch {}
+    if (drag) queueDrag();
+  };
+  $("#edit-snap").onclick = toggleSnap;
+  const onWheel = (e) => {
+    if ((!e.ctrlKey && !e.metaKey && !e.shiftKey) || busy) return;
+    e.preventDefault();
+    if (drag) return;
+    const amount = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? timeline.clientWidth : 1;
+    if (e.ctrlKey || e.metaKey) {
+      const rect = timeline.getBoundingClientRect();
+      setZoom(zoom * Math.exp(clamp(-e.deltaY * amount * 0.003, -0.7, 0.7)), clamp(e.clientX - rect.left, 150, timeline.clientWidth));
+    } else timeline.scrollLeft += (e.deltaX || e.deltaY) * amount;
+  };
+  timeline.addEventListener("wheel", onWheel, { passive: false });
   let scrubTool = false;
   const selectTool = (scrub) => {
     scrubTool = scrub;
@@ -968,142 +984,127 @@ export async function activate({ services }) {
       preview.seek(Number(marker.dataset.marker));
     }
   };
-  timeline.onpointerdown = (e) => {
-    if (
-      e.button !== 0 ||
-      busy ||
-      e.target.closest(".editor-track-label") ||
-      e.target.closest("[data-marker]")
-    )
+  let dragRaf = null, dragTick = 0;
+  const pointerData = e => ({ x: e.clientX, y: e.clientY, alt: e.altKey });
+  function queueDrag() {
+    if (!disposed && drag && dragRaf === null) dragRaf = requestAnimationFrame(stepDrag);
+  }
+  function dragFeedback(c, d, guide) {
+    const feedback = $("#edit-drag-feedback");
+    const edge = d.mode === "right" ? c.start + c.duration : c.start;
+    feedback.textContent = `${d.mode === "move" ? "Move" : d.mode === "left" ? "Trim start" : "Trim end"} · ${timecode(edge, p.fps)}${guide !== null ? " · snapped" : ""}\nLength ${timecode(c.duration, p.fps)} · Escape to cancel`;
+    feedback.hidden = false;
+    feedback.style.left = `${clamp(d.pointerAt.x + 12, 8, innerWidth - 310)}px`;
+    feedback.style.top = `${clamp(d.pointerAt.y - 64, 8, innerHeight - 64)}px`;
+    const line = $("#edit-snap-guide");
+    line.hidden = guide === null;
+    if (guide !== null) line.style.left = `${150 + guide * zoom}px`;
+  }
+  function updateDrag() {
+    const d = drag;
+    if (!d?.pointerAt) return;
+    const at = d.pointerAt, rect = timeline.getBoundingClientRect();
+    if (d.mode === "scrub") {
+      preview.seek(Math.max(0, (at.x - rect.left + timeline.scrollLeft - 150) / zoom));
       return;
+    }
+    if (!d.changed && Math.hypot(at.x - d.x, at.y - d.y) < 4) return;
+    d.changed = true;
+    const placement = dragPlacement(d.base, d.clip.id, d.ids, d.mode,
+      (at.x - d.x + timeline.scrollLeft - d.scroll) / zoom,
+      snapping && !at.alt ? d.points : [], 8 / zoom);
+    let targetTrack = d.clip.track;
+    if (d.mode === "move") {
+      const row = [...timeline.querySelectorAll("[data-row]")].find(el => {
+        const r = el.getBoundingClientRect(); return at.y >= r.top && at.y < r.bottom;
+      });
+      const target = d.base.tracks.find(t => t.id === row?.dataset.row);
+      const source = d.base.tracks.find(t => t.id === d.clip.track);
+      if (target && !target.locked && target.kind === source.kind) targetTrack = target.id;
+    }
+    const { delta, guide } = placement;
+    // Pointer events can arrive much faster than the display. Rebuild the model
+    // only once per frame and only when the actual placement changes.
+    if (d.lastDelta !== delta || d.lastTrack !== targetTrack) {
+      try { p = applyDrag(d.base, d.ids, d.mode, delta, d.clip.id, targetTrack); }
+      catch { return; } // Keep the last valid placement, never a partial linked edit.
+      d.lastDelta = delta; d.lastTrack = targetTrack;
+      renderTimeline();
+      const c = p.clips.find(c => c.id === selected);
+      preview.seek(d.mode === "left" ? c.start : d.mode === "right"
+        ? c.start + c.duration - 1 / p.fps
+        : c.start + Math.min(d.offset, c.duration - 1 / p.fps));
+    }
+    dragFeedback(p.clips.find(c => c.id === selected), d, guide);
+  }
+  function stepDrag(now) {
+    dragRaf = null;
+    if (!drag || disposed) return;
+    const d = drag, at = d.pointerAt, rect = timeline.getBoundingClientRect();
+    const elapsed = Math.min(32, dragTick ? now - dragTick : 16) / 1000;
+    dragTick = now;
+    let scrolled = false;
+    if (at && d.mode !== "scrub" && !d.changed && Math.hypot(at.x - d.x, at.y - d.y) >= 4) d.changed = true;
+    if (at && (d.mode === "scrub" || d.changed)) {
+      const edge = (value, low, high) => value < low + 28 ? -clamp((low + 28 - value) / 28, 0, 1)
+        : value > high - 28 ? clamp((value - high + 28) / 28, 0, 1) : 0;
+      const left = timeline.scrollLeft, top = timeline.scrollTop;
+      timeline.scrollLeft += edge(at.x, rect.left + 150, rect.right) * 540 * elapsed;
+      if (d.mode === "move") timeline.scrollTop += edge(at.y, rect.top + 30, rect.bottom) * 320 * elapsed;
+      scrolled = left !== timeline.scrollLeft || top !== timeline.scrollTop;
+    }
+    updateDrag();
+    if (scrolled) queueDrag(); // Stationary edge holds scroll; idle gestures do no work.
+  }
+  function clearDragUI(d) {
+    cancelAnimationFrame(dragRaf); dragRaf = null; dragTick = 0;
+    $("#edit-drag-feedback").hidden = true;
+    $("#edit-snap-guide").hidden = true;
+    if (timeline.hasPointerCapture(d.pointer)) timeline.releasePointerCapture(d.pointer);
+  }
+  timeline.onpointerdown = (e) => {
+    if (e.button !== 0 || busy || drag || e.target.closest(".editor-track-label") || e.target.closest("[data-marker]")) return;
+    const originalTime = preview.time;
     stop();
-    const b = e.target.closest("[data-clip]"),
-      rect = timeline.getBoundingClientRect(),
-      x = e.clientX - rect.left + timeline.scrollLeft - 150;
+    const b = e.target.closest("[data-clip]"), rect = timeline.getBoundingClientRect();
+    const x = e.clientX - rect.left + timeline.scrollLeft - 150;
     timeline.focus({ preventScroll: true });
     if (!b || scrubTool || e.target.closest("#edit-playhead")) {
-      drag = { mode: "scrub", pointer: e.pointerId };
-      timeline.setPointerCapture(e.pointerId);
-      preview.seek(Math.max(0, x / zoom));
-      e.preventDefault();
-      return;
+      drag = { mode: "scrub", pointer: e.pointerId, originalTime, pointerAt: pointerData(e) };
+      timeline.setPointerCapture(e.pointerId); preview.seek(Math.max(0, x / zoom));
+      e.preventDefault(); return;
     }
     selected = b.dataset.clip;
-    const c = p.clips.find((c) => c.id === selected);
-    if (!e.target.dataset.trim) preview.seek(Math.max(c.start, Math.min(c.start + c.duration - 1 / p.fps, x / zoom)));
-    renderInspector();
-    renderTimeline();
-    if (
-      p.tracks.some(
-        (t) =>
-          t.locked &&
-          selectedGroup(p, selected, linked).some((x) => x.track === t.id),
-      )
-    )
-      return;
-    drag = {
-      mode: e.target.dataset.trim || "move",
-      x: e.clientX,
-      y: e.clientY,
-      scroll: timeline.scrollLeft,
-      pointer: e.pointerId,
-      changed: false,
-      base: structuredClone(p),
-      ids: groupIds(),
-      clip: c,
-    };
-    timeline.setPointerCapture(e.pointerId);
-    e.preventDefault();
+    const c = p.clips.find(c => c.id === selected), mode = e.target.dataset.trim || "move";
+    if (mode === "move") preview.seek(clamp(x / zoom, c.start, c.start + c.duration - 1 / p.fps));
+    renderInspector(); renderTimeline();
+    if (p.tracks.some(t => t.locked && selectedGroup(p, selected, linked).some(x => x.track === t.id))) return;
+    const ids = groupIds();
+    drag = { mode, x: e.clientX, y: e.clientY, scroll: timeline.scrollLeft,
+      pointer: e.pointerId, pointerAt: pointerData(e), changed: false,
+      base: p, ids, clip: c, originalTime, offset: Math.max(0, preview.time - c.start),
+      points: snapPoints(p, ids, originalTime) };
+    timeline.setPointerCapture(e.pointerId); e.preventDefault();
   };
   timeline.onpointermove = (e) => {
-    if (!drag) return;
-    const d = drag;
-    if (d.mode === "scrub") {
-      const rect = timeline.getBoundingClientRect();
-      if (e.clientX > rect.right - 20) timeline.scrollLeft += 20;
-      if (e.clientX < rect.left + 165) timeline.scrollLeft -= 20;
-      preview.seek(Math.max(0, (e.clientX - rect.left + timeline.scrollLeft - 150) / zoom));
-      return;
-    }
-    if (!d.changed && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 4) return;
-    d.changed = true;
-    let delta = frame((e.clientX - d.x + timeline.scrollLeft - d.scroll) / zoom, p.fps);
-    const clips = d.base.clips.filter((c) => d.ids.includes(c.id));
-    p = structuredClone(d.base);
-    if (d.mode === "move") {
-      delta = Math.max(-Math.min(...clips.map((c) => c.start)), delta);
-      if (!e.altKey)
-        delta = snap(p, d.clip.start + delta, d.ids, 8 / zoom) - d.clip.start;
-    }
-    if (d.mode === "left")
-      delta = clamp(
-        delta,
-        -Math.min(
-          ...clips.map((c) =>
-            ["image", "title"].includes(c.kind)
-              ? c.start
-              : Math.min(c.start, c.in),
-          ),
-        ),
-        Math.min(...clips.map((c) => c.duration)) - 1 / p.fps,
-      );
-    if (d.mode === "right") {
-      const room = Math.min(
-        ...clips.map((c) =>
-          ["image", "title"].includes(c.kind)
-            ? 43200
-            : p.assets.find((a) => a.id === c.asset).duration -
-              c.in -
-              c.duration,
-        ),
-      );
-      delta = clamp(
-        delta,
-        1 / p.fps - Math.min(...clips.map((c) => c.duration)),
-        room,
-      );
-    }
-    if (d.mode === "move") {
-      const row = [...timeline.querySelectorAll("[data-row]")].find((el) => {
-        const r = el.getBoundingClientRect();
-        return e.clientY >= r.top && e.clientY < r.bottom;
-      });
-      const target = p.tracks.find((t) => t.id === row?.dataset.row),
-        source = p.tracks.find((t) => t.id === d.clip.track);
-      if (target && !target.locked && target.kind === source.kind)
-        p.clips.find((c) => c.id === d.clip.id).track = target.id;
-    }
-    for (const c of p.clips.filter((c) => d.ids.includes(c.id))) {
-      if (d.mode === "move") c.start += delta;
-      if (d.mode === "left") {
-        c.start += delta;
-        if (!["image", "title"].includes(c.kind)) c.in += delta;
-        c.duration -= delta;
-      }
-      if (d.mode === "right") c.duration += delta;
-    }
-    try {
-      p = sanitize(p);
-    } catch {
-      p = structuredClone(d.base);
-    }
-    renderTimeline();
-    preview.draw(true);
+    if (!drag || drag.pointer !== e.pointerId) return;
+    drag.pointerAt = pointerData(e); queueDrag();
   };
-  const finishDrag = () => {
-    if (!drag) return;
-    const d = drag;
-    drag = null;
-    if (timeline.hasPointerCapture(d.pointer)) timeline.releasePointerCapture(d.pointer);
+  const finishDrag = (e) => {
+    if (!drag || (e && drag.pointer !== e.pointerId)) return;
+    if (e) drag.pointerAt = pointerData(e);
+    updateDrag();
+    const d = drag; drag = null; clearDragUI(d);
     if (d.mode !== "scrub" && d.changed) commit(p);
     else preview.scheduleDraw();
   };
-  timeline.onpointerup = finishDrag;
   const cancelDrag = () => {
     if (!drag) return;
-    const d = drag; drag = null;
+    const d = drag; drag = null; clearDragUI(d);
     if (d.base) { p = d.base; render(); }
+    preview.seek(d.originalTime);
   };
+  timeline.onpointerup = finishDrag;
   timeline.onpointercancel = cancelDrag;
   timeline.onlostpointercapture = cancelDrag;
   preview.onDraw = () => {
@@ -1184,7 +1185,7 @@ export async function activate({ services }) {
     renderInspector();
     renderTimeline();
     if (p.tracks.find((t) => t.id === c.track).locked) return;
-    canvasDrag = { x, y, base: structuredClone(p), c: { ...c }, corner };
+    canvasDrag = { x, y, base: structuredClone(p), c: { ...c }, corner, pointer: e.pointerId, time: preview.time };
     canvas.setPointerCapture(e.pointerId);
     preview.draw();
   };
@@ -1216,18 +1217,23 @@ export async function activate({ services }) {
   };
   canvas.onpointerup = () => {
     if (canvasDrag) {
-      canvasDrag = null;
+      const d = canvasDrag; canvasDrag = null;
+      if (canvas.hasPointerCapture(d.pointer)) canvas.releasePointerCapture(d.pointer);
       commit(p);
     }
   };
-  canvas.onpointercancel = () => {
-    if (canvasDrag) {
-      p = canvasDrag.base;
-      canvasDrag = null;
-      render();
-    }
-  };
+  function cancelCanvasDrag() {
+    if (!canvasDrag) return;
+    const d = canvasDrag; canvasDrag = null; p = d.base;
+    if (canvas.hasPointerCapture(d.pointer)) canvas.releasePointerCapture(d.pointer);
+    render(); preview.seek(d.time);
+  }
+  const cancelGestures = () => { cancelDrag(); cancelCanvasDrag(); };
+  canvas.onpointercancel = cancelCanvasDrag;
+  canvas.onlostpointercapture = cancelCanvasDrag;
   const onKey = (e) => {
+    if (active() && e.key === "Escape" && (drag || canvasDrag)) { e.preventDefault(); cancelGestures(); return; }
+    if (drag && e.key === "Alt") { e.preventDefault(); drag.pointerAt.alt = true; queueDrag(); return; }
     if (
       !active() ||
       busy ||
@@ -1238,6 +1244,17 @@ export async function activate({ services }) {
     )
       return;
     const key = e.key.toLowerCase();
+    if (drag) return;
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.target.id !== "edit-divider") {
+      if (["arrowup", "arrowdown", "+", "=", "-", "f", "n"].includes(key)) {
+        e.preventDefault();
+        if (key === "arrowup" || key === "arrowdown") jumpCut(key === "arrowup" ? -1 : 1);
+        else if (key === "f") fitTimeline();
+        else if (key === "n") toggleSnap();
+        else setZoom(zoom * (key === "-" ? 1 / 1.5 : 1.5));
+        return;
+      }
+    }
     if (!e.ctrlKey && !e.metaKey && !e.altKey && ["home", "end", "v", "c"].includes(key) && e.target.id !== "edit-divider") {
       e.preventDefault();
       if (["v", "c"].includes(key)) selectTool(key === "c");
@@ -1277,19 +1294,26 @@ export async function activate({ services }) {
       );
     }
   };
+  const onKeyUp = (e) => {
+    if (drag && e.key === "Alt") { e.preventDefault(); drag.pointerAt.alt = false; queueDrag(); }
+  };
   const onView = () => {
     if (!active() || document.hidden || io.isBusy()) {
+      cancelGestures();
       stop();
       preview.clear();
     } else preview.draw(true);
   };
   const onTake = (e) => run(() => openTake(e.detail))();
   const onUpdate = (e) => {
+    cancelGestures();
     stop();
     if (io.available && hasEdit) e.detail.waitUntil(io.call("draft", p));
   };
   window.addEventListener("latitude-before-update", onUpdate);
+  window.addEventListener("blur", cancelGestures);
   window.addEventListener("keydown", onKey);
+  window.addEventListener("keyup", onKeyUp);
   window.addEventListener("latitude-view", onView);
   window.addEventListener("latitude-edit-take", onTake);
   document.addEventListener("visibilitychange", onView);
@@ -1387,13 +1411,17 @@ export async function activate({ services }) {
       throw Error(
         "Finish or cancel the editor operation before disabling this mod.",
       );
+    cancelGestures();
     disposed = true;
+    timeline.removeEventListener("wheel", onWheel);
     layout.destroy();
     off();
     cancelAnimationFrame(scrollRaf);
     window.removeEventListener("keydown", onKey);
+    window.removeEventListener("keyup", onKeyUp);
     window.removeEventListener("latitude-view", onView);
     window.removeEventListener("latitude-before-update", onUpdate);
+    window.removeEventListener("blur", cancelGestures);
     window.removeEventListener("latitude-edit-take", onTake);
     document.removeEventListener("visibilitychange", onView);
     await preview.destroy();
