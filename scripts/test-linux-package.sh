@@ -6,6 +6,7 @@ test -s "$package"
 flatpak install --user -y --noninteractive "$package"
 app=studio.latitude.recorder
 flatpak info --user "$app"
+node scripts/verify-packaged-fonts.cjs "$(flatpak info --user --show-location "$app")/files/lib/studio.latitude.recorder/resources/app.asar"
 desktop="$HOME/.local/share/flatpak/exports/share/applications/$app.desktop"
 desktop-file-validate "$desktop"
 flatpak run --command=sh "$app" -c '

@@ -16,6 +16,9 @@
   <url type="help">https://github.com/zphat/Latitude/blob/main/docs/LINUX.md</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.9.8" date="2026-11-14" type="development">
+      <description><p>Offline creative library, editable transition/look/title packs, more bundled fonts, matching preview/export colors, and editor workflow fixes.</p></description>
+    </release>
     <release version="0.9.7" date="2026-11-07" type="development">
       <description><p>Live trim previews, synchronized source limits, visible clip snapping, cancelable drags and faster timeline navigation.</p></description>
     </release>

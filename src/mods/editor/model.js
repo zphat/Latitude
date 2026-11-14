@@ -1,3 +1,5 @@
+import { FONT_NAMES } from "./fonts.js";
+import { TRANSITION_IDS, ease } from "./motion.js";
 // Shared, dependency-free timeline model. Times are seconds on the project frame grid.
 export const LIMITS = Object.freeze({
   tracks: 16,
@@ -155,11 +157,8 @@ export function sanitize(input) {
       fadeOut: clamp(c.fadeOut ?? 0, 0, length / 2),
       audioIn: clamp(c.audioIn ?? 0, 0, length / 2),
       audioOut: clamp(c.audioOut ?? 0, 0, length / 2),
-      transition: ["fade", "slide-left", "slide-right", "wipe"].includes(
-        c.transition,
-      )
-        ? c.transition
-        : "fade",
+      transition: TRANSITION_IDS.has(c.transition) ? c.transition : "fade",
+      easing: c.easing === "smooth" ? "smooth" : "linear",
       x: clamp(c.x ?? 0, -1, 1),
       y: clamp(c.y ?? 0, -1, 1),
       w: clamp(c.w ?? 1, 0.02, 2),
@@ -176,8 +175,10 @@ export function sanitize(input) {
       brightness: clamp(c.brightness ?? 1, 0.2, 2),
       contrast: clamp(c.contrast ?? 1, 0.2, 2),
       saturation: clamp(c.saturation ?? 1, 0, 2),
+      sepia: clamp(c.sepia ?? 0, 0, 1),
+      hue: clamp(c.hue ?? 0, -180, 180),
       text: label(c.text, "Your title", 500),
-      font: ["Manrope", "DM Serif Display", "monospace"].includes(c.font)
+      font: FONT_NAMES.has(c.font)
         ? c.font
         : "Manrope",
       fontSize: clamp(c.fontSize ?? 64, 16, 240),
@@ -433,22 +434,24 @@ export function envelope(c, t, audio = false) {
   return audio ? Math.sin((clamp(v, 0, 1) * Math.PI) / 2) : clamp(v, 0, 1);
 }
 export function visualRect(c, t) {
-  let x = c.x,
-    reveal = 1;
-  const phase = c.fadeIn ? clamp((t - c.start) / c.fadeIn, 0, 1) : 1;
+  let x = c.x, y = c.y, reveal = 1;
+  const phase = ease(c.fadeIn ? clamp((t - c.start) / c.fadeIn, 0, 1) : 1, c.easing);
   if (c.transition === "slide-left") x -= (1 - phase) * (c.x + c.w);
   if (c.transition === "slide-right") x += (1 - phase) * (1 - c.x);
+  if (c.transition === "slide-up") y += (1 - phase) * (1 - c.y);
+  if (c.transition === "slide-down") y -= (1 - phase) * (c.y + c.h);
   if (c.transition === "wipe") reveal = phase;
   return {
     x,
-    y: c.y,
+    y,
+    phase,
     w: c.w,
     h: c.h,
     reveal,
     alpha:
       c.opacity *
       (c.transition === "fade"
-        ? envelope(c, t)
+        ? Math.min(phase, c.fadeOut ? clamp((c.start + c.duration - t) / c.fadeOut, 0, 1) : 1)
         : c.fadeOut
           ? clamp((c.start + c.duration - t) / c.fadeOut, 0, 1)
           : 1),

@@ -1,4 +1,6 @@
 import { FORMATS, audible } from "./model.js";
+import { exportColor } from "./color.js";
+import { MASKS, easeExpression, maskExpression } from "./motion.js";
 const n = (value) => Number(value.toFixed(7));
 const even = (value) => Math.max(2, Math.round(value / 2) * 2);
 export const CEILING =
@@ -99,8 +101,8 @@ export function segmentPlan(
       let chain = `[${index}:v:0]setpts=PTS+${n(origin - lead)}/TB,fps=${fps}:round=up:start_time=0,`;
       if (c.kind !== "title" && c.crop)
         chain += `crop=w=iw*${c.crop.w}:h=ih*${c.crop.h}:x=iw*${c.crop.x}:y=ih*${c.crop.y},`;
-      if (c.brightness !== 1 || c.contrast !== 1 || c.saturation !== 1)
-        chain += `eq=brightness=${n((c.brightness - 1) * 0.5)}:contrast=${c.contrast}:saturation=${c.saturation},`;
+      const colorFilters = exportColor(c);
+      if (colorFilters.length) chain += `format=rgba,${colorFilters.join(",")},`;
       chain += "setsar=1,";
       chain +=
         c.fit === "cover"
@@ -110,26 +112,27 @@ export function segmentPlan(
       chain = chain.replace("setsar=1,", "setsar=1,format=rgba,");
       if (c.flip) chain += "hflip,";
       chain += "format=rgba";
-      const phase = c.fadeIn ? `min(1,(T+${n(offset)})/${n(c.fadeIn)})` : "1";
-      const tail = c.fadeOut
+      const entering = c.fadeIn && offset < c.fadeIn;
+      const phase = entering ? easeExpression(`min(1,(T+${n(offset)})/${n(c.fadeIn)})`, c.easing) : "1";
+      const tail = c.fadeOut && offset + d > c.duration - c.fadeOut
         ? `min(1,(${n(c.duration - offset)}-T)/${n(c.fadeOut)})`
         : "1";
       const alpha = `${c.opacity}*${c.transition === "fade" ? `min(${phase},${tail})` : tail}`;
-      if (c.opacity < 1 || c.fadeIn || c.fadeOut) {
-        const wipe = c.transition === "wipe" ? `*lte(X,W*${phase})` : "";
+      if (c.opacity < 1 || (entering && (c.transition === "fade" || MASKS.has(c.transition))) || tail !== "1") {
+        const wipe = entering && MASKS.has(c.transition) ? `*${maskExpression(c.transition, phase)}` : "";
         chain += `,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*${alpha}${wipe}'`;
       }
       chain += `[${tag}]`;
       filters.push(chain);
-      let x = String(n(c.x * W));
-      if (c.fadeIn && c.transition.startsWith("slide")) {
-        const f = `(1-min(1,(t+${n(offset)})/${n(c.fadeIn)}))`;
-        x +=
-          c.transition === "slide-left"
-            ? `-${n((c.x + c.w) * W)}*${f}`
-            : `+${n((1 - c.x) * W)}*${f}`;
+      let x = String(n(c.x * W)), y = String(n(c.y * H));
+      if (entering && c.transition.startsWith("slide")) {
+        const f = `(1-${easeExpression(`min(1,(t+${n(offset)})/${n(c.fadeIn)})`, c.easing)})`;
+        if (c.transition === "slide-left") x += `-${n((c.x + c.w) * W)}*${f}`;
+        if (c.transition === "slide-right") x += `+${n((1 - c.x) * W)}*${f}`;
+        if (c.transition === "slide-up") y += `+${n((1 - c.y) * H)}*${f}`;
+        if (c.transition === "slide-down") y += `-${n((c.y + c.h) * H)}*${f}`;
       }
-      visuals.push({ tag, x, y: n(c.y * H) });
+      visuals.push({ tag, x, y });
     }
     if (isAudio) {
       let chain = `[${index}:a:${c.audio}]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=PTS+${n(origin)}/TB,atrim=start=${n(lead)}:duration=${d},asetpts=PTS-STARTPTS,apad=whole_dur=${d}`;
@@ -148,7 +151,7 @@ export function segmentPlan(
     const v = visuals[i],
       next = `base${i + 1}`;
     filters.push(
-      `[${prev}][${v.tag}]overlay=x='${v.x}':y=${v.y}:eof_action=pass:shortest=0:format=auto[${next}]`,
+      `[${prev}][${v.tag}]overlay=x='${v.x}':y='${v.y}':eof_action=pass:shortest=0:format=auto[${next}]`,
     );
     prev = next;
   }

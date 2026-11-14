@@ -45,6 +45,7 @@ def verify():
             assert len(info[key]) > 10
         resources = app / "Contents/Resources"
         assert (resources / "app.asar").stat().st_size > 100000
+        subprocess.run(["node", str(ROOT / "scripts/verify-packaged-fonts.cjs"), str(resources / "app.asar")], check=True)
         assert digest(resources / "ffmpeg") == digest(ROOT / "vendor/ffmpeg")
         for notice in (ROOT / "vendor/mac").rglob("*"):
             if notice.is_file():

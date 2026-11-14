@@ -78,7 +78,7 @@ jobs:
       - run: npm ci
       - run: npm run setup
       - name: Verify every format with the bundled Windows encoder
-        run: node --test tests/formats.test.cjs tests/streaming.test.cjs tests/editor-mod.test.cjs tests/updater.test.cjs tests/session-names.test.cjs tests/loudness.test.cjs tests/storage-quality.test.cjs tests/editor-gestures.test.cjs
+        run: node --test tests/formats.test.cjs tests/streaming.test.cjs tests/editor-mod.test.cjs tests/updater.test.cjs tests/session-names.test.cjs tests/loudness.test.cjs tests/storage-quality.test.cjs tests/editor-gestures.test.cjs tests/editor-creative.test.cjs
       - name: Verify native editor and update UI
         env:
           LATITUDE_UPDATE_LIVE_CHECK: "1"
@@ -92,6 +92,8 @@ jobs:
           node tests/editor-scrub-ui.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/editor-gestures-ui.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tests/editor-creative-ui.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/updater-ui.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -130,6 +132,7 @@ jobs:
             ${{ runner.temp }}/latitude-edit-ui-*/shots/*.png
             ${{ runner.temp }}/latitude-scrub-ui-*/*.png
             ${{ runner.temp }}/latitude-gestures-ui-*/*.png
+            ${{ runner.temp }}/latitude-creative-ui-*/*.png
             ${{ runner.temp }}/latitude-names-ui-*/shots/*.png
           if-no-files-found: ignore
           retention-days: 14

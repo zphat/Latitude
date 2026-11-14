@@ -307,6 +307,27 @@ class EditorStore {
     await this.atomic(file, await this.payload(project, file));
     return path.basename(file);
   }
+  async importPack(file) {
+    const { validatePack, PACK_LIMITS } = await import("../src/mods/editor/packs.js");
+    const handle = await fs.open(file, "r");
+    try {
+      const stat = await handle.stat();
+      if (!stat.isFile() || stat.size > PACK_LIMITS.bytes) throw Error("Choose a preset pack smaller than 128 KB.");
+      // Bound the read as well as the stat; a changing file cannot allocate unbounded memory.
+      const bytes = Buffer.alloc(PACK_LIMITS.bytes + 1);
+      const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
+      if (bytesRead > PACK_LIMITS.bytes) throw Error("This preset pack is too large.");
+      let parsed;
+      try { parsed = JSON.parse(bytes.toString("utf8", 0, bytesRead)); }
+      catch { throw Error("This is not a readable Latitude preset pack."); }
+      return validatePack(parsed);
+    } finally { await handle.close(); }
+  }
+  async exportPack(pack, file) {
+    const { validatePack } = await import("../src/mods/editor/packs.js");
+    await this.atomic(file, validatePack(pack));
+    return path.basename(file);
+  }
   async draft(project) {
     this.pendingDraft = await this.payload(project, this.draftPath);
     if (!this.draftTask)
