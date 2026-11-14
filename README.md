@@ -87,7 +87,8 @@ The new near-black globe with lime latitude bands is used throughout the app, Wi
 **Latitude Editor** is the second official optional mod, included and off by default. Enable it in **Mods → Latitude Editor**, then open **Edit**, or choose **Edit** on a saved take.
 
 - Layer video, audio, images and titles. Split/trim, drag between layers, insert intros or ads while keeping all later clips aligned, copy/cut/paste, and undo/redo. Separate a video's audio into a linked layer. Global range cuts preserve synchronization.
-- Fades, dissolves, slides and wipes; drag/resize framing, crop, flip, opacity, simple color controls, and locally bundled Manrope/DM Serif Display title fonts with optional gradients.
+- Twelve entrances with linear/smooth motion, twelve color looks, and twelve editable title styles. Fifteen locally bundled open fonts plus system monospace, gradient text, crop, framing and opacity.
+- **Creative library** beside Save/Export: search, favorite, apply, save and share data-only preset packs. Works offline; applied styles remain editable after a pack is removed. [Pack format and future catalog plan](docs/CREATIVE-PACKS.md).
 - Clip/layer gain, panning, mute/solo, waveforms, optional dialogue cleanup, protected preview audio and two-pass podcast loudness export. Stateful dialogue processing spans the full edit, avoiding compressor resets at render boundaries.
 - Export MP4, MKV or audio-only WAV. MP4/MKV optionally retain named audio layers **and aligned 24-bit WAV stems**. Portrait, square, 720p, 1080p and 4K projects at 24/30/60 fps.
 - Non-destructive project files, local recovery drafts, missing-media relinking and cancelable native exports. Disabled editor code stays unloaded; idle previews stop; render jobs and undo memory are bounded. No new production dependency.

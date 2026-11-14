@@ -491,6 +491,20 @@ app.whenReady().then(async () => {
         ],
       },
     ];
+    if (operation === "import-pack") {
+      const result = await dialog.showOpenDialog(win, {
+        title: "Import an editor preset pack", properties: ["openFile"],
+        filters: [{ name: "Latitude preset pack", extensions: ["latitude-pack", "json"] }],
+      });
+      return result.canceled ? null : editor.importPack(result.filePaths[0]);
+    }
+    if (operation === "export-pack") {
+      const result = await dialog.showSaveDialog(win, {
+        title: "Export an editor preset pack", defaultPath: "My-presets.latitude-pack",
+        filters: [{ name: "Latitude preset pack", extensions: ["latitude-pack"] }],
+      });
+      return result.canceled ? null : editor.exportPack(data, result.filePath);
+    }
     if (operation === "import") {
       const result = await dialog.showOpenDialog(win, {
         title: "Add media to your edit",

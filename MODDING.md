@@ -142,3 +142,12 @@ A new format needs a registry entry, compatible encoder/container flags, plain s
 ## Linux platform boundary
 
 `electron/capture-platform.cjs` selects the Wayland portal vs. thumbnail picker. `electron/linux-audio.cjs` owns a single helper process; `native/linux-audio.c` owns a single temporary audio-server module. The renderer connects that source through the same Web Audio input used by desktop loopback on Windows. Do not duplicate capture, change the user's system defaults, or load native plugins through settings packs. The Linux input bridge still uses a temporary audio-server source instead of PCM IPC. Version 0.8 adds network permission and bounded PCM messages for the finished live-output mix only. Disabled streaming sends no packets.
+
+## Editor creative packs
+
+The optional Editor has a separate **Library → My packs** area for reusable
+transitions, color looks, title styles and bundled-font choices. It accepts the
+versioned, data-only `latitude-editor-pack` format, distinct from Studio
+scene/theme packs described above. No JavaScript, paths or remote assets are
+loaded from these packs. See [Creative packs](docs/CREATIVE-PACKS.md) for the
+schema, validation limits, trust boundary and future optional catalog plan.

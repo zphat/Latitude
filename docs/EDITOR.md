@@ -14,6 +14,19 @@ Enable **Mods → Latitude Editor**, then choose **Edit** in the sidebar. The ed
 8. **Save project** stores a small `.latitude-edit` file. Keep original media with it. If files move, select the source and use **Relink source**. A local draft can recover the latest edit, but does not replace named project saves.
 9. Choose **Export edit**. Export the entire timeline or a marked range, optionally retaining separate layers and WAV stems. The output goes into a new folder; originals are never overwritten.
 
+## Creative library
+
+Open **Library** beside the project actions to browse transitions, color looks,
+title styles and fonts. Search or mark favorites. **Apply** styles a selected
+picture/title; **Add title** makes editable text at the playhead. Adjust every
+value in the Inspector. Smooth timing eases entrances in and out; fade-out remains
+an opacity fade. Use **My packs** to save/share styles or import local packs.
+See [Creative packs](CREATIVE-PACKS.md) for formats and the future catalog plan.
+
+Rename a selected clip in the Inspector without renaming its media file. Search
+Media to find sources in a larger project. Inspector sections stay open as you
+adjust values, and Undo/Redo preserves the selected clip when it still exists.
+
 ## Audio and export
 
 Preview monitoring has a sample-peak limiter at about −1.5 dBFS. Dialogue cleanup adds an 80 Hz rumble filter, a mild boxiness cut/presence lift and gentle compression. Keep it off for already-processed recordings. Preview is a lightweight audition; the export performs full-resolution rendering and optional two-pass loudness matching. Export dialogue compression runs continuously over the joined timeline, so cuts and internal rendering sections do not restart its envelope.

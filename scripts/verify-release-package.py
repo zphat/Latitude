@@ -4,6 +4,8 @@ from pathlib import Path
 import hashlib
 import json
 import zipfile
+import subprocess
+import tempfile
 
 root = Path(__file__).resolve().parent.parent
 version = json.loads((root / "package.json").read_text(encoding="utf-8"))["version"]
@@ -42,6 +44,10 @@ with zipfile.ZipFile(archive) as package:
             raise RuntimeError(f"Packaged notice differs: {name}")
     if package.getinfo(prefix + "resources/app.asar").file_size < 100000:
         raise RuntimeError("Application archive is unexpectedly small")
+    with tempfile.TemporaryDirectory(prefix="latitude-font-check-") as temp:
+        asar = Path(temp) / "app.asar"
+        asar.write_bytes(package.read(prefix + "resources/app.asar"))
+        subprocess.run(["node", str(root / "scripts/verify-packaged-fonts.cjs"), str(asar)], check=True)
 
 installer = archive.with_name(f"Latitude-{version}-Windows-x64-Setup.exe")
 if not installer.is_file() or installer.stat().st_size < 50_000_000:

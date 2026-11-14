@@ -16,6 +16,10 @@ import {
   pasteClips,
   FORMATS,
 } from "./model.js";
+import { TRANSITIONS } from "./motion.js";
+import { FONTS } from "./fonts.js";
+import { LOOKS, applyPreset } from "./packs.js";
+import { createLibrary } from "./library.js";
 import { Preview, titleCanvas } from "./preview.js";
 import { installLayout } from "./layout.js";
 import { timecode, parseTimecode } from "./timecode.js";
@@ -66,13 +70,13 @@ export async function activate({ services }) {
     title: "Edit",
     icon: "scissors",
     html: `
-    <div class="page-heading editor-heading"><div><h1>Latitude Editor</h1><span class="fine-print">Optional editing mod · <span class="fine-print" id="edit-save-state" role="status">Sources stay untouched</span></span></div><div class="editor-file-actions"><button class="button small" id="edit-new">New</button><button class="button small" id="edit-open">Open project</button><button class="button small" id="edit-save">Save project</button><button class="button primary" id="edit-export">Export edit</button></div></div>
+    <div class="page-heading editor-heading"><div><h1>Latitude Editor</h1><span class="fine-print">Optional editing mod · <span class="fine-print" id="edit-save-state" role="status">Sources stay untouched</span></span></div><div class="editor-file-actions"><button class="button small editor-library-button" id="edit-library-open">✦ Library</button><button class="button small" id="edit-new">New</button><button class="button small" id="edit-open">Open project</button><button class="button small" id="edit-save">Save project</button><button class="button primary" id="edit-export">Export edit</button></div></div>
     <div class="editor-project-line"><input id="edit-name" aria-label="Edit name" maxlength="100" value="Untitled edit"><select id="edit-format" aria-label="Picture shape"><option value="landscape">16:9 · 1080p episode</option><option value="portrait">9:16 · vertical clip</option><option value="square">1:1 · square</option><option value="compact">16:9 · 720p lightweight</option><option value="uhd">16:9 · 4K</option></select><select id="edit-fps" aria-label="Frame rate"><option>24</option><option selected>30</option><option>60</option></select><div class="editor-layout-tools" aria-label="Workspace layout"><button class="button small" id="edit-toggle-media" aria-controls="edit-media-panel">Media</button><button class="button small" id="edit-toggle-inspector" aria-controls="edit-inspector">Inspector</button><button class="text-button" id="edit-reset-layout">Reset layout</button></div></div>
     <div class="editor-operation" id="edit-operation" hidden><div><b id="edit-progress-label">Working…</b><progress id="edit-progress" max="100"></progress></div><button class="button small" id="edit-cancel">Cancel</button></div>
     <div id="edit-recovery" class="notice" hidden><span id="edit-recovery-name"></span> <button class="text-button" id="edit-restore">Restore draft</button></div>
     <div class="editor-workspace">
     <div class="editor-top">
-      <section class="panel editor-media" id="edit-media-panel" aria-label="Media library"><div class="editor-section-title"><h2>Media</h2><button class="button small" id="edit-import">+ Import</button></div><button class="button small" id="edit-takes">Use a Latitude take</button><p class="fine-print">Video, audio, intros, ads and images. Add a source to the timeline to use it.</p><div id="edit-media-list"></div><div id="edit-media-tools" hidden><button class="button small" id="edit-add-media" title="Place media over the current timeline">Add at playhead</button><div class="editor-pair"><button class="button small" id="edit-insert-media" title="Insert here and move all later clips together">Insert</button><button class="button small" id="edit-append-media" title="Place at the end of the timeline">Append</button></div><button class="text-button" id="edit-proxy">Make lighter / compatible preview</button><button class="text-button" id="edit-waveform">Build audio waveform</button><button class="text-button" id="edit-relink">Relink source</button></div></section>
+      <section class="panel editor-media" id="edit-media-panel" aria-label="Media library"><div class="editor-section-title"><h2>Media</h2><button class="button small" id="edit-import">+ Import</button></div><button class="button small" id="edit-takes">Use a Latitude take</button><p class="fine-print">Video, audio, intros, ads and images. Add a source to the timeline to use it.</p><input id="edit-media-search" type="search" placeholder="Find media…" aria-label="Search imported media"><div id="edit-media-list"></div><div id="edit-media-tools" hidden><button class="button small" id="edit-add-media" title="Place media over the current timeline">Add at playhead</button><div class="editor-pair"><button class="button small" id="edit-insert-media" title="Insert here and move all later clips together">Insert</button><button class="button small" id="edit-append-media" title="Place at the end of the timeline">Append</button></div><button class="text-button" id="edit-proxy">Make lighter / compatible preview</button><button class="text-button" id="edit-waveform">Build audio waveform</button><button class="text-button" id="edit-relink">Relink source</button></div></section>
       <section class="panel editor-viewer"><div class="editor-stage" id="edit-stage"><canvas id="edit-canvas" aria-label="Edit preview; drag a selected picture or title to reposition it"></canvas><span id="edit-seek-state" role="status"></span><div id="edit-empty"><b>Open Media to begin.</b><span>Import a file or choose a Latitude take.</span></div></div><div class="editor-transport"><button class="button small" id="edit-back" title="Previous frame">‹</button><button class="button primary" id="edit-play">Play</button><button class="button small" id="edit-forward" title="Next frame">›</button><input id="edit-time" class="editor-timecode" aria-label="Playhead time in hours:minutes:seconds:frames" title="Type a time in seconds or HH:MM:SS:FF, then Enter" value="00:00:00:00"><span id="edit-length" class="fine-print">/ 00:00.00</span><label class="editor-meter" title="Protected preview mix; final loudness is set at export"><meter id="edit-meter" min="0" max="1" low=".25" high=".71" optimum=".1" value="0"></meter><small id="edit-meter-db">Mix · silent</small></label></div><input id="edit-scrub" type="range" min="0" max="1" step=".033333" value="0" aria-label="Preview playhead"><p class="editor-preview-note fine-print">Lightweight preview · originals used for export · drag to position, corners to resize</p></section>
       <section class="panel editor-inspector" id="edit-inspector"></section>
     </div>
@@ -246,14 +250,16 @@ export async function activate({ services }) {
     preview.seek(preview.time);
   }
   function renderMedia() {
+    const matches = p.assets.filter(a => a.name.toLowerCase().includes($("#edit-media-search").value.trim().toLowerCase()));
     $("#edit-media-list").innerHTML = p.assets.length
-      ? p.assets
+      ? matches
           .map(
             (a) =>
               `<button class="editor-media-item ${librarySelected === a.id ? "selected" : ""}" data-media="${a.id}"><span class="editor-media-type">${a.kind === "video" ? "VID" : a.kind === "audio" ? "AUD" : "IMG"}</span><span><b>${esc(a.name)}</b><small>${a.missing ? "Missing · relink" : a.kind === "image" ? `${a.width} × ${a.height}` : `${time(a.duration)}${a.audio > 1 ? ` · ${a.audio} audio tracks` : ""}`}</small></span></button>`,
           )
           .join("")
       : '<p class="editor-media-empty">Your media stays on your computer. Nothing is uploaded.</p>';
+    if (p.assets.length && !matches.length) $("#edit-media-list").textContent = "No matching media.";
     $("#edit-media-tools").hidden = !librarySelected;
     $("#edit-add-media").disabled = !!p.assets.find(
       (a) => a.id === librarySelected,
@@ -324,7 +330,10 @@ export async function activate({ services }) {
         `${(p.range.out - p.range.in) * zoom}px`;
     }
   }
+  const inspectorDetails = new Map();
   function renderInspector(trackId) {
+    const inspector = $("#edit-inspector"), scroll = inspector.scrollTop;
+    for (const detail of inspector.querySelectorAll("details")) inspectorDetails.set(detail.querySelector("summary").textContent, detail.open);
     inspectorTrack = trackId || null;
     const c = p.clips.find((c) => c.id === selected),
       t = p.tracks.find((t) => t.id === (trackId || c?.track));
@@ -384,7 +393,7 @@ export async function activate({ services }) {
       visual = c.kind !== "audio",
       sound = !!a?.audio;
     $("#edit-inspector").innerHTML =
-      `<span class="eyebrow">${esc(c.kind.toUpperCase())} CLIP</span><h2>${esc(c.name)}</h2><label>Layer<select id="clip-track">${p.tracks
+      `<span class="eyebrow">${esc(c.kind.toUpperCase())} CLIP</span><h2>${esc(c.name)}</h2><label>Clip name<input id="clip-name" maxlength="100" value="${esc(c.name)}"></label><label>Layer<select id="clip-track">${p.tracks
         .filter((x) => x.kind === t.kind)
         .map(
           (x) =>
@@ -396,24 +405,19 @@ export async function activate({ services }) {
       ${sound ? `<details open><summary>Audio</summary>${number("clip-gain", "Clip gain · dB", c.gain, -60, 18, 0.5)}<label class="check-line"><input id="clip-mute" type="checkbox" ${c.mute ? "checked" : ""}>Mute this clip</label>${a.audio > 1 ? `<label>Source audio track<select id="clip-audio">${Array.from({ length: a.audio }, (_, i) => `<option value="${i}" ${c.audio === i ? "selected" : ""}>Track ${i + 1}</option>`).join("")}</select></label>` : ""}<div class="editor-pair">${number("clip-audioIn", "Fade in · s", c.audioIn, 0, c.duration / 2)}${number("clip-audioOut", "Fade out · s", c.audioOut, 0, c.duration / 2)}</div><button class="text-button" id="clip-mixer">Open layer mixer</button>${c.kind === "video" ? '<button class="text-button" id="clip-detach">Separate audio into a linked layer</button>' : ""}</details>` : ""}
       ${
         visual
-          ? `<details open><summary>Picture & fades</summary><div class="editor-pair">${number("clip-fadeIn", "Fade / enter · s", c.fadeIn, 0, c.duration / 2)}${number("clip-fadeOut", "Fade out · s", c.fadeOut, 0, c.duration / 2)}</div><label>Enter transition<select id="clip-transition">${[
-              ["fade", "Fade / dissolve"],
-              ["slide-left", "Slide from left"],
-              ["slide-right", "Slide from right"],
-              ["wipe", "Wipe reveal"],
-            ]
+          ? `<details open><summary>Picture & fades</summary><div class="editor-pair">${number("clip-fadeIn", "Fade / enter · s", c.fadeIn, 0, c.duration / 2)}${number("clip-fadeOut", "Fade out · s", c.fadeOut, 0, c.duration / 2)}</div><label>Enter transition<select id="clip-transition">${TRANSITIONS
               .map(
                 ([id, name]) =>
                   `<option value="${id}" ${c.transition === id ? "selected" : ""}>${name}</option>`,
               )
               .join(
                 "",
-              )}</select></label><button class="text-button" id="clip-crossfade">Dissolve from previous · 0.5s</button></details>
+              )}</select></label><label>Motion timing<select id="clip-easing"><option value="linear" ${c.easing === "linear" ? "selected" : ""}>Linear</option><option value="smooth" ${c.easing === "smooth" ? "selected" : ""}>Smooth ease in/out</option></select></label><button class="text-button" data-open-library="transition">Browse transitions</button><button class="text-button" id="clip-crossfade">Dissolve from previous · 0.5s</button></details>
       <details><summary>Position, size & crop</summary><div class="editor-pair">${number("clip-x", "X · %", c.x * 100, -100, 100, 1)}${number("clip-y", "Y · %", c.y * 100, -100, 100, 1)}${number("clip-w", "Width · %", c.w * 100, 2, 200, 1)}${number("clip-h", "Height · %", c.h * 100, 2, 200, 1)}</div><label>Fit<select id="clip-fit"><option value="contain" ${c.fit === "contain" ? "selected" : ""}>Fit inside</option><option value="cover" ${c.fit === "cover" ? "selected" : ""}>Fill & crop</option></select></label>${number("clip-opacity", "Opacity · %", c.opacity * 100, 0, 100, 1)}<label class="check-line"><input id="clip-flip" type="checkbox" ${c.flip ? "checked" : ""}>Flip horizontally</label>${c.kind !== "title" ? `<div class="editor-pair">${["x", "y", "w", "h"].map((k, i) => number(`crop-${k}`, ["Crop left %", "Crop top %", "Source width %", "Source height %"][i], (c.crop?.[k] ?? (i > 1 ? 1 : 0)) * 100, i > 1 ? 2 : 0, 100, 1)).join("")}</div>` : ""}<button class="text-button" id="clip-reset-frame">Reset framing</button></details>
-      <details><summary>Simple color effects</summary><label>Look<select id="clip-look"><option value="custom">Adjust / current</option><option value="clean">Original</option><option value="mono">Black & white</option><option value="rich">Rich color</option><option value="soft">Soft contrast</option></select></label>${number("clip-brightness", "Brightness", c.brightness, 0.2, 2, 0.05)}${number("clip-contrast", "Contrast", c.contrast, 0.2, 2, 0.05)}${number("clip-saturation", "Color", c.saturation, 0, 2, 0.05)}</details>`
+      <details><summary>Simple color effects</summary><label>Look<select id="clip-look"><option value="custom">Adjust / current</option>${LOOKS.map((look, i) => `<option value="${i}">${esc(look.name)}</option>`).join("")}</select></label>${number("clip-brightness", "Brightness", c.brightness, 0.2, 2, 0.05)}${number("clip-contrast", "Contrast", c.contrast, 0.2, 2, 0.05)}${number("clip-saturation", "Color", c.saturation, 0, 2, 0.05)}${number("clip-sepia", "Sepia · %", c.sepia * 100, 0, 100, 1)}${number("clip-hue", "Hue rotation · °", c.hue, -180, 180, 1)}<button class="text-button" data-open-library="look">Browse color looks</button></details>`
           : ""
       }
-      ${c.kind === "title" ? `<details open><summary>Title</summary><label>Text<textarea id="clip-text" rows="3" maxlength="500">${esc(c.text)}</textarea></label><label>Font<select id="clip-font">${["Manrope", "DM Serif Display", "monospace"].map((f) => `<option ${c.font === f ? "selected" : ""}>${f}</option>`).join("")}</select></label>${number("clip-fontSize", "Size", c.fontSize, 16, 240, 1)}<label>Align<select id="clip-align">${["left", "center", "right"].map((f) => `<option ${c.align === f ? "selected" : ""}>${f}</option>`).join("")}</select></label><div class="editor-pair"><label>Text color<input id="clip-color" type="color" value="${c.color}"></label><label>Gradient end<input id="clip-color2" type="color" value="${c.color2}"></label></div><label class="check-line"><input id="clip-gradient" type="checkbox" ${c.gradient ? "checked" : ""}>Gradient text</label><label class="check-line"><input id="clip-box" type="checkbox" ${c.box ? "checked" : ""}>Dark background for readability</label></details>` : ""}
+      ${c.kind === "title" ? `<details open><summary>Title</summary><label>Text<textarea id="clip-text" rows="3" maxlength="500">${esc(c.text)}</textarea></label><label>Font<select id="clip-font">${FONTS.map(({name}) => `<option ${c.font === name ? "selected" : ""}>${name}</option>`).join("")}</select></label>${number("clip-fontSize", "Size", c.fontSize, 16, 240, 1)}<label>Align<select id="clip-align">${["left", "center", "right"].map((f) => `<option ${c.align === f ? "selected" : ""}>${f}</option>`).join("")}</select></label><div class="editor-pair"><label>Text color<input id="clip-color" type="color" value="${c.color}"></label><label>Gradient end<input id="clip-color2" type="color" value="${c.color2}"></label></div><label class="check-line"><input id="clip-gradient" type="checkbox" ${c.gradient ? "checked" : ""}>Gradient text</label><label class="check-line"><input id="clip-box" type="checkbox" ${c.box ? "checked" : ""}>Dark background for readability</label><button class="text-button" data-open-library="title">Browse title styles & fonts</button></details>` : ""}
       <p class="fine-print">${c.group && linked ? "Linked edits move, trim and split synchronized clips together." : "Edits are non-destructive."}</p>`;
     for (const input of $("#edit-inspector").querySelectorAll(
       "input,select,textarea",
@@ -428,9 +432,7 @@ export async function activate({ services }) {
                 ? Number(input.value)
                 : input.value;
         if (key === "font")
-          await document.fonts.load(
-            `${v === "DM Serif Display" ? 400 : 700} 64px "${v}"`,
-          );
+          await preview.fonts.ensure(v);
         if (key === "audio") {
           v = Number(v);
           if (v > 0 && !media.get(c.asset)?.audioUrls?.[v])
@@ -450,7 +452,7 @@ export async function activate({ services }) {
           });
           return;
         }
-        if (["x", "y", "w", "h", "opacity"].includes(key)) v /= 100;
+        if (["x", "y", "w", "h", "opacity", "sepia"].includes(key)) v /= 100;
         change((next) => (next.clips.find((x) => x.id === c.id)[key] = v));
       });
     }
@@ -477,17 +479,8 @@ export async function activate({ services }) {
       );
       $("#clip-look").onchange = run((e) =>
         change((next) => {
-          const v = {
-            clean: [1, 1, 1],
-            mono: [1, 1, 0],
-            rich: [1, 1.08, 1.15],
-            soft: [1.04, 0.9, 0.95],
-          }[e.target.value];
-          if (v)
-            Object.assign(
-              next.clips.find((x) => x.id === c.id),
-              { brightness: v[0], contrast: v[1], saturation: v[2] },
-            );
+          const preset = LOOKS[Number(e.target.value)];
+          if (e.target.value !== "custom" && preset) applyPreset(next.clips.find(x => x.id === c.id), preset);
         }),
       );
       $("#clip-crossfade").onclick = run(() => {
@@ -523,6 +516,13 @@ export async function activate({ services }) {
         });
       });
     }
+    for (const detail of inspector.querySelectorAll("details")) {
+      const key = detail.querySelector("summary").textContent;
+      if (inspectorDetails.has(key)) detail.open = inspectorDetails.get(key);
+    }
+    inspector.scrollTop = scroll;
+    for (const button of inspector.querySelectorAll("[data-open-library]"))
+      button.onclick = () => creative.open(button.dataset.openLibrary);
     if (t.locked) {
       const note = document.createElement("p");
       note.className = "notice";
@@ -779,7 +779,8 @@ export async function activate({ services }) {
     if (busy) return;
     stop();
     p = history.undo();
-    selected = null;
+    selected = p.clips.some(c => c.id === selected) ? selected : null;
+    inspectorTrack = p.tracks.some(t => t.id === inspectorTrack) ? inspectorTrack : null;
     autosave();
     render();
   };
@@ -787,7 +788,8 @@ export async function activate({ services }) {
     if (busy) return;
     stop();
     p = history.redo();
-    selected = null;
+    selected = p.clips.some(c => c.id === selected) ? selected : null;
+    inspectorTrack = p.tracks.some(t => t.id === inspectorTrack) ? inspectorTrack : null;
     autosave();
     render();
   };
@@ -1352,11 +1354,7 @@ export async function activate({ services }) {
             ...new Set(
               p.clips.filter((c) => c.kind === "title").map((c) => c.font),
             ),
-          ].map((font) =>
-            document.fonts.load(
-              `${font === "DM Serif Display" ? 400 : 700} 64px "${font}"`,
-            ),
-          ),
+          ].map(font => preview.fonts.ensure(font)),
         );
         const titles = {};
         const from = options.range && p.range ? p.range.in : 0,
@@ -1389,6 +1387,30 @@ export async function activate({ services }) {
       });
     });
   });
+  const creative = createLibrary({ root: panel.element, ui, io, fonts: preview.fonts, stop,
+    selection: () => {
+      const c = p.clips.find(c => c.id === selected);
+      return c ? { ...c, locked: !!p.tracks.find(t => t.id === c.track)?.locked } : null;
+    },
+    apply(preset) {
+      const c = p.clips.find(c => c.id === selected);
+      if (busy || io.isBusy()) throw Error("Finish the current operation first.");
+      if (p.tracks.find(t => t.id === c?.track)?.locked) throw Error("Unlock this layer before applying a style.");
+      change(next => applyPreset(next.clips.find(c => c.id === selected), preset));
+    },
+    addTitle(preset) {
+      if (busy || io.isBusy()) throw Error("Finish the current operation first.");
+      let next = structuredClone(p);
+      let track = next.tracks.find(t => t.name === "Titles" && t.kind === "video" && !t.locked);
+      if (!track) { track = newTrack("video", "Titles"); next.tracks.push(track); }
+      next = addClip(next, null, track.id, preview.time);
+      const c = next.clips.at(-1); c.text = "Your title"; c.name = preset.name;
+      applyPreset(c, preset); next = sanitize(next);
+      selected = c.id; inspectorTrack = null; commit(next);
+    },
+  });
+  $("#edit-library-open").onclick = () => { if (!busy && !io.isBusy()) creative.open(); };
+  $("#edit-media-search").oninput = renderMedia;
   render();
   if (io.available)
     io.call("draft-info")
@@ -1415,6 +1437,7 @@ export async function activate({ services }) {
     disposed = true;
     timeline.removeEventListener("wheel", onWheel);
     layout.destroy();
+    creative.destroy();
     off();
     cancelAnimationFrame(scrollRaf);
     window.removeEventListener("keydown", onKey);

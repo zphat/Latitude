@@ -1,3 +1,6 @@
+import { clipMask } from "./motion.js";
+import { cssColor } from "./color.js";
+import { fontSpec, fontManager } from "./fonts.js";
 import { FORMATS, audible, envelope, visualRect, duration, frame } from "./model.js";
 export function titleCanvas(c, project, scale = 1) {
   const [W, H] = FORMATS[project.format],
@@ -11,7 +14,7 @@ export function titleCanvas(c, project, scale = 1) {
     ctx.fillStyle = "rgba(0,0,0,.72)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
-  ctx.font = `${c.font === "DM Serif Display" ? "400" : "700"} ${size}px "${c.font}"`;
+  ctx.font = fontSpec(c.font, size);
   ctx.textBaseline = "top";
   ctx.textAlign = c.align;
   const lines = [];
@@ -54,6 +57,7 @@ export class Preview {
     Object.assign(this, { canvas, project, media, onTime, onError, onMeter, onStatus });
     this.items = new Map();
     this.titles = new Map();
+    this.fonts = fontManager();
     this.time = 0;
     this.playing = false;
     this.generation = 0;
@@ -318,6 +322,14 @@ export class Preview {
       let source;
       if (c.kind === "title") {
         if (t.hidden) continue;
+        if (!this.fonts.has(c.font)) {
+          if (!this.loadingFonts?.has(c.font)) {
+            this.loadingFonts ||= new Set(); this.loadingFonts.add(c.font);
+            this.fonts.ensure(c.font).then(() => { if (!this.destroyed) { this.titles.clear(); this.scheduleDraw(); } })
+              .catch(() => { if (!this.destroyed) this.onError(`Could not load the bundled font ${c.font}. Reopen the editor or choose another font.`); });
+          }
+          waiting = true; continue;
+        }
         const key = JSON.stringify([
           c.text,
           c.font,
@@ -380,10 +392,8 @@ export class Preview {
         bh = r.h * h;
       ctx.save();
       ctx.globalAlpha = r.alpha;
-      ctx.beginPath();
-      ctx.rect(x, y, bw * r.reveal, bh);
-      ctx.clip();
-      ctx.filter = `brightness(${c.brightness}) contrast(${c.contrast}) saturate(${c.saturation})`;
+      clipMask(ctx, c.transition, r.phase, x, y, bw, bh);
+      ctx.filter = cssColor(c);
       const crop = c.crop || { x: 0, y: 0, w: 1, h: 1 },
         cw = sw * crop.w,
         ch = sh * crop.h,
@@ -455,5 +465,6 @@ export class Preview {
     await this.audioReady?.catch(() => {});
     if (this.ctx && this.ctx.state !== "closed") await this.ctx.close();
     this.ctx = null;
+    this.fonts.destroy();
   }
 }

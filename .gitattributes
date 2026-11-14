@@ -7,3 +7,7 @@
 *.cmd text eol=crlf
 *.png binary
 *.ico binary
+
+# Preserve upstream font and notice bytes for hash verification on every OS.
+*.ttf binary
+assets/fonts/*.txt -text

@@ -33,3 +33,23 @@ on the [same GitHub release](https://github.com/zphat/Latitude/releases).
 The sources are unmodified. macOS system frameworks provide platform services;
 no Homebrew runtime libraries are required. Earlier unsigned Actions artifacts
 used a nonfree-enabled Apple Silicon encoder and must not be redistributed.
+
+## Additional editor fonts
+
+The Creative library bundles the following unmodified fonts locally. Their exact
+source URLs, upstream commit and SHA-256 digests are recorded in
+`assets/fonts/creative-fonts-sources.json`; font files and full license notices
+ship in that directory. No font is fetched online at runtime.
+
+- **Outfit, Space Grotesk, Bebas Neue, Oswald, Playfair Display, Caveat, Bangers,
+  Pacifico, Space Mono, Archivo Black and Lexend** — SIL Open Font License 1.1.
+  Each face has its own `<FontName>-OFL.txt` containing the upstream copyright
+  and reserved-name terms. Source: https://github.com/google/fonts/tree/29b4ec6df2522a8aee279414b78a07910b065874/ofl.
+- **Roboto Slab** — Apache License 2.0; see `RobotoSlab-LICENSE.txt` and
+  `RobotoSlab-COPYRIGHT.txt`. Source: https://github.com/google/fonts/tree/29b4ec6df2522a8aee279414b78a07910b065874/apache/robotoslab.
+- **Permanent Marker** — Apache License 2.0; see `PermanentMarker-LICENSE.txt`.
+  Source: https://github.com/google/fonts/tree/29b4ec6df2522a8aee279414b78a07910b065874/apache/permanentmarker.
+
+The system `monospace` choice uses a font supplied by the user's operating system;
+Latitude does not redistribute that font. Manrope and DM Serif Display notices
+are listed above. Font licenses are distinct from Latitude's MIT application code.

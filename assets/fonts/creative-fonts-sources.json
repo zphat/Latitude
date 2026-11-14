@@ -1,0 +1,168 @@
+{
+  "repository": "https://github.com/google/fonts",
+  "commit": "29b4ec6df2522a8aee279414b78a07910b065874",
+  "files": [
+    {
+      "file": "Outfit.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/outfit/Outfit%5Bwght%5D.ttf",
+      "sha256": "fc7287273e66929776e2ba54f144fe699080bec29f61bf649d70d871468aeade",
+      "bytes": 110884
+    },
+    {
+      "file": "Outfit-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/outfit/OFL.txt",
+      "sha256": "c676351bf8576b9aba743cd5eaa8c0e7ee0d51f805d720447b4df4ddb6a2e416",
+      "bytes": 4389
+    },
+    {
+      "file": "SpaceGrotesk.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/spacegrotesk/SpaceGrotesk%5Bwght%5D.ttf",
+      "sha256": "acad6de1fc93436f5c0f1f4137751ef04f1aea3063e7036535970ffcfbd79f72",
+      "bytes": 136676
+    },
+    {
+      "file": "SpaceGrotesk-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/spacegrotesk/OFL.txt",
+      "sha256": "564ce565c371c5e5bbf286006565a7c9aa55a9f56e7ca58d56e05d649dd61a72",
+      "bytes": 4495
+    },
+    {
+      "file": "BebasNeue.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/bebasneue/BebasNeue-Regular.ttf",
+      "sha256": "08e4623805102d819f58601e46e345648846075e363b2ceb23313c2d1c83ec73",
+      "bytes": 61400
+    },
+    {
+      "file": "BebasNeue-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/bebasneue/OFL.txt",
+      "sha256": "72082f6cb4d04be2ecf7cc7d9e1e7d73787f0af8a5a278a47cade70c16b78341",
+      "bytes": 4337
+    },
+    {
+      "file": "Oswald.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/oswald/Oswald%5Bwght%5D.ttf",
+      "sha256": "5b38c246e255a12f5712d640d56bcced0472466fc68983d2d0410ec0457c2817",
+      "bytes": 172088
+    },
+    {
+      "file": "Oswald-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/oswald/OFL.txt",
+      "sha256": "0fd731a904b729a4e02eaf5e8ebd06783edd9abe400e8882760160230675b652",
+      "bytes": 4483
+    },
+    {
+      "file": "RobotoSlab-COPYRIGHT.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/apache/robotoslab/COPYRIGHT.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358
+    },
+    {
+      "file": "RobotoSlab.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/apache/robotoslab/RobotoSlab%5Bwght%5D.ttf",
+      "sha256": "786ae192477447d33c6672c3055fba7cbfe45184c9a79e77a14f15716ca05b16",
+      "bytes": 251880
+    },
+    {
+      "file": "RobotoSlab-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/apache/robotoslab/LICENSE.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358
+    },
+    {
+      "file": "PlayfairDisplay.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf",
+      "sha256": "c40f2293766a503bc70cce9e512ef844a4ccb7cbcde792fe2ea31d191917d8d6",
+      "bytes": 300724
+    },
+    {
+      "file": "PlayfairDisplay-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/playfairdisplay/OFL.txt",
+      "sha256": "566be814f8e96e93dfa16101331557eb6b5467e9e03f627c0910fe93ca12300e",
+      "bytes": 4449
+    },
+    {
+      "file": "Caveat.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/caveat/Caveat%5Bwght%5D.ttf",
+      "sha256": "0bdb6b660482d31531b3945849fba5916b3ef8695da7024a9e6b9ee3c4157988",
+      "bytes": 403648
+    },
+    {
+      "file": "Caveat-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/caveat/OFL.txt",
+      "sha256": "1f9d81d094273d82f3898a1ee8b598a717d050ecbf5ff7bede105b704880157b",
+      "bytes": 4385
+    },
+    {
+      "file": "PermanentMarker.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/apache/permanentmarker/PermanentMarker-Regular.ttf",
+      "sha256": "28f82c8a7943cb8e9d599f8554da1d4fc75dbcf69b9885ad6c0611d20c6946c5",
+      "bytes": 74632
+    },
+    {
+      "file": "PermanentMarker-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/apache/permanentmarker/LICENSE.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358
+    },
+    {
+      "file": "Bangers.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/bangers/Bangers-Regular.ttf",
+      "sha256": "4160a7311de9342674cce9160cde9fcbb30f48190397d86ff1b70b455af65824",
+      "bytes": 93148
+    },
+    {
+      "file": "Bangers-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/bangers/OFL.txt",
+      "sha256": "630dd5a307c0657b094d324e069b390edf90182fe5003639e06c02a0e5769af7",
+      "bytes": 4479
+    },
+    {
+      "file": "Pacifico.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/pacifico/Pacifico-Regular.ttf",
+      "sha256": "5b6c0d5334a7bf77dea52b975c5a0c408878c0f7115ed5b6fb151f634b7bf701",
+      "bytes": 329380
+    },
+    {
+      "file": "Pacifico-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/pacifico/OFL.txt",
+      "sha256": "a47e5daeda73568969395c656823102678f2eefb0d7d7ecb47aac4cc17e42204",
+      "bytes": 4389
+    },
+    {
+      "file": "SpaceMono.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/spacemono/SpaceMono-Bold.ttf",
+      "sha256": "405e73d41afb7e5906efce206a326af5c956f38e255f35421c260e861e599c59",
+      "bytes": 98232
+    },
+    {
+      "file": "SpaceMono-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/spacemono/OFL.txt",
+      "sha256": "8e4ee42b2553e1e01504e61cb0d46d148cd8c9e5eacaa3622a7df2d4f2955b9f",
+      "bytes": 4392
+    },
+    {
+      "file": "ArchivoBlack.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/archivoblack/ArchivoBlack-Regular.ttf",
+      "sha256": "dd9a89a019b4849f66ab75455fe7bdf931311042cbb0f0f97acc061539703180",
+      "bytes": 90988
+    },
+    {
+      "file": "ArchivoBlack-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/archivoblack/OFL.txt",
+      "sha256": "3173acd82f8c6159b5b1037b539fcbd4edff68e65c2ea8b9412b5a5ca97b08ff",
+      "bytes": 4492
+    },
+    {
+      "file": "Lexend.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/lexend/Lexend%5Bwght%5D.ttf",
+      "sha256": "3add53e641fbc81da64da4bb254285e2831b52b029527bc0714e2b9610832ee6",
+      "bytes": 175756
+    },
+    {
+      "file": "Lexend-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/29b4ec6df2522a8aee279414b78a07910b065874/ofl/lexend/OFL.txt",
+      "sha256": "5da8505887d0fa7fe963445fd58852707fda34adfeb65af25c99d152bab285bd",
+      "bytes": 4436
+    }
+  ]
+}

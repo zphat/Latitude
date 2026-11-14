@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.8 — 2026-11-14
+
+Offline Creative library with editable packs, 12 transitions, 12 color looks, 12 title styles and 16 font choices. Matches color preview/export math, preserves selection through Undo/Redo, remembers open inspector sections and adds clip naming/media search. [Full notes](docs/releases/0.9.8.md).
+
 ## 0.9.7 — 2026-11-07
 
 Live first/last-frame trim previews, linked-source trim bounds, snapping at both clip edges with a visible guide, cancelable drags, cursor-centered zoom, cut navigation and edge scrolling. Fixes disabled clip actions after Undo, a zoomed end-trim scroll jump, and keeps Save/Export visible in short windows. [Full notes](docs/releases/0.9.7.md).
