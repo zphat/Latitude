@@ -2,7 +2,7 @@
 
 Latitude’s own source is licensed under MIT. Other components remain under their upstream licenses.
 
-- **Electron 44.8.0** — MIT. https://github.com/electron/electron/tree/v44.8.0. The desktop distributions include Electron’s license and `LICENSES.chromium.html` for Chromium and its components.
+- **Electron 44.11.3** — MIT. https://github.com/electron/electron/tree/v44.11.3. The desktop distributions include Electron’s license and `LICENSES.chromium.html` for Chromium and its components.
 - **FFmpeg static builds: Windows 6.1.1, Linux x86-64 7.0.2** — used as a separate process for encoding and audio analysis. These builds contain GPL-enabled components. The upstream tag name is not the actual Linux binary version; the Linux x86-64 binary and its notices identify 7.0.2. Upstream binary release: https://github.com/eugeneware/ffmpeg-static/releases/tag/b6.1.1. Full build-specific license and build/source information are included in `resources/FFmpeg-LICENSE.txt` and `resources/FFmpeg-README.txt` in each desktop distribution. Windows notices are checked in under `vendor/`; Linux notices are copied from that exact downloaded Linux build during packaging.
 - **ffmpeg-static 5.3.0** — GPL-3.0-or-later. https://github.com/eugeneware/ffmpeg-static. Its package is used to locate/download platform-specific binaries for source development.
 - **electron-builder 26.15.3** — MIT; development packaging only. https://github.com/electron-userland/electron-builder.
