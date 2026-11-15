@@ -68,7 +68,7 @@ test("native RGB color filters match sRGB brightness, contrast and sepia math", 
   for (const v of mono) assert.ok(Math.abs(v - expected) < 2);
   assert.deepEqual(exportColor(COLOR_DEFAULTS), [], "An unchanged clip requires no color processing");
 });
-test("packaged font gate rejects a missing notice in the actual application archive", async () => {
+test("packaged font gate accepts a complete archive and rejects changed or missing notices", async () => {
   const { createPackage, uncache } = require("@electron/asar");
   const { verifyFonts } = require("../scripts/verify-packaged-fonts.cjs");
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "latitude-font-package-"));
@@ -77,6 +77,10 @@ test("packaged font gate rejects a missing notice in the actual application arch
     await fs.mkdir(path.join(source, "assets"), { recursive: true });
     await fs.cp(path.resolve(__dirname, "../assets/fonts"), path.join(source, "assets/fonts"), { recursive: true });
     await createPackage(source, archive); assert.doesNotThrow(() => verifyFonts(archive));
+    const notice = path.join(source, "assets/fonts/Pacifico-OFL.txt");
+    await fs.appendFile(notice, "\nchanged notice"); uncache(archive);
+    await createPackage(source, archive);
+    assert.throws(() => verifyFonts(archive), /Missing or changed packaged font\/notice: Pacifico-OFL\.txt/);
     await fs.rm(path.join(source, "assets/fonts/Pacifico-OFL.txt")); uncache(archive);
     await createPackage(source, archive); assert.throws(() => verifyFonts(archive));
   } finally { await fs.rm(root, { recursive: true, force: true }); }
