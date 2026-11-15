@@ -18,6 +18,10 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     const remote = []; page.on("request", r => { if (/^https?:/.test(r.url())) remote.push(r.url()); });
     await page.addInitScript(() => localStorage.setItem("latitude-v2", JSON.stringify({ onboarded: true, reconnectMic: false, mods: {} })));
     await page.goto("take://app/src/index.html?test"); await page.setViewportSize({ width: 1280, height: 900 });
+    assert.equal(await page.evaluate(async () => {
+      const faces = await document.fonts.load('400 13px "Latitude UI"');
+      return faces.length === 1 && faces[0].status === "loaded";
+    }), true, "The bundled UI fallback loads offline on systems without Inter or Segoe UI");
     await page.click('[data-view="mods"]'); await page.check('[data-mod-id="latitude-editor"]'); await page.click('[data-view="editor"]');
     await page.waitForFunction(() => !!window.__editor);
     await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, source);
@@ -118,6 +122,8 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     assert.equal(await page.locator("#edit-library").count(), 0);
     assert.equal(await page.evaluate(() => window.oldPreview.destroyed), true);
     assert.ok(await page.evaluate(n => document.fonts.size <= n - 15, preview));
+    assert.equal(await page.evaluate(() => document.fonts.check('400 13px "Latitude UI"')), true,
+      "Disabling the editor keeps the core UI fallback available");
     await page.click('[data-view="studio"]');
     await page.screenshot({ animations: "disabled", path: path.join(root, "studio-after-editor.png") });
     await page.click('[data-view="mods"]');

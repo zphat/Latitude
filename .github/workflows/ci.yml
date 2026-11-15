@@ -37,3 +37,18 @@ jobs:
           TAKE_FFMPEG: /usr/bin/ffmpeg
       - name: Verify Mac publication guards without uploading
         run: python3 tests/mac-release.test.py
+
+  windows-fonts:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify native Windows archive paths and exact font notices
+        run: node --test --test-name-pattern="every font and notice|packaged font gate" tests/editor-creative.test.cjs

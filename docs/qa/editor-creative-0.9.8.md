@@ -47,3 +47,32 @@ Remaining validation: native platform builds, physical capture/permissions, long
 recordings, integrated/discrete GPU behavior, actual update installation, and
 matching-loudness listening on real devices. macOS remains unsigned/unnotarized
 with manual updates. This does not claim lower total CPU/RAM than OBS.
+
+## Release follow-up · November 15
+
+The first 0.9.8 attempt passed Linux and both Mac native/package gates. Windows
+caught slash-only ASAR member paths in the new font verifier. The follow-up uses
+host-native paths, keeps all exact-byte checks, adds rejection of changed notices
+and runs the actual archive/font tests in a small Windows PR job. That job passed.
+No 0.9.8 downloads were published by the failed attempt.
+
+The dependency review also found the Electron compromised-certificate advisory
+[GHSA-jr5w-w6x2-84p9](https://github.com/electron/electron/security/advisories/GHSA-jr5w-w6x2-84p9).
+The runtime is now pinned to **44.11.3**, and the build-time `fast-uri` dependency
+is updated to 3.1.9. All 128 Node tests plus native editor save/export, creative
+packs/colors/fonts, exact-frame scrubbing, timeline gestures, session names and
+updater UI passed again on Linux with that runtime. The updater additionally
+verified live GitHub metadata/checksum transport; real installer execution is
+still a separate test.
+
+`npm audit` after these updates reports no high/critical advisories and six
+moderate entries through the build-only minimatch/electron-builder dependency
+chain. The suggested automatic fix downgrades the packager across a major
+version; it was not applied. These tools consume the repository's own packaging
+patterns. This is not a claim that the entire app or its native dependencies are
+free of vulnerabilities.
+
+Native Linux screenshots also revealed a serif fallback on minimal systems with
+no matching UI sans-serif. The app now falls back to its existing bundled
+Manrope asset, without another font file or network request. Native coverage
+checks that the fallback loads offline and survives disabling the editor.
