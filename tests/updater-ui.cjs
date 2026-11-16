@@ -90,9 +90,17 @@ const os=require('node:os');
       // Public metadata + checksum only; never download or execute a real release here.
       const live=await app.evaluate(async(_,file)=>{
         const require=process.getBuiltinModule('node:module').createRequire(file),u=require(file).testing;
-        u.current='0.0.0';u.fetcher=(url,options)=>fetch(url,options);
-        const state=await u.check({manual:true});return {phase:state.phase,message:state.message,hash:u.selected?.hash};
+        u.current='0.0.0';const transport=[];u.fetcher=async(url,options)=>{
+          const response=await fetch(url,options),target=new URL(url);
+          transport.push({host:target.host,path:target.pathname,status:response.status,
+            rateRemaining:response.headers.get('x-ratelimit-remaining'),
+            rateReset:response.headers.get('x-ratelimit-reset'),retryAfter:response.headers.get('retry-after'),
+            requestId:response.headers.get('x-github-request-id')});
+          return response;
+        };
+        const state=await u.check({manual:true});return {phase:state.phase,message:state.message,hash:u.selected?.hash,transport};
       },modulePath);
+      console.log('Native updater transport: '+JSON.stringify(live.transport));
       assert.equal(live.phase,'available',live.message);assert.match(live.hash,/^[a-f0-9]{64}$/);
       console.log('Live GitHub metadata and checksum verified through the native updater transport.');
     }

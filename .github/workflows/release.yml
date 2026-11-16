@@ -81,7 +81,8 @@ jobs:
         run: node --test tests/formats.test.cjs tests/streaming.test.cjs tests/editor-mod.test.cjs tests/updater.test.cjs tests/session-names.test.cjs tests/loudness.test.cjs tests/storage-quality.test.cjs tests/editor-gestures.test.cjs tests/editor-creative.test.cjs
       - name: Verify native editor and update UI
         env:
-          LATITUDE_UPDATE_LIVE_CHECK: "1"
+          LATITUDE_QA_INLINE_IMAGES: "1"
+          LATITUDE_UPDATE_LIVE_CHECK: "0"
           TEMP: ${{ runner.temp }}
           TMP: ${{ runner.temp }}
         run: |
@@ -140,9 +141,15 @@ jobs:
   linux:
     needs: validate
     uses: ./.github/workflows/linux.yml
+    with:
+      separate_updater_gate: true
+
+  live-updater:
+    needs: validate
+    uses: ./.github/workflows/updater-live.yml
 
   publish:
-    needs: [validate, package, linux]
+    needs: [validate, package, linux, live-updater]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

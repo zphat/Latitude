@@ -50,6 +50,7 @@ jobs:
           node tests/editor-creative-ui.cjs
           node tests/session-names-ui.cjs
         env:
+          LATITUDE_QA_INLINE_IMAGES: "1"
           TAKE_FFMPEG: ${{ github.workspace }}/vendor/ffmpeg
           TMPDIR: ${{ runner.temp }}
       - run: npm run dist:mac -- --${{ matrix.arch }} --publish never

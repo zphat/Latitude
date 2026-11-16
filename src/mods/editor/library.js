@@ -2,33 +2,37 @@ import { BUILTIN_PACKS, PACK_LIMITS, validatePack, presetFromClip } from "./pack
 import { cssColor } from "./color.js";
 import { clipMask, ease } from "./motion.js";
 import { fontSpec } from "./fonts.js";
+import { LOCATIONS, KINDS, libraryView, visiblePacks, searchPresets, searchCollections } from "./library-model.js";
 const escape = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-const kinds = { transition: "Transitions", look: "Looks", title: "Titles", font: "Fonts", packs: "My packs" };
 export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle, stop }) {
   const dialog = document.createElement("dialog");
   dialog.id = "edit-library"; dialog.className = "editor-library"; root.append(dialog);
   const controller = new AbortController();
   const listen = (el, event, fn) => el.addEventListener(event, fn, { signal: controller.signal });
-  let category = "transition", query = "", favoritesOnly = false, limit = 60, animation = null,
-    frame = 0, generation = 0, disposed = false, operating = false, opener;
-  let saved;
-  try { saved = ui.readSettings("latitude-editor-library"); } catch {}
-  const installed = [];
+  let limit = 60, animation = null, frame = 0, generation = 0, disposed = false, operating = false,
+    opener, detail = null, detailOpener = null, detailScroll = 0, restoreFrame = 0, previewObserver = null;
+  let saved, savedView;
+  try { saved = ui.readSettings("latitude-editor-library"); savedView = ui.readSettings("latitude-editor-library-view"); } catch {}
+  const view = libraryView(savedView), installed = [];
   for (const item of (Array.isArray(saved?.installed) ? saved.installed : []).slice(0, PACK_LIMITS.installed)) {
     try {
       if (typeof item.id === "string" && /^[\w-]{1,80}$/.test(item.id) && !installed.some(p => p.id === item.id))
         installed.push({ id: item.id, pack: validatePack(item.pack) });
-    } catch {} // A corrupt local pack must never prevent editing or loading projects.
+    } catch {} // Corrupt local packs must never prevent opening a project.
   }
   const favorites = new Set((Array.isArray(saved?.favorites) ? saved.favorites : []).filter(v => typeof v === "string").slice(0, 256));
   const persist = () => ui.writeSettings("latitude-editor-library", { installed, favorites: [...favorites].slice(0, 256) });
-  const allPacks = () => [...BUILTIN_PACKS.map((pack, i) => ({ pack, id: `builtin-${i}`, included: true })), ...installed];
-  const allPresets = () => allPacks().flatMap(pack => pack.pack.presets.map((preset, i) => ({ ...pack, preset, key: `${pack.id}:${i}` })));
+  // Small preferences are separate: searching must not rewrite installed pack data.
+  const persistView = () => { try { ui.writeSettings("latitude-editor-library-view", view); } catch {} };
+  const filter = () => view.filters[view.location];
+  const allPacks = () => [...BUILTIN_PACKS.map((pack, i) => ({ pack, id: "builtin-" + i, included: true })), ...installed];
+  const allPresets = () => allPacks().flatMap(item => item.pack.presets.map((preset, i) => ({ ...item, preset, key: item.id + ":" + i })));
+  const validFavorites = new Set(allPresets().map(item => item.key));
+  for (const key of favorites) if (!validFavorites.has(key)) favorites.delete(key);
   const $ = s => dialog.querySelector(s);
   const status = (message, error = false) => {
     if (disposed) return;
-    $("#library-status").textContent = message;
-    $("#library-status").classList.toggle("error", error);
+    $("#library-status").textContent = message; $("#library-status").classList.toggle("error", error);
   };
   const run = fn => async () => {
     if (operating || disposed) return;
@@ -37,6 +41,8 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     finally { operating = false; dialog.setAttribute("aria-busy", "false"); }
   };
   function stopAnimation() { cancelAnimationFrame(frame); frame = 0; animation = null; }
+  function stopCardPreviews() { previewObserver?.disconnect(); previewObserver = null; }
+  function clearCanvases(container) { for (const c of container.querySelectorAll("canvas")) c.width = c.height = 1; }
   const sample = document.createElement("canvas"); sample.width = 240; sample.height = 135;
   {
     const ctx = sample.getContext("2d"), gradient = ctx.createLinearGradient(0, 0, 240, 135);
@@ -49,7 +55,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
   function draw(canvas, preset, progress = .65) {
     if (!canvas.isConnected || disposed) return;
     const ctx = canvas.getContext("2d"), s = preset.settings;
-    ctx.setTransform(2, 0, 0, 2, 0, 0);
+    ctx.setTransform(canvas.width / 240, 0, 0, canvas.height / 135, 0, 0);
     ctx.clearRect(0, 0, 240, 135); ctx.fillStyle = "#101a18"; ctx.fillRect(0, 0, 240, 135);
     ctx.save();
     if (preset.kind === "transition") {
@@ -73,48 +79,159 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     }
     ctx.restore();
   }
+
+  const canApply = preset => {
+    const c = selection();
+    return c && !c.locked && c.kind !== "audio" && (!["title", "font"].includes(preset.kind) || c.kind === "title");
+  };
+  function actionButtons(item) {
+    return '<button class="button small" data-apply="' + escape(item.key) + '"' + (canApply(item.preset) ? "" : " disabled") + '>Apply</button>'
+      + (["title", "font"].includes(item.preset.kind) ? '<button class="button small" data-add="' + escape(item.key) + '">Add title</button>' : "");
+  }
+  function refreshActions() {
+    const presets = new Map(allPresets().map(item => [item.key, item.preset]));
+    for (const b of dialog.querySelectorAll("[data-apply]")) b.disabled = !canApply(presets.get(b.dataset.apply));
+  }
+  function emptyMessage() {
+    const hasFilters = filter().query || filter().collection;
+    const heading = hasFilters ? "No matches" : view.location === "library" ? "Make this library yours"
+      : view.location === "favorites" ? "Keep your favorites close" : "No styles in this category";
+    const copy = hasFilters ? "Try a shorter search or clear the filters."
+      : view.location === "library" ? "Import a preset pack or save a style from your selected clip. Included styles have their own tab."
+      : view.location === "favorites" ? "Use the star beside any style to find it here."
+      : "Choose another category or view all styles.";
+    return '<div class="library-empty"><h3>' + heading + '</h3><p>' + copy + '</p>'
+      + (hasFilters ? '<button class="button small" data-clear>Clear filters</button>'
+        : view.location === "library" ? '<button class="button small" data-import>Import pack…</button>'
+        : '<button class="button small" data-included>Browse included styles</button>') + '</div>';
+  }
   function renderCards() {
-    stopAnimation(); const token = ++generation;
-    const collection = $("#library-collection").value;
-    const matches = allPresets().filter(item => item.preset.kind === category
-      && (!collection || item.id === collection) && (!favoritesOnly || favorites.has(item.key))
-      && `${item.preset.name} ${item.preset.description} ${item.pack.name}`.toLowerCase().includes(query.toLowerCase()));
-    const items = matches.slice(0, limit);
-    $("#library-count").textContent = `${matches.length} ${matches.length === 1 ? "preset" : "presets"}`;
-    $("#library-grid").innerHTML = items.length ? items.map(item => {
-      const c = selection(), compatible = c && !c.locked && c.kind !== "audio" && (item.preset.kind !== "font" && item.preset.kind !== "title" || c.kind === "title");
-      return `<article class="library-card" data-preset="${escape(item.key)}"><canvas width="480" height="270" aria-label="${escape(item.preset.name)} sample"></canvas><div class="library-card-body"><div class="library-card-heading"><h3>${escape(item.preset.name)}</h3><button class="text-button library-star" data-favorite="${escape(item.key)}" aria-pressed="${favorites.has(item.key)}" aria-label="Favorite ${escape(item.preset.name)}">${favorites.has(item.key) ? "★" : "☆"}</button></div><p>${escape(item.preset.description)}</p><small>${escape(item.pack.name)} · ${item.included ? "Included" : "Local"}</small><div class="library-card-actions"><button class="button small" data-apply="${escape(item.key)}" ${compatible ? "" : "disabled"}>Apply</button>${["title", "font"].includes(category) ? `<button class="button small" data-add="${escape(item.key)}">Add title</button>` : ""}</div></div></article>`;
-    }).join("") : '<div class="library-empty"><h3>No matching presets</h3><p>Try another search, collection, or turn off Favorites.</p></div>';
+    stopAnimation(); stopCardPreviews(); const token = ++generation;
+    const matches = searchPresets(allPacks(), view.location, filter(), favorites), items = matches.slice(0, limit);
+    clearCanvases($("#library-grid"));
+    $("#library-count").textContent = matches.length + (matches.length === 1 ? " style" : " styles");
+    $("#library-grid").innerHTML = items.length ? items.map(item =>
+      '<article class="library-card" data-preset="' + escape(item.key) + '">'
+      + '<button class="library-preview" data-detail="' + escape(item.key) + '" aria-label="Preview ' + escape(item.preset.name) + '"><canvas width="480" height="270"></canvas><span>Preview style</span></button>'
+      + '<div class="library-card-body"><div class="library-card-heading"><h3>' + escape(item.preset.name) + '</h3>'
+      + '<button class="text-button library-star" data-favorite="' + escape(item.key) + '" aria-pressed="' + favorites.has(item.key)
+      + '" aria-label="Favorite ' + escape(item.preset.name) + '">' + (favorites.has(item.key) ? "★" : "☆") + '</button></div>'
+      + '<p>' + escape(item.preset.description) + '</p><small>' + escape(item.pack.name) + ' · ' + (item.included ? "Included" : "Local") + '</small>'
+      + '<div class="library-card-actions">' + actionButtons(item) + '</div></div></article>').join("") : emptyMessage();
     $("#library-more").hidden = matches.length <= limit;
-    for (const item of items) {
-      const card = [...$("#library-grid").children].find(el => el.dataset.preset === item.key), canvas = card.querySelector("canvas");
-      draw(canvas, item.preset);
-      if (item.preset.settings.font)
-        fonts.ensure(item.preset.settings.font).then(() => { if (token === generation) draw(canvas, item.preset); }).catch(() => {});
-    }
+    // Only visible cards (plus a small scroll buffer) allocate canvas pixels or load fonts.
+    const byKey = new Map(items.map(item => [item.key, item.preset]));
+    previewObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting || disposed || token !== generation || !dialog.open || detail) continue;
+        previewObserver?.unobserve(entry.target);
+        const canvas = entry.target, preset = byKey.get(canvas.closest("[data-preset]").dataset.preset);
+        draw(canvas, preset);
+        if (preset.settings.font) fonts.ensure(preset.settings.font).then(() => {
+          if (token === generation && dialog.open && !detail) draw(canvas, preset);
+        }).catch(() => {});
+      }
+    }, { root: $("#library-body"), rootMargin: "160px 0px" });
+    for (const canvas of $("#library-grid").querySelectorAll("canvas")) previewObserver.observe(canvas);
   }
   function renderPacks() {
-    stopAnimation(); generation++;
-    $("#library-grid").innerHTML = allPacks().map(item => `<article class="library-pack"><div><span class="library-badge">${item.included ? "Included by Latitude" : "Local · not reviewed"}</span><h3>${escape(item.pack.name)}</h3><p>${escape(item.pack.description)}</p><small>${item.pack.presets.length} presets · ${escape(item.pack.author)}</small></div><div class="library-card-actions"><button class="button small" data-browse="${escape(item.id)}">Browse</button><button class="button small" data-export="${escape(item.id)}">Export pack</button>${item.included ? "" : `<button class="text-button" data-remove="${escape(item.id)}">Remove</button>`}</div></article>`).join("");
-    $("#library-count").textContent = `${allPacks().length} collections`;
+    stopAnimation(); stopCardPreviews(); generation++; clearCanvases($("#library-grid"));
+    const packs = searchCollections(allPacks(), view.location, filter(), favorites);
+    $("#library-grid").innerHTML = packs.length ? packs.map(item =>
+      '<article class="library-pack"><div><span class="library-badge">' + (item.included ? "Included by Latitude" : "Local · not reviewed")
+      + '</span><h3>' + escape(item.pack.name) + '</h3><p>' + escape(item.pack.description) + '</p><small>'
+      + item.pack.presets.length + ' styles · ' + escape(item.pack.author) + '</small></div><div class="library-card-actions">'
+      + '<button class="button small" data-browse="' + escape(item.id) + '">Browse styles</button>'
+      + '<button class="button small" data-export="' + escape(item.id) + '">Export pack</button>'
+      + (item.included ? "" : '<button class="text-button" data-remove="' + escape(item.id) + '">Remove</button>') + '</div></article>').join("") : emptyMessage();
+    $("#library-count").textContent = packs.length + (packs.length === 1 ? " collection" : " collections");
     $("#library-more").hidden = true;
   }
-  function render() {
-    for (const button of dialog.querySelectorAll("[data-category]")) button.setAttribute("aria-pressed", String(category === button.dataset.category));
-    $("#library-filters").hidden = category === "packs";
-    $("#library-save").hidden = category !== "packs";
-    const clip = selection();
-    $("#library-selection").textContent = !clip ? "Select a clip to apply a style, or add a new title."
-      : clip.locked ? `Locked layer: ${clip.name}. Unlock it to apply a style.`
-      : clip.kind === "audio" ? "Choose a picture for looks and motion, or add a title. Audio is unchanged."
-      : ["title", "font"].includes(category) && clip.kind !== "title" ? "Select an existing title to style it, or choose Add title."
-      : `Selected: ${clip.name}`;
-    category === "packs" ? renderPacks() : renderCards();
-  }
   function collections() {
-    const current = $("#library-collection").value;
-    $("#library-collection").innerHTML = '<option value="">All collections</option>' + allPacks().map(p => `<option value="${escape(p.id)}">${escape(p.pack.name)}</option>`).join("");
-    $("#library-collection").value = allPacks().some(p => p.id === current) ? current : "";
+    const packs = visiblePacks(allPacks(), view.location, favorites);
+    if (filter().collection && !packs.some(p => p.id === filter().collection)) filter().collection = "";
+    $("#library-collection").innerHTML = '<option value="">All collections</option>' + packs.map(p =>
+      '<option value="' + escape(p.id) + '">' + escape(p.pack.name) + '</option>').join("");
+    $("#library-collection").value = filter().collection;
+  }
+  function updateSelection() {
+    const c = selection();
+    $("#library-selection").textContent = !c ? "Select a clip to apply a style, or add a new title."
+      : c.locked ? "Locked layer: " + c.name + ". Unlock it to apply a style."
+      : c.kind === "audio" ? "Choose a picture for looks and motion, or add a title. Audio is unchanged."
+      : "Selected: " + c.name;
+    $("#library-selection").title = $("#library-selection").textContent;
+  }
+  function render() {
+    for (const b of dialog.querySelectorAll("[data-location]")) b.setAttribute("aria-pressed", String(view.location === b.dataset.location));
+    for (const b of dialog.querySelectorAll("[data-category]")) b.setAttribute("aria-pressed", String(filter().category === b.dataset.category));
+    const discover = view.location === "discover";
+    $("#library-browse").hidden = !!detail || discover;
+    $("#library-controls").hidden = !!detail || discover;
+    $("#library-details").hidden = !detail;
+    $("#library-discover").hidden = !discover;
+    $("#library-save").hidden = !(view.location === "library" && filter().category === "packs");
+    $("#library-search").value = filter().query;
+    $("#library-clear").hidden = !filter().query && !filter().collection;
+    collections(); updateSelection();
+    if (!detail && !discover) filter().category === "packs" ? renderPacks() : renderCards();
+    if (discover) { stopAnimation(); stopCardPreviews(); generation++; clearCanvases($("#library-grid")); $("#library-grid").replaceChildren(); }
+  }
+  function rememberScroll() { if (dialog.open && !detail) filter().scroll = $("#library-body").scrollTop; }
+  function restoreScroll(value, focus) {
+    cancelAnimationFrame(restoreFrame);
+    restoreFrame = requestAnimationFrame(() => {
+      restoreFrame = 0; if (disposed || !dialog.open) return;
+      $("#library-body").scrollTop = value;
+      if (focus?.isConnected) focus.focus({ preventScroll: true });
+    });
+  }
+  function closeDetail({ focus = true } = {}) {
+    if (!detail) return;
+    stopAnimation(); generation++;
+    const key = detail.key; detail = null;
+    clearCanvases($("#library-details")); $("#library-details").replaceChildren();
+    $("#library-details").hidden = true; $("#library-browse").hidden = false; $("#library-controls").hidden = false;
+    render(); detailOpener = [...$("#library-grid").querySelectorAll("[data-detail]")].find(b => b.dataset.detail === key) || $("#library-search");
+    restoreScroll(detailScroll, focus ? detailOpener : null);
+  }
+  function chooseLocation(location) {
+    if (!Object.hasOwn(LOCATIONS, location)) return;
+    rememberScroll(); closeDetail({ focus: false });
+    view.location = location; limit = filter().limit; render(); restoreScroll(filter().scroll); persistView();
+  }
+  function openDetail(item, button) {
+    if (!item) return;
+    rememberScroll(); detailScroll = filter().scroll; detailOpener = button; detail = item; stopAnimation(); stopCardPreviews();
+    $("#library-details").innerHTML =
+      '<div class="library-detail-heading"><button class="button small" id="library-back">← Back to results</button><span class="library-badge">'
+      + (item.included ? "Included by Latitude" : "Local · not reviewed") + '</span></div>'
+      + '<div class="library-detail-grid"><div><canvas id="library-detail-canvas" width="960" height="540" aria-label="' + escape(item.preset.name)
+      + ' preview"></canvas>' + (item.preset.kind === "transition" ? '<button class="button small" id="library-replay">Replay preview</button>' : "")
+      + '</div><div><p class="eyebrow">' + escape(KINDS[item.preset.kind]) + '</p><h3>' + escape(item.preset.name)
+      + '</h3><p>' + escape(item.preset.description || item.pack.description) + '</p><dl><dt>Collection</dt><dd>'
+      + escape(item.pack.name) + '</dd><dt>Creator</dt><dd>' + escape(item.pack.author)
+      + '</dd><dt>Availability</dt><dd>Installed · works offline</dd></dl><p class="fine-print">Apply a starting point, then adjust every setting in the Inspector. Your original media stays untouched.</p>'
+      + '<div class="library-card-actions">' + actionButtons(item)
+      + '<button class="button small" data-favorite="' + escape(item.key) + '" aria-pressed="' + favorites.has(item.key) + '">'
+      + (favorites.has(item.key) ? "★ Saved" : "☆ Favorite") + '</button></div></div></div>';
+    render(); $("#library-body").scrollTop = 0; $("#library-back").focus({ preventScroll: true });
+    const canvas = $("#library-detail-canvas"), token = ++generation; draw(canvas, item.preset);
+    if (item.preset.settings.font) fonts.ensure(item.preset.settings.font).then(() => {
+      if (generation === token && dialog.open) draw(canvas, item.preset);
+    }).catch(() => {});
+  }
+  function animate(canvas, preset) {
+    stopAnimation();
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { draw(canvas, preset, 1); return; }
+    animation = { canvas, start: performance.now(), last: 0 };
+    const tick = now => {
+      if (!animation || !dialog.open || document.hidden || !canvas.isConnected) { stopAnimation(); return; }
+      const t = (now - animation.start) / 1000;
+      if (now - animation.last >= 1000 / 30) { draw(canvas, preset, Math.min(1, t / .85)); animation.last = now; }
+      if (t < 1.1) frame = requestAnimationFrame(tick); else stopAnimation();
+    };
+    frame = requestAnimationFrame(tick);
   }
   function install(pack) {
     if (installed.length >= PACK_LIMITS.installed) throw Error("Remove a local pack before adding another (20-pack limit).");
@@ -122,51 +239,100 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     if (allPacks().some(item => JSON.stringify(item.pack) === JSON.stringify(canonical))) throw Error("This exact pack is already in your library.");
     installed.push({ id: crypto.randomUUID(), pack: canonical });
     try { persist(); } catch (e) { installed.pop(); throw e; }
-    collections(); category = "packs"; render(); status(`Added ${canonical.name}. Settings stay editable and work offline.`);
+    closeDetail({ focus: false }); view.location = "library"; Object.assign(filter(), { category: "packs", query: "", collection: "", scroll: 0, limit: 60 });
+    render(); restoreScroll(0); status("Added " + canonical.name + ". Settings stay editable and work offline.");
   }
-  dialog.innerHTML = `<header class="library-header"><div><span class="eyebrow">MAKE IT YOURS</span><h2>Creative library</h2><p id="library-selection"></p></div><button class="button small" id="library-close" aria-label="Close creative library">Done</button></header>
-    <nav class="library-tabs" aria-label="Creative categories">${Object.entries(kinds).map(([id, name]) => `<button class="button small" data-category="${id}" aria-pressed="false">${name}</button>`).join("")}</nav>
-    <div class="library-filters" id="library-filters"><input id="library-search" type="search" placeholder="Find your next look…" aria-label="Search creative presets" maxlength="120"><select id="library-collection" aria-label="Collection"></select><button class="button small" id="library-favorites" aria-pressed="false">☆ Favorites</button></div>
-    <div id="library-save" class="library-save" hidden><div><strong>Build your own collection</strong><p>Save a selected clip's style, or import a data-only preset pack. Removing a pack never changes your edits.</p></div><div class="library-save-controls"><input id="library-pack-name" placeholder="Name your preset…" aria-label="New preset name" maxlength="80"><select id="library-save-kind" aria-label="Save preset type"><option value="look">Color look</option><option value="transition">Transition</option><option value="title">Title style</option></select><button class="button small" id="library-save-clip">Save selected style</button></div></div>
-    <div class="library-meta"><span id="library-count"></span><button class="text-button" id="library-import">Import pack…</button></div><div id="library-grid" class="library-grid"></div><button class="button small" id="library-more" hidden>Show more</button>
-    <footer class="library-footer"><p id="library-status" role="status">Included collections are free and work offline. All styles can be adjusted in the Inspector.</p><small>Pack imports contain settings only. Local packs have not been reviewed by Latitude.</small></footer>`;
-  collections();
-  listen($("#library-close"), "click", () => dialog.close());
-  listen(dialog, "close", () => { stopAnimation(); generation++; $("#library-grid").replaceChildren(); opener?.focus({ preventScroll: true }); });
-  listen(dialog, "cancel", e => { if (operating) e.preventDefault(); });
+  dialog.innerHTML = '<header class="library-header"><div><span class="eyebrow">MAKE IT YOURS</span><h2>Creative library</h2><p id="library-selection"></p></div>'
+    + '<button class="button small" id="library-close" aria-label="Close creative library">Done</button></header>'
+    + '<nav class="library-locations" aria-label="Library destinations">' + Object.entries(LOCATIONS).map(([id, label]) =>
+      '<button class="button small" data-location="' + id + '" aria-pressed="false">' + label + '</button>').join("") + '</nav>'
+    + '<div id="library-controls"><div class="library-filters"><input id="library-search" type="search" placeholder="Search styles, collections, creators…" aria-label="Search creative library" maxlength="120">'
+    + '<select id="library-collection" aria-label="Collection"></select><button class="text-button" id="library-clear" hidden>Clear filters</button></div>'
+    + '<nav class="library-tabs" aria-label="Creative categories">' + Object.entries(KINDS).map(([id, label]) =>
+      '<button class="button small" data-category="' + id + '" aria-pressed="false">' + label + '</button>').join("") + '</nav></div>'
+    + '<div class="library-body" id="library-body"><section id="library-browse"><details id="library-save" class="library-save" hidden><summary>Save your own style</summary>'
+    + '<p>Make a reusable preset from the selected clip. Removing a pack never changes your edits.</p><div class="library-save-controls">'
+    + '<input id="library-pack-name" placeholder="Name your preset…" aria-label="New preset name" maxlength="80"><select id="library-save-kind" aria-label="Save preset type">'
+    + '<option value="look">Color look</option><option value="transition">Transition</option><option value="title">Title style</option></select>'
+    + '<button class="button small" id="library-save-clip">Save selected style</button></div></details>'
+    + '<div class="library-meta"><span id="library-count" role="status"></span><button class="text-button" id="library-import">Import pack…</button></div>'
+    + '<div id="library-grid" class="library-grid"></div><button class="button small" id="library-more" hidden>Show more</button></section>'
+    + '<section id="library-details" hidden></section><section id="library-discover" class="library-discover" hidden><span class="library-badge">A PLACE FOR WHAT’S NEXT</span>'
+    + '<h3>Discover more ways to make it yours</h3><p>Curated title, transition, font and animation collections will live here. The online catalog is not connected yet, and purchases are not enabled.</p>'
+    + '<p>Your included styles and imported packs already work offline. You can build, export and share your own collections today.</p>'
+    + '<div class="library-card-actions"><button class="button small" data-included>Explore included styles</button><button class="button small" data-import>Import a pack…</button></div></section></div>'
+    + '<footer class="library-footer"><p id="library-status" role="status">All included styles are free and work offline. Make them your own in the Inspector.</p>'
+    + '<small>Local imports are not reviewed by Latitude. Editing and exports never require a purchase.</small></footer>';
+  const importPack = run(async () => { const pack = await io.call("import-pack"); if (pack && !disposed) install(pack); });
+  listen($("#library-close"), "click", () => { rememberScroll(); dialog.close(); });
+  listen(dialog, "close", () => {
+    persistView(); stopAnimation(); stopCardPreviews(); generation++; cancelAnimationFrame(restoreFrame);
+    detail = null; clearCanvases($("#library-grid")); clearCanvases($("#library-details"));
+    $("#library-grid").replaceChildren(); $("#library-details").replaceChildren(); opener?.focus({ preventScroll: true });
+  });
+  listen(dialog, "cancel", e => { if (operating || detail) { e.preventDefault(); if (!operating) closeDetail(); } else rememberScroll(); });
+  listen(dialog, "keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "f") {
+      e.preventDefault(); closeDetail({ focus: false });
+      if (view.location === "discover") chooseLocation("included");
+      $("#library-search").focus(); $("#library-search").select();
+    }
+  });
   listen(dialog, "click", e => {
     const b = e.target.closest("button"); if (!b || operating) return;
-    if (b.dataset.category) { category = b.dataset.category; limit = 60; render(); }
+    if (b.dataset.location) { chooseLocation(b.dataset.location); return; }
+    if (b.dataset.category) {
+      closeDetail({ focus: false }); filter().category = b.dataset.category; filter().scroll = 0; limit = filter().limit = 60; render(); restoreScroll(0); return;
+    }
+    if (b.hasAttribute("data-clear") || b.id === "library-clear") {
+      filter().query = filter().collection = ""; filter().scroll = 0; limit = filter().limit = 60; render(); restoreScroll(0); $("#library-search").focus(); return;
+    }
+    if (b.hasAttribute("data-included")) {
+      view.filters.included = { category: "all", query: "", collection: "", scroll: 0, limit: 60 }; chooseLocation("included"); return;
+    }
+    if (b.id === "library-import" || b.hasAttribute("data-import")) { importPack(); return; }
+    if (b.id === "library-back") { closeDetail(); return; }
+    if (b.id === "library-replay" && detail) { animate($("#library-detail-canvas"), detail.preset); return; }
+    if (b.dataset.detail) { openDetail(allPresets().find(item => item.key === b.dataset.detail), b); return; }
     if (b.dataset.favorite) {
-      favorites.has(b.dataset.favorite) ? favorites.delete(b.dataset.favorite) : favorites.add(b.dataset.favorite);
-      try { persist(); } catch (e) { status(e.message, true); } renderCards();
+      const key = b.dataset.favorite, was = favorites.has(key);
+      if (!was && favorites.size >= 256) { status("Remove a favorite before adding another (256-style limit).", true); return; }
+      was ? favorites.delete(key) : favorites.add(key);
+      try { persist(); } catch (error) { was ? favorites.add(key) : favorites.delete(key); status(error.message, true); return; }
+      if (detail) {
+        b.setAttribute("aria-pressed", String(!was)); b.textContent = !was ? "★ Saved" : "☆ Favorite";
+        const star = [...$("#library-grid").querySelectorAll("[data-favorite]")].find(el => el.dataset.favorite === key);
+        if (star) { star.setAttribute("aria-pressed", String(!was)); star.textContent = !was ? "★" : "☆"; }
+      } else render();
+      return;
     }
     const item = allPresets().find(p => p.key === (b.dataset.apply || b.dataset.add));
-    if (item) run(async () => {
-      if (item.preset.settings.font) await fonts.ensure(item.preset.settings.font);
-      if (disposed) return;
-      if (b.dataset.add) addTitle(item.preset); else apply(item.preset);
-      render(); status(`${item.preset.name} applied. Undo is available after closing the library.`);
-    })();
+    if (item) {
+      run(async () => {
+        if (item.preset.settings.font) await fonts.ensure(item.preset.settings.font);
+        if (disposed) return;
+        if (b.dataset.add) addTitle(item.preset); else apply(item.preset);
+        updateSelection(); refreshActions(); status(item.preset.name + " applied. Undo is available after closing the library.");
+      })(); return;
+    }
     if (b.dataset.browse) {
-      const item = allPacks().find(p => p.id === b.dataset.browse);
-      category = item.pack.presets[0].kind; $("#library-collection").value = item.id; query = ""; $("#library-search").value = ""; favoritesOnly = false; $("#library-favorites").setAttribute("aria-pressed", "false"); render();
+      const item = allPacks().find(p => p.id === b.dataset.browse); if (!item) return;
+      Object.assign(filter(), { category: "all", collection: item.id, query: "", scroll: 0 }); render(); restoreScroll(0); return;
     }
     if (b.dataset.export) run(async () => {
-      const item = allPacks().find(p => p.id === b.dataset.export);
-      if (await io.call("export-pack", item.pack)) status("Pack exported. It contains presets, not your footage or title text.");
+      const item = allPacks().find(p => p.id === b.dataset.export); if (item && await io.call("export-pack", item.pack)) status("Pack exported. It contains presets, not your footage or title text.");
     })();
     if (b.dataset.remove) run(() => {
-      const index = installed.findIndex(p => p.id === b.dataset.remove), old = installed.splice(index, 1)[0];
-      try { persist(); } catch (e) { installed.splice(index, 0, old); throw e; }
-      collections(); render(); status("Local pack removed. Applied styles and project files are unchanged.");
+      const index = installed.findIndex(p => p.id === b.dataset.remove); if (index < 0) return;
+      const old = installed.splice(index, 1)[0], oldFavorites = [...favorites];
+      for (const key of favorites) if (key.startsWith(old.id + ":")) favorites.delete(key);
+      try { persist(); } catch (error) { installed.splice(index, 0, old); favorites.clear(); oldFavorites.forEach(k => favorites.add(k)); throw error; }
+      render(); status("Local pack removed. Applied styles and project files are unchanged.");
     })();
   });
-  listen($("#library-search"), "input", e => { query = e.target.value; limit = 60; renderCards(); });
-  listen($("#library-collection"), "change", () => { limit = 60; renderCards(); });
-  listen($("#library-favorites"), "click", e => { favoritesOnly = !favoritesOnly; e.currentTarget.setAttribute("aria-pressed", String(favoritesOnly)); renderCards(); });
-  listen($("#library-more"), "click", () => { limit += 60; renderCards(); });
-  listen($("#library-import"), "click", run(async () => { const pack = await io.call("import-pack"); if (pack && !disposed) install(pack); }));
+  listen($("#library-search"), "input", e => { filter().query = e.target.value; filter().scroll = 0; limit = filter().limit = 60; render(); restoreScroll(0); });
+  listen($("#library-collection"), "change", e => { filter().collection = e.target.value; filter().scroll = 0; limit = filter().limit = 60; render(); restoreScroll(0); });
+  listen($("#library-more"), "click", () => { limit += 60; filter().limit = limit; renderCards(); });
   listen($("#library-save-clip"), "click", run(() => {
     const c = selection(), kind = $("#library-save-kind").value;
     if (!c || c.kind === "audio") throw Error("Select a picture or title before saving its style.");
@@ -174,29 +340,23 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     install(presetFromClip(c, kind, $("#library-pack-name").value)); $("#library-pack-name").value = "";
   }));
   listen($("#library-grid"), "pointerover", e => {
-    const card = e.target.closest("[data-preset]");
-    if (!card || card.contains(e.relatedTarget) || category !== "transition" || animation?.card === card || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    stopAnimation(); const item = allPresets().find(i => i.key === card.dataset.preset);
-    animation = { card, start: performance.now(), last: 0 };
-    const tick = now => {
-      if (!animation || !dialog.open || document.hidden) { stopAnimation(); return; }
-      const t = (now - animation.start) / 1000;
-      if (now - animation.last >= 1000 / 30) { draw(card.querySelector("canvas"), item.preset, Math.min(1, t / .85)); animation.last = now; }
-      if (t < 1.1) frame = requestAnimationFrame(tick); else stopAnimation();
-    };
-    frame = requestAnimationFrame(tick);
+    const card = e.target.closest("[data-preset]"); if (!card || card.contains(e.relatedTarget) || detail) return;
+    const item = allPresets().find(p => p.key === card.dataset.preset);
+    if (item?.preset.kind === "transition") animate(card.querySelector("canvas"), item.preset);
   });
-  listen($("#library-grid"), "pointerout", e => {
-    const card = e.target.closest("[data-preset]"); if (!card || card.contains(e.relatedTarget)) return;
-    stopAnimation();
-  });
+  listen($("#library-grid"), "pointerout", e => { const card = e.target.closest("[data-preset]"); if (card && !card.contains(e.relatedTarget)) stopAnimation(); });
   listen(document, "visibilitychange", () => { if (document.hidden) stopAnimation(); });
   return {
-    open(kind = "transition") {
-      if (disposed) return; stop(); opener = document.activeElement;
-      category = Object.hasOwn(kinds, kind) ? kind : "transition"; render(); dialog.showModal();
-      $(category === "packs" ? "#library-pack-name" : "#library-search").focus();
+    open(kind) {
+      if (disposed) return; stop(); opener = document.activeElement; detail = null;
+      if (kind && Object.hasOwn(KINDS, kind)) { view.location = "included"; filter().category = kind; }
+      limit = filter().limit; render(); dialog.showModal(); restoreScroll(filter().scroll);
+      $(view.location === "discover" ? "#library-close" : "#library-search").focus({ preventScroll: true });
     },
-    destroy() { disposed = true; stopAnimation(); controller.abort(); if (dialog.open) dialog.close(); dialog.remove(); sample.width = sample.height = 1; },
+    destroy() {
+      if (disposed) return; rememberScroll(); persistView(); disposed = true; stopAnimation(); stopCardPreviews(); cancelAnimationFrame(restoreFrame);
+      controller.abort(); if (dialog.open) dialog.close();
+      clearCanvases(dialog); dialog.remove(); sample.width = sample.height = 1; detail = detailOpener = opener = null;
+    },
   };
 }

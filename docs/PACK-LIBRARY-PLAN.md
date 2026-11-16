@@ -2,24 +2,27 @@
 
 The existing offline editor remains the starting point. The separate
 [pack service](../services/packs/README.md) supplies catalog, version, compatibility,
-review and ownership data. It is not wired into the application yet; these are
-the implementation requirements for that next visual pass.
+review and ownership data. It is not wired into the application yet. The offline navigation below is
+implemented; account, remote-download and payment states remain future work.
 
 ## One library, clear destinations
 
 Use **Creative library** beside the editor's existing project actions. Within it:
 
 - **Included**: everything shipped with Latitude; no sign-in or network needed.
-- **My library**: installed and owned packs, with Installed/Download again/Update
-  pack states. Imported local packs retain their Local · not reviewed label.
-- **Discover**: an optional, deliberately opened catalog. Preserve a usable
+- **My library**: currently imported and saved local collections, retaining their
+  Local · not reviewed label. Owned/Download again/Update states require the later
+  account and remote-download integration.
+- **Discover**: currently an honest offline placeholder with links to Included
+  and local import. The future catalog is optional and deliberately opened. Preserve a usable
   offline state when the catalog is unavailable; no background refresh while
   recording. Show only real available content, with honest empty states.
-- **Favorites**: styles and collections saved by the user.
+- **Favorites**: individual styles saved by the user; collection cards filter
+  to collections containing those favorites.
 
 Keep categories (Titles, Transitions, Looks, Fonts; later Animations/Artwork)
 separate from these destinations. Search should match name, creator, description
-and tags. Retain the current query, filters, scroll position and focused card
+(tags are a future catalog field). Retain the current query, filters, scroll position and focused card
 when returning from details. Provide Clear filters and meaningful no-results copy.
 
 ## Cards and details
@@ -58,9 +61,10 @@ license checks on saved projects are part of this plan.
 
 ## Next implementation gates
 
-1. Implement and test these layouts in a native coding/preview workspace using
-   the existing library and CSS. Test Include/My library navigation and keyboard
-   focus before adding remote catalog controls.
+1. Keep the implemented offline layout covered by `tests/editor-creative-ui.cjs`
+   and `tests/editor-library.test.cjs`: destination isolation, query/scroll/focus,
+   keyboard controls, deferred preview painting, local pack persistence and
+   cleanup. Remote catalog controls must not bypass these behaviors.
 2. Add opt-in native catalog/download IPC with cancellation, endpoint allowlist,
    byte/digest verification, compatibility checks, atomic local install, and
    persisted review provenance outside imported manifests. Offline import stays.
