@@ -1,0 +1,45 @@
+name: Updater transport diagnostic
+
+on:
+  push:
+    branches: [diagnostic/updater-099]
+permissions:
+  contents: read
+jobs:
+  transport:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+      - name: Check the exact public updater transport without downloading an installer
+        run: |
+          node --input-type=commonjs <<'NODE'
+          const assert = require('node:assert/strict');
+          const { Updater } = require('./electron/updater.cjs');
+          (async () => {
+            const updater = new Updater({
+              current: '0.0.0', mode: 'windows', cache: process.env.RUNNER_TEMP,
+              fetcher: async (url, options) => {
+                const response = await fetch(url, options);
+                const target = new URL(url);
+                console.log(JSON.stringify({
+                  host: target.host, path: target.pathname, status: response.status,
+                  rateRemaining: response.headers.get('x-ratelimit-remaining'),
+                  rateReset: response.headers.get('x-ratelimit-reset'),
+                  retryAfter: response.headers.get('retry-after')
+                }));
+                return response;
+              }
+            });
+            const result = await updater.check({ manual: true });
+            updater.dispose();
+            assert.equal(result.phase, 'available', result.message);
+            assert.match(updater.selected.hash, /^[a-f0-9]{64}$/);
+            console.log(JSON.stringify({ result: 'passed', version: result.version, checksum: updater.selected.hash }));
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          NODE
