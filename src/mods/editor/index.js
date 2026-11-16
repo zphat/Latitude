@@ -58,6 +58,7 @@ export async function activate({ services }) {
     zoom = 45,
     linked = true,
     drag = null,
+    timelineViewport = null,
     rangeIn = null,
     saveError = "",
     shownError = "";
@@ -285,7 +286,19 @@ export async function activate({ services }) {
     }
     return `<svg class="editor-wave" viewBox="0 0 ${points} 30" preserveAspectRatio="none" aria-hidden="true"><path d="${vals.map((v, i) => `M${i},${15 - v * 14}V${15 + v * 14}`).join("")}"/></svg>`;
   }
-  function renderTimeline() {
+  function renderTimeline(viewportOnly = false) {
+    if (disposed) return;
+    if (viewportOnly) {
+      if (!active()) return;
+      // Rows and waveforms already cover a buffered horizontal region. Vertical
+      // scrolling and small horizontal moves need no DOM replacement. Edits,
+      // selection and zoom still force a refresh through the normal call path.
+      const cached = timelineViewport;
+      const from = Math.max(0, (timeline.scrollLeft - 150) / zoom);
+      const to = Math.max(from, (timeline.scrollLeft + timeline.clientWidth - 150) / zoom);
+      if (cached && cached.zoom === zoom && Math.min(cached.length, from) >= cached.from
+        && Math.min(cached.length, to) <= cached.to) return;
+    }
     for (const id of ["split", "delete", "duplicate", "copy", "cut"]) $(`#edit-${id}`).disabled = !selected;
     const length = Math.max(1, duration(p) + 1, drag?.base ? duration(drag.base) + 1 : 0),
       width = 150 + length * zoom;
@@ -293,6 +306,7 @@ export async function activate({ services }) {
     const visibleStart = Math.min(length, Math.max(0, (timeline.scrollLeft - 150) / zoom - 3)),
       visibleEnd =
         Math.min(length, visibleStart + Math.max(1000, timeline.clientWidth) / zoom + 6);
+    timelineViewport = { from: visibleStart, to: visibleEnd, length, zoom };
     const interval = [0.1, 0.5, 1, 5, 10, 30, 60, 300, 600, 1800, 3600].find(n => n * zoom >= 70) || 3600;
     let ruler = "";
     for (
@@ -965,10 +979,13 @@ export async function activate({ services }) {
   $("#edit-time").oninput = (e) => e.target.setCustomValidity("");
   $("#edit-cancel").onclick = run(() => io.call("cancel"));
   let scrollRaf;
-  timeline.onscroll = () => {
+  const refreshTimelineViewport = () => {
     cancelAnimationFrame(scrollRaf);
-    scrollRaf = requestAnimationFrame(renderTimeline);
+    scrollRaf = requestAnimationFrame(() => { scrollRaf = null; renderTimeline(true); });
   };
+  timeline.onscroll = refreshTimelineViewport;
+  const timelineResize = new ResizeObserver(refreshTimelineViewport);
+  timelineResize.observe(timeline);
   timeline.onclick = (e) => {
     const b = e.target.closest("[data-track-action]");
     if (b) {
@@ -1236,6 +1253,9 @@ export async function activate({ services }) {
   const onKey = (e) => {
     if (active() && e.key === "Escape" && (drag || canvasDrag)) { e.preventDefault(); cancelGestures(); return; }
     if (drag && e.key === "Alt") { e.preventDefault(); drag.pointerAt.alt = true; queueDrag(); return; }
+    // A drag owns its uncommitted project until release or Escape. Keyboard
+    // edits here could delete its selected clip or replace its history midway.
+    if (active() && (drag || canvasDrag)) { e.preventDefault(); return; }
     if (
       !active() ||
       busy ||
@@ -1304,7 +1324,7 @@ export async function activate({ services }) {
       cancelGestures();
       stop();
       preview.clear();
-    } else preview.draw(true);
+    } else { renderTimeline(true); preview.draw(true); }
   };
   const onTake = (e) => run(() => openTake(e.detail))();
   const onUpdate = (e) => {
@@ -1435,6 +1455,8 @@ export async function activate({ services }) {
       );
     cancelGestures();
     disposed = true;
+    timelineResize.disconnect();
+    timeline.onscroll = null;
     timeline.removeEventListener("wheel", onWheel);
     layout.destroy();
     creative.destroy();

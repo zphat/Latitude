@@ -20,6 +20,14 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     const errors = []; page.on("pageerror", e => errors.push(e.message));
     await page.waitForURL("take://app/src/index.html", { waitUntil: "load" });
     await page.addInitScript(() => localStorage.setItem("latitude-v2", JSON.stringify({ onboarded: true, reconnectMic: false, mods: {} })));
+    await page.addInitScript(() => {
+      const NativeObserver = ResizeObserver;
+      window.timelineObserverConnected = false;
+      window.ResizeObserver = class extends NativeObserver {
+        observe(node, options) { if (node.id === "edit-timeline") { this.timeline = node; window.timelineObserverConnected = true; } super.observe(node, options); }
+        disconnect() { if (this.timeline) window.timelineObserverConnected = false; super.disconnect(); }
+      };
+    });
     await page.goto("take://app/src/index.html?test");
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.click('[data-view="mods"]'); await page.check('[data-mod-id="latitude-editor"]');
@@ -40,7 +48,7 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
       window.frameId = () => { const c = document.querySelector("#edit-canvas"), ctx = c.getContext("2d"); let id = 0; for (let bit = 0; bit < 8; bit++) if (ctx.getImageData((bit + 0.5) * c.width / 8, c.height / 2, 1, 1).data[0] > 128) id |= 1 << bit; return id; };
     });
     const frame = async id => page.waitForFunction(n => window.frameId() === n && document.querySelector("#edit-canvas").getAttribute("aria-busy") === "false", id);
-    const state = () => page.evaluate(() => ({ p: window.__editor.project, undo: window.__editor.history.undoStack.length, time: window.__editor.preview.time }));
+    const state = () => page.evaluate(() => ({ p: window.__editor.project, undo: window.__editor.history.undoStack.length, time: window.__editor.preview.time, selected: window.__editor.selected }));
     const reset = async () => { await page.evaluate(() => window.resetGestureProject()); await frame(90); };
     const startHandle = async side => {
       // Scrolling schedules a timeline redraw which replaces the clip nodes.
@@ -82,6 +90,19 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     await page.waitForFunction(() => window.__editor.project.clips[0].x !== 0);
     await page.keyboard.press("Escape"); await page.mouse.up(); await frame(90);
     assert.deepEqual(await state(), before, "Escape also restores a picture-position drag");
+    // Commands during a held canvas gesture must not split/delete the clip or
+    // replace history underneath the gesture's pending commit.
+    await page.locator("#edit-timeline").focus();
+    await page.mouse.move(surface.x + surface.width / 2, surface.y + surface.height / 2); await page.mouse.down();
+    await page.mouse.move(surface.x + surface.width / 2 + 30, surface.y + surface.height / 2 + 12, { steps: 5 });
+    await page.waitForFunction(() => window.__editor.project.clips[0].x !== 0);
+    const held = await state();
+    for (const key of ["Delete", "s", "ArrowDown", "Home", "m", "ControlOrMeta+z"]) {
+      await page.keyboard.press(key);
+      assert.deepEqual(await state(), held, `${key} cannot mutate a held canvas gesture`);
+    }
+    await page.keyboard.press("Escape"); await page.mouse.up(); await frame(90);
+    assert.deepEqual(await state(), before, "Cancel still restores the whole gesture after ignored shortcuts");
     await page.evaluate(() => { const p = structuredClone(window.baseProject); p.tracks[1].locked = true; window.__editor.reset(p, window.baseMedia); window.__editor.select("picture"); });
     const locked = JSON.stringify((await state()).p);
     pt = await startHandle("left"); await page.mouse.move(pt.x + 50, pt.y, { steps: 8 }); await page.mouse.up();
@@ -154,6 +175,46 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     await page.mouse.move(rect.x + 200, rect.y + 16); await page.mouse.down(); await page.mouse.move(rect.x + rect.width - 4, rect.y + 16);
     await page.waitForFunction(() => document.querySelector("#edit-timeline").scrollLeft > 80);
     await page.keyboard.press("Escape"); await page.mouse.up(); await frame(90);
+    // Long, layered projects should retain clip nodes while scrolling inside the
+    // already rendered region, but render new clips when the viewport leaves it.
+    await page.evaluate(() => {
+      const p = structuredClone(window.baseProject);
+      for (let i = 0; i < 7; i++) p.tracks.push({ ...p.tracks[1], id: `scroll-${i}`, name: `Guest ${i}` });
+      for (let i = 1; i <= 60; i++) p.clips.push({ ...p.clips[0], id: `later-${i}`, group: null, start: i * 10 });
+      window.__editor.reset(p, window.baseMedia); window.__editor.select("picture"); window.__editor.preview.seek(3);
+      const z = document.querySelector("#edit-zoom"); z.value = 100; z.dispatchEvent(new Event("input"));
+      document.querySelector("#edit-timeline").scrollLeft = 0;
+    });
+    await frame(90);
+    const scrollBefore = await state();
+    const reuse = await page.evaluate(async () => {
+      const timeline = document.querySelector("#edit-timeline"), rows = document.querySelector("#edit-track-rows");
+      const original = rows.querySelector('[data-clip="picture"]');
+      let changes = 0; const observer = new MutationObserver(records => { changes += records.length; });
+      observer.observe(rows, { childList: true, subtree: true });
+      const settle = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      for (let i = 1; i <= 8; i++) { timeline.scrollTop = i * 20; await settle(); }
+      for (let i = 1; i <= 8; i++) { timeline.scrollLeft = i * 20; await settle(); }
+      observer.disconnect();
+      return { changes, sameClip: original === rows.querySelector('[data-clip="picture"]') };
+    });
+    assert.deepEqual(reuse, { changes: 0, sameClip: true }, "Small horizontal/vertical scrolls reuse rows and waveforms");
+    await page.evaluate(() => { document.querySelector("#edit-timeline").scrollLeft = 12000; });
+    await page.waitForSelector('[data-clip="later-12"]');
+    assert.equal(await page.locator('[data-clip="picture"]').count(), 0, "Far-away clips remain culled");
+    await page.evaluate(() => { document.querySelector("#edit-timeline").scrollLeft = 0; });
+    await page.waitForSelector('[data-clip="picture"]');
+    assert.deepEqual(await state(), scrollBefore, "Scrolling never changes the project, playhead or undo history");
+    await page.setViewportSize({ width: 960, height: 640 });
+    await page.evaluate(() => {
+      const z = document.querySelector("#edit-zoom"); z.value = 50; z.dispatchEvent(new Event("input"));
+      const timeline = document.querySelector("#edit-timeline"); timeline.scrollLeft = timeline.scrollTop = 0;
+    });
+    assert.equal(await page.locator('[data-clip="later-3"]').count(), 0);
+    await page.setViewportSize({ width: 2560, height: 1000 });
+    await page.waitForSelector('[data-clip="later-3"]');
+    assert.deepEqual(await state(), scrollBefore, "Widening the window reveals additional clips without altering edits");
+    assert.equal(await page.evaluate(() => window.timelineObserverConnected), true);
     // Large layered timelines, long names, scaling and reachable footer controls.
     await page.evaluate(() => { const p = structuredClone(window.baseProject); for (let i = 0; i < 7; i++) p.tracks.push({ ...p.tracks[1], id: `extra-${i}`, name: `Guest microphone ${i + 2} with a long descriptive name` }); window.__editor.reset(p, window.baseMedia); window.__editor.preview.seek(3); });
     for (const [width, height, scale] of [[960, 640, 1], [1280, 720, 1], [1280, 720, 1.25], [1480, 1000, 1.5]]) {
@@ -169,12 +230,14 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     await page.evaluate(() => { window.oldTimeline = document.querySelector("#edit-timeline"); });
     await page.click('[data-view="mods"]'); await page.uncheck('[data-mod-id="latitude-editor"]');
     await page.waitForFunction(() => !window.__editor);
+    assert.equal(await page.evaluate(() => window.timelineObserverConnected), false, "Disabling the mod disconnects its resize observer");
+    assert.equal(await page.evaluate(() => window.oldTimeline.onscroll === null), true, "Disabling removes the scroll callback");
     assert.equal(await page.evaluate(() => window.oldTimeline.dispatchEvent(new WheelEvent("wheel", { cancelable: true, ctrlKey: true, deltaY: 100 }))), true, "Disabled mod removes its non-passive wheel listener");
     await page.check('[data-mod-id="latitude-editor"]'); await page.click('[data-view="editor"]');
     await page.waitForFunction(() => !!window.__editor);
     assert.equal(await page.getAttribute("#edit-snap", "aria-pressed"), "false");
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ result: "passed", liveTrimFrames: true, linkedBounds: true, snapBothEdges: true, escapeCancel: true, wheelNavigation: true, root }));
+    console.log(JSON.stringify({ result: "passed", liveTrimFrames: true, linkedBounds: true, snapBothEdges: true, escapeCancel: true, wheelNavigation: true, heldDragShortcuts: true, scrollReuse: reuse, resizeCoverage: true, observerCleanup: true, root }));
   } catch (error) {
     if (page && !page.isClosed()) { console.error(await page.evaluate(() => ({ project: window.__editor?.project, frame: window.frameId?.(), time: window.__editor?.preview.time, toast: document.querySelector("#toast")?.textContent }))); await page.screenshot({ path: path.join(root, "failure.png") }).catch(() => {}); }
     console.error(root); throw error;

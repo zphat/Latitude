@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.9 — 2026-11-16
+
+Conflicting keyboard commands no longer alter a held preview drag. Timeline scrolling reuses buffered rows and waveforms, and resizing refreshes newly visible clips while preserving edit state. [Full notes](docs/releases/0.9.9.md).
+
 ## 0.9.8 — 2026-11-14
 
 Offline Creative library with editable packs, 12 transitions, 12 color looks, 12 title styles and 16 font choices. Matches color preview/export math, preserves selection through Undo/Redo, remembers open inspector sections and adds clip naming/media search. [Full notes](docs/releases/0.9.8.md).
