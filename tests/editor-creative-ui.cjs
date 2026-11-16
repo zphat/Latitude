@@ -9,6 +9,14 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
   execFileSync(binary, ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180", "-frames:v", "1", "-threads", "1", source]);
   const packPath = path.join(root, "My preset.latitude-pack");
   let app, page;
+  const inline = async label => {
+    if (!page || process.env.LATITUDE_QA_INLINE_IMAGES !== "1") return;
+    const bytes = await page.screenshot({ animations: "disabled", type: "jpeg", quality: 68 });
+    const data = bytes.toString("base64");
+    console.log("LATITUDE_QA_BEGIN " + label);
+    for (let offset = 0; offset < data.length; offset += 8000) console.log("LATITUDE_QA_DATA " + data.slice(offset, offset + 8000));
+    console.log("LATITUDE_QA_END " + label);
+  };
   try {
     app = await electron.launch({ executablePath: process.env.TAKE_TEST_ELECTRON || require("electron"),
       args: ["--no-sandbox", "--disable-gpu", ...(process.platform === "linux" ? ["--ozone-platform=headless"] : []), path.resolve(__dirname, "..")],
@@ -33,8 +41,32 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     assert.equal(await page.locator(".library-card").count(), 12);
     await page.fill("#library-search", "circle"); assert.equal(await page.locator(".library-card").count(), 1);
     await page.click('[data-favorite="builtin-0:10"]');
-    await page.fill("#library-search", ""); await page.click("#library-favorites"); assert.equal(await page.locator(".library-card").count(), 1);
-    await page.click("#library-favorites");
+    await page.fill("#library-search", ""); await page.click('[data-location="favorites"]'); assert.equal(await page.locator(".library-card").count(), 1);
+    await page.click('[data-location="included"]');
+    // Preview details retain the exact query, browse position and project state.
+    const browseState = await page.evaluate(() => ({ project: JSON.stringify(window.__editor.project),
+      selected: window.__editor.selected, time: window.__editor.preview.time, undo: window.__editor.undoStack.length }));
+    await page.click('[data-category="all"]'); await page.fill("#library-search", "Latitude");
+    assert.equal(await page.locator(".library-card").count(), 52);
+    const previewButton = page.locator('[data-detail="builtin-0:4"]');
+    await previewButton.scrollIntoViewIfNeeded();
+    const browseScroll = await page.locator("#library-body").evaluate(el => el.scrollTop);
+    await previewButton.click();
+    assert.equal(await page.locator("#library-detail-canvas").isVisible(), true);
+    await inline("style-detail");
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(top => Math.abs(document.querySelector("#library-body").scrollTop - top) <= 1, browseScroll);
+    assert.equal(await page.locator("#library-search").inputValue(), "Latitude");
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.detail), "builtin-0:4");
+    assert.deepEqual(await page.evaluate(() => ({ project: JSON.stringify(window.__editor.project),
+      selected: window.__editor.selected, time: window.__editor.preview.time, undo: window.__editor.undoStack.length })), browseState);
+    await page.keyboard.press("ControlOrMeta+f");
+    assert.equal(await page.evaluate(() => document.activeElement.id), "library-search");
+    await page.fill("#library-search", "");
+    await page.click('[data-location="library"]');
+    assert.match(await page.locator("#library-grid").textContent(), /Make this library yours/);
+    await page.click('[data-location="included"]');
+    assert.equal(await page.locator('[data-category="all"]').getAttribute("aria-pressed"), "true");
     await page.click('[data-category="look"]'); await page.click('[data-apply="builtin-1:6"]');
     await page.waitForFunction(() => window.__editor.project.clips[0].sepia === .3);
     await page.click("#library-close"); await page.click("#edit-undo");
@@ -47,9 +79,9 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     await page.fill("#clip-name", "Opening shot"); await page.locator("#clip-name").press("Tab");
     await page.waitForFunction(() => window.__editor.project.clips[0].name === "Opening shot");
     assert.match(await page.evaluate(() => window.__editor.project.assets[0].name), /long guest/);
-    await page.click("#edit-library-open"); await page.click('[data-category="packs"]');
+    await page.click("#edit-library-open"); await page.click('[data-location="library"]'); await page.click("#library-save summary");
     await page.fill("#library-pack-name", "My warm style"); await page.click("#library-save-clip");
-    await page.waitForFunction(() => document.querySelectorAll(".library-pack").length === 5);
+    await page.waitForFunction(() => document.querySelectorAll(".library-pack").length === 1);
     const local = await page.locator("[data-export]").last().getAttribute("data-export");
     assert.match(await page.locator(".library-pack").last().textContent(), /Local · not reviewed/);
     await app.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, packPath);
@@ -60,7 +92,7 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     assert.equal(await page.evaluate(() => JSON.stringify(window.__editor.project)), projectBeforeRemove);
     await fs.writeFile(packPath, JSON.stringify({ ...exported, approved: true, price: 999, script: "danger()" }));
     await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, packPath);
-    await page.click("#library-import"); await page.waitForFunction(() => document.querySelectorAll(".library-pack").length === 5);
+    await page.click("#library-import"); await page.waitForFunction(() => document.querySelectorAll(".library-pack").length === 1);
     assert.match(await page.locator(".library-pack").last().textContent(), /Local · not reviewed/);
     // Removing a selected mixer layer via Undo must not leave an invalid inspector.
     await page.click("#library-close");
@@ -71,7 +103,7 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     await page.evaluate(() => window.__editor.select(window.__editor.project.clips[0].id));
     await page.click("#edit-library-open");
     // Load each bundled font offline; only the editor owns the decoded faces.
-    await page.click('[data-category="font"]');
+    await page.click('[data-location="included"]'); await page.click('[data-category="font"]');
     const fonts = await page.evaluate(async () => {
       const { FONTS, fontSpec } = await import("./mods/editor/fonts.js");
       for (const f of FONTS) await window.__editor.preview.fonts.ensure(f.name);
@@ -105,9 +137,10 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
       await app.evaluate(({ BrowserWindow }, factor) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(factor), scale);
       await page.click("#edit-library-open"); await page.click('[data-category="title"]');
       await page.screenshot({ animations: "disabled", path: path.join(root, `creative-${width}-${scale}.png`) });
+      if ((width === 960 && scale === 1) || scale === 1.5) await inline("library-" + width + "-" + scale);
       const overflow = await page.evaluate(() => { const d = document.querySelector("#edit-library"); return d.scrollWidth > d.clientWidth + 1; });
       assert.equal(overflow, false, `Library horizontal overflow at ${width}/${scale}`);
-      await page.evaluate(() => { const d = document.querySelector("#edit-library"); d.scrollTop = d.scrollHeight; });
+      await page.evaluate(() => { const d = document.querySelector("#library-body"); d.scrollTop = d.scrollHeight; });
       const close = await page.locator("#library-close").boundingBox();
       assert.ok(close.y >= 0 && close.y + close.height < height, "Done remains reachable when scrolled");
       await page.keyboard.press("Escape");
@@ -129,12 +162,20 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     await page.click('[data-view="mods"]');
     await page.check('[data-mod-id="latitude-editor"]'); await page.click('[data-view="editor"]'); await page.waitForFunction(() => !!window.__editor);
     await page.click("#edit-library-open"); await page.click('[data-category="packs"]');
-    assert.equal(await page.locator(".library-pack").count(), 5, "Local packs survive disable/re-enable");
+    assert.equal(await page.locator(".library-pack").count(), 1, "Local packs survive disable/re-enable");
+    await page.click('[data-location="favorites"]');
+    assert.equal(await page.locator(".library-card").count(), 1, "Favorites survive disable/re-enable");
+    await page.click('[data-location="discover"]');
+    assert.match(await page.locator("#library-discover").textContent(), /purchases are not enabled/);
+    assert.equal(await page.locator("#library-controls").isVisible(), false);
+    await inline("discover");
     assert.ok(!remote.some(url => /fonts\.(?:googleapis|gstatic)\.com/.test(url)), "No font network requests");
+    assert.deepEqual(remote, [], "Browsing every destination makes no network request");
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ result: "passed", fonts: fonts.length, packsRoundTrip: true, colorsMatchNative: true, responsive: true, cleanup: true, root }));
   } catch (error) {
     if (page) await page.screenshot({ animations: "disabled", path: path.join(root, "failure.png") }).catch(() => {});
+    await inline("failure").catch(() => {});
     console.error("QA artifacts:", root); throw error;
   } finally { if (app) await app.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
