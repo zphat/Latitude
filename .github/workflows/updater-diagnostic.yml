@@ -8,7 +8,7 @@ permissions:
 jobs:
   transport:
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -43,3 +43,15 @@ jobs:
             console.log(JSON.stringify({ result: 'passed', version: result.version, checksum: updater.selected.hash }));
           })().catch(error => { console.error(error); process.exitCode = 1; });
           NODE
+
+      - name: Install the exact native runtime and UI driver
+        if: always()
+        run: |
+          npm ci --ignore-scripts
+          npm run setup
+          npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
+      - name: Diagnose the native updater with status and rate-limit headers
+        if: always()
+        env:
+          LATITUDE_UPDATE_LIVE_CHECK: '1'
+        run: node tests/updater-ui.cjs
