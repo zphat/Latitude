@@ -108,3 +108,12 @@ Before adding an online catalog:
 Custom motion/keyframes and animated asset packs are later engine capabilities;
 a preset recipe may only use effects the installed renderer and exporter both
 implement. Preview/export parity, offline behavior and mod cleanup remain gates.
+
+## Standalone backend foundation
+
+The repository now includes a [pack-service foundation](../services/packs/README.md)
+for a reviewed catalog, verified preset downloads and durable ownership records.
+It is separate from the desktop app and is not deployed. Accounts, Stripe,
+checkout and online installation are not enabled. The existing library stays
+offline. See the [library layout plan](PACK-LIBRARY-PLAN.md) for the next visual
+integration and its native testing requirements.
