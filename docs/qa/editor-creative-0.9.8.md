@@ -1,5 +1,22 @@
 # Creative library QA · 0.9.8
 
+## Mac publication follow-up
+
+Release commit `6ae369316898d5d00312ebe5538e685124360381` passed shared,
+Windows, Linux and Intel Mac checks. ARM passed the 128 Node tests and native
+save/export and scrub suites, then the gesture test queried a handle that a
+scheduled scroll redraw had detached. Its failure screenshot shows the correctly
+positioned end-trim handle. The test now reads the current handle and geometry in
+one renderer evaluation, waiting for a measurable result. All existing gesture,
+frame, snapping and duration assertions remain. The full native gesture suite and
+seven publication guards passed locally after this change; native ARM remains a
+release gate.
+
+This follow-up changes only test code and QA documentation. The v0.9.8 tag and
+published desktop files remain unchanged. Mac publication uses the existing
+explicit `Publish Latitude macOS preview v0.9.8` path, requiring both new Mac
+jobs to pass and preserving all existing release asset IDs and digests.
+
 Checked locally on Linux with FFmpeg 6.1.1 and the pinned Electron 44.8.0 runtime.
 Native Windows/macOS packaging checks remain release gates; these local results
 are not physical-device capture or GPU certification.

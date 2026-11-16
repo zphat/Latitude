@@ -43,7 +43,17 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     const state = () => page.evaluate(() => ({ p: window.__editor.project, undo: window.__editor.history.undoStack.length, time: window.__editor.preview.time }));
     const reset = async () => { await page.evaluate(() => window.resetGestureProject()); await frame(90); };
     const startHandle = async side => {
-      const b = await page.locator(`[data-clip="picture"] [data-trim="${side}"]`).boundingBox();
+      // Scrolling schedules a timeline redraw which replaces the clip nodes.
+      // Read the current node and its geometry atomically, rather than retaining
+      // an element across protocol calls while that redraw can detach it.
+      const handle = await page.waitForFunction(edge => {
+        const node = document.querySelector(`[data-clip="picture"] [data-trim="${edge}"]`);
+        if (!node) return false;
+        const { x, y, width, height } = node.getBoundingClientRect();
+        return width > 0 && height > 0 ? { x, y, width, height } : false;
+      }, side);
+      const b = await handle.jsonValue();
+      await handle.dispose();
       assert.ok(b); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
       return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
     };
