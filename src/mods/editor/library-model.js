@@ -5,11 +5,12 @@ export function libraryView(saved) {
   const result = { location: "included", filters: {} };
   for (const id of Object.keys(LOCATIONS)) {
     const value = saved?.filters?.[id];
-    const filter = { category: id === "included" ? "transition" : id === "library" ? "packs" : "all", query: "", collection: "", scroll: 0 };
+    const filter = { category: id === "included" ? "transition" : id === "library" ? "packs" : "all", query: "", collection: "", scroll: 0, limit: 60 };
     if (value && typeof value === "object") {
       if (Object.hasOwn(KINDS, value.category)) filter.category = value.category;
       if (typeof value.query === "string") filter.query = value.query.slice(0, 120);
       if (typeof value.collection === "string" && /^[\w-]{0,80}$/.test(value.collection)) filter.collection = value.collection;
+      if (Number.isSafeInteger(value.limit)) filter.limit = Math.max(60, Math.min(1280, value.limit));
       if (Number.isFinite(value.scroll)) filter.scroll = Math.max(0, Math.min(1000000, value.scroll));
     }
     result.filters[id] = filter;

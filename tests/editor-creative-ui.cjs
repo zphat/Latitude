@@ -45,7 +45,7 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     await page.click('[data-location="included"]');
     // Preview details retain the exact query, browse position and project state.
     const browseState = await page.evaluate(() => ({ project: JSON.stringify(window.__editor.project),
-      selected: window.__editor.selected, time: window.__editor.preview.time, undo: window.__editor.undoStack.length }));
+      selected: window.__editor.selected, time: window.__editor.preview.time, undo: window.__editor.history.undoStack.length }));
     await page.click('[data-category="all"]'); await page.fill("#library-search", "Latitude");
     assert.equal(await page.locator(".library-card").count(), 52);
     const previewButton = page.locator('[data-detail="builtin-0:4"]');
@@ -59,7 +59,7 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     assert.equal(await page.locator("#library-search").inputValue(), "Latitude");
     assert.equal(await page.evaluate(() => document.activeElement.dataset.detail), "builtin-0:4");
     assert.deepEqual(await page.evaluate(() => ({ project: JSON.stringify(window.__editor.project),
-      selected: window.__editor.selected, time: window.__editor.preview.time, undo: window.__editor.undoStack.length })), browseState);
+      selected: window.__editor.selected, time: window.__editor.preview.time, undo: window.__editor.history.undoStack.length })), browseState);
     await page.keyboard.press("ControlOrMeta+f");
     assert.equal(await page.evaluate(() => document.activeElement.id), "library-search");
     await page.fill("#library-search", "");
@@ -90,7 +90,7 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     const projectBeforeRemove = await page.evaluate(() => JSON.stringify(window.__editor.project));
     await page.click(`[data-remove="${local}"]`);
     assert.equal(await page.evaluate(() => JSON.stringify(window.__editor.project)), projectBeforeRemove);
-    await fs.writeFile(packPath, JSON.stringify({ ...exported, approved: true, price: 999, script: "danger()" }));
+    await fs.writeFile(packPath, JSON.stringify({ ...exported, name: "Podcast interview collection with a very long descriptive name for smaller windows", author: "A creator with a long name that remains readable in the library", approved: true, price: 999, script: "danger()" }));
     await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, packPath);
     await page.click("#library-import"); await page.waitForFunction(() => document.querySelectorAll(".library-pack").length === 1);
     assert.match(await page.locator(".library-pack").last().textContent(), /Local · not reviewed/);

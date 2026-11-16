@@ -31,13 +31,14 @@ test("navigation preferences migrate independently, reject corrupt values and ne
   assert.equal(libraryView(null).location, "included");
   assert.equal(libraryView({ installed: [local] }).filters.library.category, "packs");
   const saved = { location: "library", filters: {
-    included: { category: "all", query: "warm", collection: "builtin-0", scroll: 200 },
+    included: { category: "all", query: "warm", collection: "builtin-0", scroll: 200, limit: 240 },
     library: { category: "__proto__", query: "x".repeat(1000), collection: "../escape", scroll: Infinity },
   } };
   const before = structuredClone(saved), view = libraryView(saved);
   assert.equal(view.location, "library"); assert.equal(view.filters.library.category, "packs");
   assert.equal(view.filters.library.query.length, 120); assert.equal(view.filters.library.collection, "");
   assert.equal(view.filters.library.scroll, 0); assert.equal(view.filters.included.scroll, 200);
+  assert.equal(view.filters.included.limit, 240, "Returning restores the expanded result count");
   view.filters.included.query = "changed";
   assert.deepEqual(saved, before);
   const packs = structuredClone([included, local]), snapshot = structuredClone(packs);

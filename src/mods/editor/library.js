@@ -54,7 +54,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
   function draw(canvas, preset, progress = .65) {
     if (!canvas.isConnected || disposed) return;
     const ctx = canvas.getContext("2d"), s = preset.settings;
-    ctx.setTransform(2, 0, 0, 2, 0, 0);
+    ctx.setTransform(canvas.width / 240, 0, 0, canvas.height / 135, 0, 0);
     ctx.clearRect(0, 0, 240, 135); ctx.fillStyle = "#101a18"; ctx.fillRect(0, 0, 240, 135);
     ctx.save();
     if (preset.kind === "transition") {
@@ -152,6 +152,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
       : c.locked ? "Locked layer: " + c.name + ". Unlock it to apply a style."
       : c.kind === "audio" ? "Choose a picture for looks and motion, or add a title. Audio is unchanged."
       : "Selected: " + c.name;
+    $("#library-selection").title = $("#library-selection").textContent;
   }
   function render() {
     for (const b of dialog.querySelectorAll("[data-location]")) b.setAttribute("aria-pressed", String(view.location === b.dataset.location));
@@ -190,7 +191,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
   function chooseLocation(location) {
     if (!Object.hasOwn(LOCATIONS, location)) return;
     rememberScroll(); closeDetail({ focus: false });
-    view.location = location; limit = 60; render(); restoreScroll(filter().scroll); persistView();
+    view.location = location; limit = filter().limit; render(); restoreScroll(filter().scroll); persistView();
   }
   function openDetail(item, button) {
     if (!item) return;
@@ -198,7 +199,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     $("#library-details").innerHTML =
       '<div class="library-detail-heading"><button class="button small" id="library-back">← Back to results</button><span class="library-badge">'
       + (item.included ? "Included by Latitude" : "Local · not reviewed") + '</span></div>'
-      + '<div class="library-detail-grid"><div><canvas id="library-detail-canvas" width="480" height="270" aria-label="' + escape(item.preset.name)
+      + '<div class="library-detail-grid"><div><canvas id="library-detail-canvas" width="960" height="540" aria-label="' + escape(item.preset.name)
       + ' preview"></canvas>' + (item.preset.kind === "transition" ? '<button class="button small" id="library-replay">Replay preview</button>' : "")
       + '</div><div><p class="eyebrow">' + escape(KINDS[item.preset.kind]) + '</p><h3>' + escape(item.preset.name)
       + '</h3><p>' + escape(item.preset.description || item.pack.description) + '</p><dl><dt>Collection</dt><dd>'
@@ -231,7 +232,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     if (allPacks().some(item => JSON.stringify(item.pack) === JSON.stringify(canonical))) throw Error("This exact pack is already in your library.");
     installed.push({ id: crypto.randomUUID(), pack: canonical });
     try { persist(); } catch (e) { installed.pop(); throw e; }
-    closeDetail({ focus: false }); view.location = "library"; Object.assign(filter(), { category: "packs", query: "", collection: "", scroll: 0 });
+    closeDetail({ focus: false }); view.location = "library"; Object.assign(filter(), { category: "packs", query: "", collection: "", scroll: 0, limit: 60 });
     render(); restoreScroll(0); status("Added " + canonical.name + ". Settings stay editable and work offline.");
   }
   dialog.innerHTML = '<header class="library-header"><div><span class="eyebrow">MAKE IT YOURS</span><h2>Creative library</h2><p id="library-selection"></p></div>'
@@ -274,13 +275,13 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     const b = e.target.closest("button"); if (!b || operating) return;
     if (b.dataset.location) { chooseLocation(b.dataset.location); return; }
     if (b.dataset.category) {
-      closeDetail({ focus: false }); filter().category = b.dataset.category; filter().scroll = 0; limit = 60; render(); restoreScroll(0); return;
+      closeDetail({ focus: false }); filter().category = b.dataset.category; filter().scroll = 0; limit = filter().limit = 60; render(); restoreScroll(0); return;
     }
     if (b.hasAttribute("data-clear") || b.id === "library-clear") {
-      filter().query = filter().collection = ""; filter().scroll = 0; limit = 60; render(); restoreScroll(0); $("#library-search").focus(); return;
+      filter().query = filter().collection = ""; filter().scroll = 0; limit = filter().limit = 60; render(); restoreScroll(0); $("#library-search").focus(); return;
     }
     if (b.hasAttribute("data-included")) {
-      view.filters.included = { category: "all", query: "", collection: "", scroll: 0 }; chooseLocation("included"); return;
+      view.filters.included = { category: "all", query: "", collection: "", scroll: 0, limit: 60 }; chooseLocation("included"); return;
     }
     if (b.id === "library-import" || b.hasAttribute("data-import")) { importPack(); return; }
     if (b.id === "library-back") { closeDetail(); return; }
@@ -322,9 +323,9 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
       render(); status("Local pack removed. Applied styles and project files are unchanged.");
     })();
   });
-  listen($("#library-search"), "input", e => { filter().query = e.target.value; filter().scroll = 0; limit = 60; render(); restoreScroll(0); });
-  listen($("#library-collection"), "change", e => { filter().collection = e.target.value; filter().scroll = 0; limit = 60; render(); restoreScroll(0); });
-  listen($("#library-more"), "click", () => { limit += 60; renderCards(); });
+  listen($("#library-search"), "input", e => { filter().query = e.target.value; filter().scroll = 0; limit = filter().limit = 60; render(); restoreScroll(0); });
+  listen($("#library-collection"), "change", e => { filter().collection = e.target.value; filter().scroll = 0; limit = filter().limit = 60; render(); restoreScroll(0); });
+  listen($("#library-more"), "click", () => { limit += 60; filter().limit = limit; renderCards(); });
   listen($("#library-save-clip"), "click", run(() => {
     const c = selection(), kind = $("#library-save-kind").value;
     if (!c || c.kind === "audio") throw Error("Select a picture or title before saving its style.");
@@ -342,7 +343,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     open(kind) {
       if (disposed) return; stop(); opener = document.activeElement; detail = null;
       if (kind && Object.hasOwn(KINDS, kind)) { view.location = "included"; filter().category = kind; }
-      render(); dialog.showModal(); restoreScroll(filter().scroll);
+      limit = filter().limit; render(); dialog.showModal(); restoreScroll(filter().scroll);
       $(view.location === "discover" ? "#library-close" : "#library-search").focus({ preventScroll: true });
     },
     destroy() {
