@@ -1,8 +1,14 @@
 # Creative library and editable packs
 
 The optional Editor has a **Library** button beside its project actions. Browse
-Transitions, Looks, Titles and Fonts, search by name, choose a collection, or mark
-favorites. Apply a style to the selected picture/title, or use **Add title** to
+**Included**, **My library** and **Favorites** separately. Filter Transitions,
+Looks, Titles, Fonts or Collections; search matches styles, descriptions,
+collection names and creators. Each destination remembers its filters and browse
+position. Select a preview for a larger view; **Back** or Escape returns to the
+same result. Ctrl/Cmd+F focuses search. **Done** stays visible while results scroll.
+Discover explains the future catalog; no online service is connected.
+
+Apply a style to the selected picture/title, or use **Add title** to
 place editable text on the Titles layer at the playhead. Undo reverses the action.
 
 The included collection contains 12 entrances, 12 color recipes, 12 title styles
@@ -12,7 +18,8 @@ clip; overlap two pictures to reveal one over the other. **Dissolve from previou
 also aligns their overlap and audio fades. These aren't automatic scene detection,
 optical-flow effects, a full keyframe editor, or a color-managed grading system.
 
-In **My packs**, save a selected clip's color, transition or title style. Export
+In **My library → Collections**, expand **Save your own style** to save a selected
+clip's color, transition or title style. Export
 the resulting `.latitude-pack` file to share it. Import opens a normal file dialog.
 Imported packs are labeled **Local · not reviewed**. A pack cannot label itself
 approved. Included collections are shipped in the reviewed application source.
@@ -61,7 +68,8 @@ Both native import and export validate the file. Installation is local; settings
 are remembered independently of project Undo and layout. Exported presets can
 be inspected in any text editor. Native dialogs choose paths; a manifest never
 chooses where to read or write files. UI previews use small generated canvases,
-not additional video decoders. Only a hovered transition animates briefly;
+not additional video decoders. Cards paint and load fonts only as they approach
+the visible results area. Only a hovered or explicitly replayed transition animates briefly;
 reduced-motion preferences disable that animation. Closing the library stops it.
 
 ## Fonts and reproducible previews
@@ -115,5 +123,4 @@ The repository now includes a [pack-service foundation](../services/packs/README
 for a reviewed catalog, verified preset downloads and durable ownership records.
 It is separate from the desktop app and is not deployed. Accounts, Stripe,
 checkout and online installation are not enabled. The existing library stays
-offline. See the [library layout plan](PACK-LIBRARY-PLAN.md) for the next visual
-integration and its native testing requirements.
+offline. See the [library layout plan](PACK-LIBRARY-PLAN.md) for the implemented offline navigation and remaining online integration gates.

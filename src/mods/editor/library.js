@@ -10,7 +10,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
   const controller = new AbortController();
   const listen = (el, event, fn) => el.addEventListener(event, fn, { signal: controller.signal });
   let limit = 60, animation = null, frame = 0, generation = 0, disposed = false, operating = false,
-    opener, detail = null, detailOpener = null, detailScroll = 0, detailDirty = false, restoreFrame = 0;
+    opener, detail = null, detailOpener = null, detailScroll = 0, restoreFrame = 0, previewObserver = null;
   let saved, savedView;
   try { saved = ui.readSettings("latitude-editor-library"); savedView = ui.readSettings("latitude-editor-library-view"); } catch {}
   const view = libraryView(savedView), installed = [];
@@ -41,6 +41,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     finally { operating = false; dialog.setAttribute("aria-busy", "false"); }
   };
   function stopAnimation() { cancelAnimationFrame(frame); frame = 0; animation = null; }
+  function stopCardPreviews() { previewObserver?.disconnect(); previewObserver = null; }
   function clearCanvases(container) { for (const c of container.querySelectorAll("canvas")) c.width = c.height = 1; }
   const sample = document.createElement("canvas"); sample.width = 240; sample.height = 135;
   {
@@ -105,7 +106,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
         : '<button class="button small" data-included>Browse included styles</button>') + '</div>';
   }
   function renderCards() {
-    stopAnimation(); const token = ++generation;
+    stopAnimation(); stopCardPreviews(); const token = ++generation;
     const matches = searchPresets(allPacks(), view.location, filter(), favorites), items = matches.slice(0, limit);
     clearCanvases($("#library-grid"));
     $("#library-count").textContent = matches.length + (matches.length === 1 ? " style" : " styles");
@@ -118,16 +119,23 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
       + '<p>' + escape(item.preset.description) + '</p><small>' + escape(item.pack.name) + ' · ' + (item.included ? "Included" : "Local") + '</small>'
       + '<div class="library-card-actions">' + actionButtons(item) + '</div></div></article>').join("") : emptyMessage();
     $("#library-more").hidden = matches.length <= limit;
-    const cards = new Map([...$("#library-grid").children].map(el => [el.dataset.preset, el]));
-    for (const item of items) {
-      const canvas = cards.get(item.key).querySelector("canvas"); draw(canvas, item.preset);
-      if (item.preset.settings.font) fonts.ensure(item.preset.settings.font).then(() => {
-        if (token === generation && dialog.open) draw(canvas, item.preset);
-      }).catch(() => {});
-    }
+    // Only visible cards (plus a small scroll buffer) allocate canvas pixels or load fonts.
+    const byKey = new Map(items.map(item => [item.key, item.preset]));
+    previewObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting || disposed || token !== generation || !dialog.open || detail) continue;
+        previewObserver?.unobserve(entry.target);
+        const canvas = entry.target, preset = byKey.get(canvas.closest("[data-preset]").dataset.preset);
+        draw(canvas, preset);
+        if (preset.settings.font) fonts.ensure(preset.settings.font).then(() => {
+          if (token === generation && dialog.open && !detail) draw(canvas, preset);
+        }).catch(() => {});
+      }
+    }, { root: $("#library-body"), rootMargin: "160px 0px" });
+    for (const canvas of $("#library-grid").querySelectorAll("canvas")) previewObserver.observe(canvas);
   }
   function renderPacks() {
-    stopAnimation(); generation++; clearCanvases($("#library-grid"));
+    stopAnimation(); stopCardPreviews(); generation++; clearCanvases($("#library-grid"));
     const packs = searchCollections(allPacks(), view.location, filter(), favorites);
     $("#library-grid").innerHTML = packs.length ? packs.map(item =>
       '<article class="library-pack"><div><span class="library-badge">' + (item.included ? "Included by Latitude" : "Local · not reviewed")
@@ -167,8 +175,9 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     $("#library-clear").hidden = !filter().query && !filter().collection;
     collections(); updateSelection();
     if (!detail && !discover) filter().category === "packs" ? renderPacks() : renderCards();
+    if (discover) { stopAnimation(); stopCardPreviews(); generation++; clearCanvases($("#library-grid")); $("#library-grid").replaceChildren(); }
   }
-  function rememberScroll() { if (!detail) filter().scroll = $("#library-body").scrollTop; }
+  function rememberScroll() { if (dialog.open && !detail) filter().scroll = $("#library-body").scrollTop; }
   function restoreScroll(value, focus) {
     cancelAnimationFrame(restoreFrame);
     restoreFrame = requestAnimationFrame(() => {
@@ -183,10 +192,8 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     const key = detail.key; detail = null;
     clearCanvases($("#library-details")); $("#library-details").replaceChildren();
     $("#library-details").hidden = true; $("#library-browse").hidden = false; $("#library-controls").hidden = false;
-    if (detailDirty) {
-      render(); detailOpener = [...$("#library-grid").querySelectorAll("[data-detail]")].find(b => b.dataset.detail === key) || $("#library-search");
-    }
-    detailDirty = false; restoreScroll(detailScroll, focus ? detailOpener : null);
+    render(); detailOpener = [...$("#library-grid").querySelectorAll("[data-detail]")].find(b => b.dataset.detail === key) || $("#library-search");
+    restoreScroll(detailScroll, focus ? detailOpener : null);
   }
   function chooseLocation(location) {
     if (!Object.hasOwn(LOCATIONS, location)) return;
@@ -195,7 +202,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
   }
   function openDetail(item, button) {
     if (!item) return;
-    rememberScroll(); detailScroll = filter().scroll; detailOpener = button; detail = item; detailDirty = false; stopAnimation();
+    rememberScroll(); detailScroll = filter().scroll; detailOpener = button; detail = item; stopAnimation(); stopCardPreviews();
     $("#library-details").innerHTML =
       '<div class="library-detail-heading"><button class="button small" id="library-back">← Back to results</button><span class="library-badge">'
       + (item.included ? "Included by Latitude" : "Local · not reviewed") + '</span></div>'
@@ -257,13 +264,13 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     + '<footer class="library-footer"><p id="library-status" role="status">All included styles are free and work offline. Make them your own in the Inspector.</p>'
     + '<small>Local imports are not reviewed by Latitude. Editing and exports never require a purchase.</small></footer>';
   const importPack = run(async () => { const pack = await io.call("import-pack"); if (pack && !disposed) install(pack); });
-  listen($("#library-close"), "click", () => dialog.close());
+  listen($("#library-close"), "click", () => { rememberScroll(); dialog.close(); });
   listen(dialog, "close", () => {
-    rememberScroll(); persistView(); stopAnimation(); generation++; cancelAnimationFrame(restoreFrame);
+    persistView(); stopAnimation(); stopCardPreviews(); generation++; cancelAnimationFrame(restoreFrame);
     detail = null; clearCanvases($("#library-grid")); clearCanvases($("#library-details"));
     $("#library-grid").replaceChildren(); $("#library-details").replaceChildren(); opener?.focus({ preventScroll: true });
   });
-  listen(dialog, "cancel", e => { if (operating || detail) { e.preventDefault(); if (!operating) closeDetail(); } });
+  listen(dialog, "cancel", e => { if (operating || detail) { e.preventDefault(); if (!operating) closeDetail(); } else rememberScroll(); });
   listen(dialog, "keydown", e => {
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "f") {
       e.preventDefault(); closeDetail({ focus: false });
@@ -293,7 +300,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
       was ? favorites.delete(key) : favorites.add(key);
       try { persist(); } catch (error) { was ? favorites.add(key) : favorites.delete(key); status(error.message, true); return; }
       if (detail) {
-        detailDirty = true; b.setAttribute("aria-pressed", String(!was)); b.textContent = !was ? "★ Saved" : "☆ Favorite";
+        b.setAttribute("aria-pressed", String(!was)); b.textContent = !was ? "★ Saved" : "☆ Favorite";
         const star = [...$("#library-grid").querySelectorAll("[data-favorite]")].find(el => el.dataset.favorite === key);
         if (star) { star.setAttribute("aria-pressed", String(!was)); star.textContent = !was ? "★" : "☆"; }
       } else render();
@@ -347,7 +354,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
       $(view.location === "discover" ? "#library-close" : "#library-search").focus({ preventScroll: true });
     },
     destroy() {
-      if (disposed) return; rememberScroll(); persistView(); disposed = true; stopAnimation(); cancelAnimationFrame(restoreFrame);
+      if (disposed) return; rememberScroll(); persistView(); disposed = true; stopAnimation(); stopCardPreviews(); cancelAnimationFrame(restoreFrame);
       controller.abort(); if (dialog.open) dialog.close();
       clearCanvases(dialog); dialog.remove(); sample.width = sample.height = 1; detail = detailOpener = opener = null;
     },

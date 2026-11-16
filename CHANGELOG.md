@@ -2,7 +2,7 @@
 
 ## 0.9.9 — 2026-11-16
 
-Conflicting keyboard commands no longer alter a held preview drag. Timeline scrolling reuses buffered rows and waveforms, and resizing refreshes newly visible clips while preserving edit state. [Full notes](docs/releases/0.9.9.md).
+Creative library destinations, creator/collection search, larger previews and remembered browsing make styles easier to find; offscreen cards avoid unnecessary painting and font loading. Conflicting keyboard commands no longer alter a held preview drag. Timeline scrolling reuses buffered rows and waveforms, and resizing refreshes newly visible clips while preserving edit state. [Full notes](docs/releases/0.9.9.md).
 
 ## 0.9.8 — 2026-11-14
 

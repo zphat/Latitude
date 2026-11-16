@@ -48,6 +48,12 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
       selected: window.__editor.selected, time: window.__editor.preview.time, undo: window.__editor.history.undoStack.length }));
     await page.click('[data-category="all"]'); await page.fill("#library-search", "Latitude");
     assert.equal(await page.locator(".library-card").count(), 52);
+    // Offscreen previews stay unpainted until approached, then render without a new decoder.
+    await page.waitForFunction(() => document.querySelector(".library-card canvas").getContext("2d").getImageData(1, 1, 1, 1).data[3] === 255);
+    assert.equal(await page.locator(".library-card canvas").last().evaluate(c => c.getContext("2d").getImageData(1, 1, 1, 1).data[3]), 0,
+      "A distant preview does not allocate painted pixels before it is browsed");
+    await page.locator(".library-card").last().scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => [...document.querySelectorAll(".library-card canvas")].at(-1).getContext("2d").getImageData(1, 1, 1, 1).data[3] === 255);
     const previewButton = page.locator('[data-detail="builtin-0:4"]');
     await previewButton.scrollIntoViewIfNeeded();
     const browseScroll = await page.locator("#library-body").evaluate(el => el.scrollTop);
@@ -58,6 +64,9 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     await page.waitForFunction(top => Math.abs(document.querySelector("#library-body").scrollTop - top) <= 1, browseScroll);
     assert.equal(await page.locator("#library-search").inputValue(), "Latitude");
     assert.equal(await page.evaluate(() => document.activeElement.dataset.detail), "builtin-0:4");
+    await page.click("#library-close"); await page.click("#edit-library-open");
+    await page.waitForFunction(top => Math.abs(document.querySelector("#library-body").scrollTop - top) <= 1, browseScroll);
+    assert.equal(await page.locator("#library-search").inputValue(), "Latitude", "Closing and reopening retains search");
     assert.deepEqual(await page.evaluate(() => ({ project: JSON.stringify(window.__editor.project),
       selected: window.__editor.selected, time: window.__editor.preview.time, undo: window.__editor.history.undoStack.length })), browseState);
     await page.keyboard.press("ControlOrMeta+f");
@@ -161,8 +170,9 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     await page.screenshot({ animations: "disabled", path: path.join(root, "studio-after-editor.png") });
     await page.click('[data-view="mods"]');
     await page.check('[data-mod-id="latitude-editor"]'); await page.click('[data-view="editor"]'); await page.waitForFunction(() => !!window.__editor);
-    await page.click("#edit-library-open"); await page.click('[data-category="packs"]');
+    await page.click("#edit-library-open"); await page.click('[data-location="library"]');
     assert.equal(await page.locator(".library-pack").count(), 1, "Local packs survive disable/re-enable");
+    assert.match(await page.locator(".library-pack").textContent(), /Local · not reviewed/);
     await page.click('[data-location="favorites"]');
     assert.equal(await page.locator(".library-card").count(), 1, "Favorites survive disable/re-enable");
     await page.click('[data-location="discover"]');
