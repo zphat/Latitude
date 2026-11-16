@@ -5,6 +5,11 @@ on:
     branches: [linux/port]
   workflow_dispatch:
   workflow_call:
+    inputs:
+      separate_updater_gate:
+        description: Caller requires the same native live updater check in its own job
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -69,7 +74,7 @@ jobs:
         run: npm test
       - name: Verify native editor and update UI
         env:
-          LATITUDE_UPDATE_LIVE_CHECK: "1"
+          LATITUDE_UPDATE_LIVE_CHECK: ${{ inputs.separate_updater_gate && '0' || '1' }}
           TMPDIR: ${{ runner.temp }}
         run: |
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1

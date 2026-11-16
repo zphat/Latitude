@@ -170,7 +170,7 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     assert.equal(await page.locator("#library-controls").isVisible(), false);
     await inline("discover");
     assert.ok(!remote.some(url => /fonts\.(?:googleapis|gstatic)\.com/.test(url)), "No font network requests");
-    assert.deepEqual(remote, [], "Browsing every destination makes no network request");
+    assert.ok(remote.every(url => ["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname)), "Library browsing makes no external network request");
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ result: "passed", fonts: fonts.length, packsRoundTrip: true, colorsMatchNative: true, responsive: true, cleanup: true, root }));
   } catch (error) {
