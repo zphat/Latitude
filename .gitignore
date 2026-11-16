@@ -21,3 +21,6 @@ vendor/ffprobe
 .mac-encoder-build/
 __pycache__/
 *.flatpak
+
+# Operator-owned pack service data (never shipped or committed)
+/pack-data/
