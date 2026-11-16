@@ -74,11 +74,12 @@ function entry(input) {
     license = { name: text(input.license.name, 120, 'license name'), text: input.license.text.trim() };
     object(input.artifact, ['format', 'sha256', 'bytes', 'presets'], 'artifact');
     if (input.artifact.format !== 'latitude-editor-pack-v1'
-        || !/^[a-f0-9]{64}$/.test(input.artifact.sha256 || '')
+        || typeof input.artifact.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(input.artifact.sha256)
         || !Number.isSafeInteger(input.artifact.bytes) || input.artifact.bytes < 1 || input.artifact.bytes > PACK_LIMITS.bytes
         || !Number.isSafeInteger(input.artifact.presets) || input.artifact.presets < 1 || input.artifact.presets > PACK_LIMITS.presets)
       throw Error('Invalid preset artifact.');
-    artifact = { ...input.artifact };
+    artifact = { format: input.artifact.format, sha256: input.artifact.sha256,
+      bytes: input.artifact.bytes, presets: input.artifact.presets };
   }
   return { id, version: ver, name, creator, summary: text(input.summary, 400, 'summary'),
     kinds: [...input.kinds], tags, status: input.status, review, license, price, compatibility, artifact };

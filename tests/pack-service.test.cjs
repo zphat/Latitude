@@ -36,7 +36,7 @@ test('curated catalog validates byte bounds, immutable identity, review, prices 
     x => { x.review.rights = false; }, x => { x.review.reviewedAt = '2026-02-31T00:00:00Z'; },
     x => { x.price.amountMinor = 3.5; }, x => { x.price.currency = ['USD']; },
     x => { x.artifact.url = 'https://untrusted.example/payload'; },
-    x => { x.artifact.bytes = 128 * 1024 + 1; }, x => { x.artifact.sha256 = '../escape'; },
+    x => { x.artifact.bytes = 128 * 1024 + 1; }, x => { x.artifact.sha256 = [x.artifact.sha256]; }, x => { x.artifact.sha256 = '../escape'; },
     x => { x.id = '../escape'; }, x => { x.version = '1.00.0'; },
     x => { x.kinds = ['animation']; }, x => { x.approved = true; },
     x => { x.compatibility.packVersion = 2; }
@@ -218,6 +218,8 @@ test('published pack identity survives catalog reloads and cannot be silently re
     const { item } = fixture();
     const catalog = parseCatalog(encode([item]));
     ledger.registerCatalog(catalog); ledger.registerCatalog(catalog);
+    const reordered = { ...item, artifact: Object.fromEntries(Object.entries(item.artifact).reverse()) };
+    ledger.registerCatalog(parseCatalog(encode([reordered])));
     const changedPrice = structuredClone(item); changedPrice.price = { kind: 'one-time', currency: 'USD', amountMinor: 500 };
     ledger.registerCatalog(parseCatalog(encode([changedPrice])));
     for (const mutate of [
@@ -256,4 +258,17 @@ test('operator preparation produces immutable normalized bytes without approving
   await fs.writeFile(file, 'changed');
   assert.notEqual(run().status, 0, 'Corrupt existing bytes are never overwritten');
   assert.equal(await fs.readFile(file, 'utf8'), 'changed');
+});
+
+test('standalone startup refuses missing published contents before listening', async t => {
+  const { spawnSync } = require('node:child_process');
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'latitude-pack-start-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  await fs.mkdir(path.join(root, 'artifacts'));
+  await fs.writeFile(path.join(root, 'catalog.json'), encode([fixture().item]));
+  const run = spawnSync(process.execPath, [path.join(__dirname, '../services/packs/start.mjs')],
+    { env: { ...process.env, LATITUDE_PACK_DATA: root }, encoding: 'utf8', timeout: 10000 });
+  assert.notEqual(run.status, 0);
+  assert.equal(run.error, undefined, 'Exits on missing contents instead of listening until timeout');
+  assert.ok(!run.stdout.includes('http://127.0.0.1'));
 });

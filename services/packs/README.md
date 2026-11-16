@@ -60,6 +60,10 @@ This normalizes a pack with the existing validator and writes immutable
 A curator must independently review the contents and rights before adding a
 published catalog entry. Technical validation does not establish ownership.
 
+Startup verifies every published artifact before listening. The persistent catalog
+registry rejects changes to an existing version's contents, identity, license or
+compatibility; publish a new version for those changes.
+
 Catalog shape:
 
 ```json

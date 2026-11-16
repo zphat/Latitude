@@ -15,7 +15,10 @@ try {
   const catalog = parseCatalog(await readCatalogFile(path.join(root, 'catalog.json')));
   const port = Number(process.env.LATITUDE_PACK_PORT || 8787);
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw Error('Use a port from 1024 through 65535.');
-  const server = createPackServer({ catalog, ledger, readArtifact: artifactStore(path.join(root, 'artifacts')) });
+  const readArtifact = artifactStore(path.join(root, 'artifacts'));
+  // Fail startup for missing or changed published contents instead of advertising broken downloads.
+  for (const item of catalog.packs) if (item.status === 'published') await readArtifact(item);
+  const server = createPackServer({ catalog, ledger, readArtifact });
   server.once('error', () => { ledger.close(); process.exitCode = 1; });
   server.listen(port, '127.0.0.1', () => console.log('Latitude pack foundation: http://127.0.0.1:' + port + ' (purchases disabled)'));
   let closing = false;
