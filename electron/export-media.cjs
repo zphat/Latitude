@@ -2,6 +2,18 @@ const fs = require("node:fs/promises");
 const { constants } = require("node:fs");
 const path = require("node:path");
 
+function exportTracks(m, options, video) {
+  const sourceTracks = [
+    { id: "voice1", name: "Voice 1" },
+    { id: "voice2", name: "Voice 2" },
+    { id: "desktop", name: "Desktop" },
+  ].filter((t) => m[t.id] && options.separateTracks);
+  const tracks = [{ id: "mix", name: "Full mix" }, ...sourceTracks];
+  const originals = video && options.editingFiles && options.stemFormat !== "flac" && m.keepRaw !== false
+    ? sourceTracks.filter(t => t.id.startsWith("voice")).map(t => ({ id: "raw" + t.id.at(-1), name: t.name + " original", raw: true })) : [];
+  return { sourceTracks, tracks, originals };
+}
+
 // One encoder process at a time. Compact exports read the recorded PCM directly,
 // avoiding temporary WAV copies and repeated video encoding for editor clips.
 async function writeMedia({
@@ -17,12 +29,7 @@ async function writeMedia({
     await import("../src/export-formats.js");
   const format = exportFormat(options.format);
   const video = format.kind === "video";
-  const sourceTracks = [
-    { id: "voice1", name: "Voice 1" },
-    { id: "voice2", name: "Voice 2" },
-    { id: "desktop", name: "Desktop" },
-  ].filter((t) => m[t.id] && options.separateTracks);
-  const tracks = [{ id: "mix", name: "Full mix" }, ...sourceTracks];
+  const { sourceTracks, tracks, originals } = exportTracks(m, options, video);
   const source = (t) => path.join(m.dir, `${t.id}.wav`);
   const file = video
     ? `Recording.${format.extension}`
@@ -94,19 +101,7 @@ async function writeMedia({
       path.join(output, file),
     ]);
   }
-  const extraTracks = video
-    ? options.editingFiles
-      ? [
-          ...sourceTracks
-            .filter((t) => t.id.startsWith("voice") && m.keepRaw !== false && wav.id === "wav")
-            .map((t) => ({
-              id: `raw${t.id.at(-1)}`,
-              name: `${t.name} original`,
-              raw: true,
-            })),
-        ]
-      : []
-    : sourceTracks;
+  const extraTracks = video ? originals : sourceTracks;
   for (const [i, t] of extraTracks.entries()) {
     guard();
     notify({
@@ -166,4 +161,4 @@ async function writeMedia({
   };
 }
 
-module.exports = { writeMedia };
+module.exports = { writeMedia, exportTracks };

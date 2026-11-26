@@ -13,6 +13,7 @@ import { TRUSTED_MODS } from "./mods/catalog.js";
 import { installModsPage } from "./mods/ui.js";
 import { installUpdates } from "./updates.js";
 import { AudioMeters, meterMarkup } from "./audio-meters.js";
+import { mixSummary, lowHeadroom } from "./take-summary.js";
 import { recordingName, sessionName } from "./session-names.js";
 
 const $ = (s) => document.querySelector(s),
@@ -1151,13 +1152,14 @@ async function loadTakes() {
     }
     container.innerHTML = sessions
       .map((s) => {
-        const report = s.exports?.at(-1)?.report;
+        const report = Array.isArray(s.exports) ? s.exports.at(-1)?.report : null;
+        const takeId = escape(s.id);
         const trackCount = report?.tracks?.length || 1;
         const audioUnit =
           EXPORT_FORMATS.find((f) => f.id === report?.format)?.kind === "audio"
             ? "file"
             : "track";
-        return `<article class="take-card"><div class="take-art">${icon("wave")}</div><div class="take-info"><div class="take-heading"><h3><button class="take-title" data-rename-take="${s.id}" title="Rename this take">${escape(s.name)}</button></h3><button class="button small" data-rename-take="${s.id}" aria-label="Rename ${escape(s.name)}">Rename</button></div><p>${escape(new Date(s.created).toLocaleString())} · ${formatTime(s.duration || 0)} · ${s.width || 1920} × ${s.height || 1080}</p><div class="take-meta"><span class="tag">${s.status === "interrupted" ? "Interrupted · recovery available" : s.status === "exported" ? "Ready to edit" : s.status === "recording" ? "Recording" : "Originals saved"}</span>${report ? `<span class="tag">${escape((report.format || "mp4").toUpperCase())} · ${trackCount} audio ${audioUnit}${trackCount === 1 ? "" : "s"}${report.mediaBytes ? ` · ${(report.mediaBytes / 1e6).toFixed(1)} MB` : ""}</span><span class="tag">${escape(report.measuredLUFS)} LUFS · ${escape(report.truePeakDBTP)} dBTP</span>` : ""}</div></div><div class="take-actions"><button class="button" data-edit-take="${s.id}" ${s.status === "recording" || modsBusy() ? "disabled" : ""}>Edit</button><button class="button" data-play-take="${s.id}" ${s.status === "recording" ? "disabled" : ""} title="Play in your media player">${icon("play")} Play</button><button class="button" data-open-take="${s.id}">${icon("folder")} Open files</button><button class="button ${s.id === lastSavedId ? "primary" : ""}" data-export-take="${s.id}" ${exporting || engine.recording || engine.finishing || engine.starting || s.status === "recording" ? "disabled" : ""}>${icon("download")} ${s.status === "interrupted" ? "Recover & export" : "Export"}</button></div></article>`;
+        return `<article class="take-card"><div class="take-art">${icon("wave")}</div><div class="take-info"><div class="take-heading"><h3><button class="take-title" data-rename-take="${takeId}" title="Rename this take">${escape(s.name)}</button></h3><button class="button small" data-rename-take="${takeId}" aria-label="Rename ${escape(s.name)}">Rename</button></div><p>${escape(new Date(s.created).toLocaleString())} · ${formatTime(s.duration || 0)} · ${Number(s.width) || 1920} × ${Number(s.height) || 1080}</p>${s.status === "interrupted" && s.error ? `<p class="take-issue">${escape(s.error)}</p>` : ""}<div class="take-meta"><span class="tag">${s.status === "interrupted" ? "Interrupted · recovery available" : s.status === "exported" ? "Ready to edit" : s.status === "recording" ? "Recording" : "Originals saved"}</span>${report ? `<span class="tag">${escape(String(report.format || "mp4").toUpperCase())} · ${trackCount} audio ${audioUnit}${trackCount === 1 ? "" : "s"}${report.mediaBytes ? ` · ${(report.mediaBytes / 1e6).toFixed(1)} MB` : ""}</span><span class="tag">${escape(mixSummary(report))}</span>` : ""}</div></div><div class="take-actions"><button class="button" data-edit-take="${takeId}" ${s.status === "recording" || modsBusy() ? "disabled" : ""}>Edit</button><button class="button" data-play-take="${takeId}" ${s.status === "recording" ? "disabled" : ""} title="Play in your media player">${icon("play")} Play</button><button class="button" data-open-take="${takeId}">${icon("folder")} Open files</button><button class="button ${s.id === lastSavedId ? "primary" : ""}" data-export-take="${takeId}" ${exporting || engine.recording || engine.finishing || engine.starting || s.status === "recording" ? "disabled" : ""}>${icon("download")} ${s.status === "interrupted" ? "Recover & export" : "Export"}</button></div></article>`;
       })
       .join("");
     $$("[data-edit-take]").forEach(
@@ -1324,9 +1326,9 @@ async function doExport(id, options = exportDefaults()) {
     });
     const r = result.report;
     toast(
-      `Export ready. Measured ${r.measuredLUFS} LUFS and ${r.truePeakDBTP} dBTP.`,
+      `Export ready. ${mixSummary(r)}.`,
     );
-    if (Number(r.truePeakDBTP) > -1)
+    if (lowHeadroom(r))
       toast(
         "The encoded mix has less than 1 dB true-peak headroom. Review the audio report before publishing.",
         true,

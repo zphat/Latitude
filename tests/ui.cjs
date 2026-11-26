@@ -203,11 +203,13 @@ require("../scripts/preview.cjs");
   assert.equal(s.markers.length, 1);
   assert.equal(s.scenes.length, 1);
   const lengths = await Promise.all(
-    TRACKS.map(
-      async (t) =>
-        ((await fs.stat(path.join(s.dir, `${t.id}.wav`))).size - 80) /
-        (t.channels * 4),
-    ),
+    TRACKS.map(async t => {
+      const wav = await fs.readFile(path.join(s.dir, t.id + ".wav"));
+      const frameBytes = wav.readUInt16LE(68), dataBytes = wav.readUInt32LE(76);
+      assert.equal(wav.readUInt16LE(70), t.id.startsWith("raw") ? 32 : s.audioBitDepth);
+      assert.equal(wav.length, 80 + dataBytes + (dataBytes % 2));
+      return dataBytes / frameBytes;
+    }),
   );
   assert.ok(
     lengths.every((x) => x === lengths[0]),
@@ -239,7 +241,7 @@ require("../scripts/preview.cjs");
   await page.click("#start-export");
   await page.waitForFunction(
     () => document.querySelector("#export-progress").hidden,
-    { timeout: 60000 },
+    null, { timeout: 60000 },
   );
   const exported = (await store.list())[0];
   assert.equal(exported.status, "exported");

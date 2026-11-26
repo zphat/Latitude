@@ -41,3 +41,15 @@ test("faster delivery measurement agrees with the previous scanner on encoded au
     }
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 });
+
+test("Takes distinguishes digital silence, below-gate audio, missing measurements and real peaks", async () => {
+  const { mixSummary, lowHeadroom } = await import("../src/take-summary.js");
+  assert.equal(mixSummary({ measuredLUFS: "-inf", truePeakDBTP: "-inf" }), "Silent mix");
+  assert.equal(mixSummary({ measuredLUFS: "-inf", truePeakDBTP: "-45" }), "Below loudness gate · -45.0 dBTP");
+  assert.equal(mixSummary({ measuredLUFS: "-16.03", truePeakDBTP: "-1.5" }), "-16.0 LUFS · -1.5 dBTP");
+  for (const value of [null, "", "  ", undefined, "-inf"]) {
+    assert.equal(lowHeadroom({ truePeakDBTP: value }), false);
+  }
+  assert.equal(mixSummary({ measuredLUFS: null, truePeakDBTP: null }), "Loudness unavailable");
+  assert.equal(lowHeadroom({ truePeakDBTP: 0 }), true);
+});

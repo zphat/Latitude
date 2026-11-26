@@ -147,6 +147,13 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
       await page.click("#edit-library-open"); await page.click('[data-category="title"]');
       await page.screenshot({ animations: "disabled", path: path.join(root, `creative-${width}-${scale}.png`) });
       if ((width === 960 && scale === 1) || scale === 1.5) await inline("library-" + width + "-" + scale);
+      if (width === 960 && scale === 1) {
+        const hit = await page.locator(".library-card [data-add]").first().evaluate(button => {
+          const r = button.getBoundingClientRect(), p = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+          return button.contains(p);
+        });
+        assert.ok(hit, "The first title can be added directly without scrolling in a compact window");
+      }
       const overflow = await page.evaluate(() => { const d = document.querySelector("#edit-library"); return d.scrollWidth > d.clientWidth + 1; });
       assert.equal(overflow, false, `Library horizontal overflow at ${width}/${scale}`);
       await page.evaluate(() => { const d = document.querySelector("#library-body"); d.scrollTop = d.scrollHeight; });
@@ -158,6 +165,13 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     }
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1));
     await page.setViewportSize({ width: 1280, height: 900 });
+    await page.click("#edit-library-open"); await page.click('[data-location="discover"]');
+    assert.equal(await page.locator("#library-promo").isVisible(), false);
+    const snapshot = await page.evaluate(() => JSON.stringify(window.__editor.project));
+    await page.click(".library-options summary"); await page.uncheck("#library-hide-premium");
+    assert.equal(await page.locator("#library-promo").isVisible(), true);
+    await page.keyboard.press("Escape"); assert.equal(await page.locator("#edit-library").isVisible(), true);
+    await page.click("#library-close"); assert.equal(await page.evaluate(() => JSON.stringify(window.__editor.project)), snapshot);
     const preview = await page.evaluate(() => { window.oldPreview = window.__editor.preview; return document.fonts.size; });
     await page.click('[data-view="mods"]'); await page.uncheck('[data-mod-id="latitude-editor"]');
     await page.waitForFunction(() => !window.__editor);
@@ -178,6 +192,12 @@ const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
     await page.click('[data-location="discover"]');
     assert.match(await page.locator("#library-discover").textContent(), /purchases are not enabled/);
     assert.equal(await page.locator("#library-controls").isVisible(), false);
+    assert.equal(await page.locator("#library-promo").isVisible(), true, "Choice survives disabling and re-enabling Editor");
+    await page.click(".library-options summary"); await page.check("#library-hide-premium");
+    assert.equal(await page.locator("#library-promo").isVisible(), false);
+    await page.screenshot({ animations: "disabled", path: path.join(root, "library-options.png") });
+    await page.keyboard.press("Escape"); await page.click('[data-location="library"]');
+    assert.equal(await page.locator(".library-pack").count(), 1);
     await inline("discover");
     assert.ok(!remote.some(url => /fonts\.(?:googleapis|gstatic)\.com/.test(url)), "No font network requests");
     assert.ok(remote.every(url => ["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname)), "Library browsing makes no external network request");

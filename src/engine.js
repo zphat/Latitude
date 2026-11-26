@@ -208,7 +208,7 @@ export class StudioEngine extends EventTarget {
           this.remove(key);
           this.emit(
             "error",
-            `${key === "desktop" ? "Desktop audio" : key === "mic1" ? "Voice 1" : "Voice 2"} disconnected. Its track will contain silence until reconnected.`,
+            `${key === "desktop" ? "Desktop audio" : key === "mic1" ? "Voice 1" : "Voice 2"} disconnected. Its track will contain silence. Reconnect it in Inputs & outputs between takes.`,
           );
         }
       };

@@ -24,6 +24,7 @@ the resulting `.latitude-pack` file to share it. Import opens a normal file dial
 Imported packs are labeled **Local · not reviewed**. A pack cannot label itself
 approved. Included collections are shipped in the reviewed application source.
 There is currently no remote marketplace, paid listing or payment processing.
+**Creative library → Options → Hide premium content** is enabled by default. It hides promotional copy and filters paid catalog entries out of browsing, search, favorites and collection counts. Switching it off is local and reversible. Personal imports, favorites, project data and export rights are never removed. A preset file cannot classify itself as premium. Any future catalog adapter must use the validated catalog price on its host wrapper and request `cost=free` when this preference is on; it must not start a network request just because the editor opened.
 
 Applying a preset copies ordinary settings into the project. It never adds a
 runtime reference to a pack, renames source files, includes footage, uploads

@@ -3,7 +3,7 @@ const fsp = fs.promises;
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { writeMedia } = require("./export-media.cjs");
+const { writeMedia, exportTracks } = require("./export-media.cjs");
 const { parseEBU128 } = require("./loudness.cjs");
 
 const TRACKS = [
@@ -24,14 +24,15 @@ const trackDepth = (manifest, id) => id.startsWith("raw") ? 32 : manifest.audioB
 function wavHeader(bytes, channels, sampleRate = 48000, bits = 32) {
   const sampleBytes = bits / 8;
   const b = Buffer.alloc(80),
-    large = bytes > 0xffffff00;
+    large = bytes > 0xffffff00,
+    riffSize = bytes + (bytes % 2) + 72;
   b.write(large ? "RF64" : "RIFF", 0);
-  b.writeUInt32LE(large ? 0xffffffff : bytes + 72, 4);
+  b.writeUInt32LE(large ? 0xffffffff : riffSize, 4);
   b.write("WAVE", 8);
   b.write(large ? "ds64" : "JUNK", 12);
   b.writeUInt32LE(28, 16);
   if (large) {
-    b.writeBigUInt64LE(BigInt(bytes + 72), 20);
+    b.writeBigUInt64LE(BigInt(riffSize), 20);
     b.writeBigUInt64LE(BigInt(bytes), 28);
     b.writeBigUInt64LE(BigInt(bytes / channels / sampleBytes), 36);
   }
@@ -53,13 +54,34 @@ async function repairWav(file, channels, rate, bits = 32) {
   const bytes = size - (size % (channels * bits / 8));
   const h = await fsp.open(file, "r+");
   try {
-    await h.truncate(bytes + 80);
+    await h.truncate(bytes + 80 + (bytes % 2));
+    if (bytes % 2) await h.write(Buffer.from([0]), 0, 1, 80 + bytes);
     await h.write(wavHeader(bytes, channels, rate, bits), 0, 80, 0);
   } finally {
     await h.close();
   }
   return bytes / (channels * bits / 8);
 }
+// Healthy originals need only a header read, even for a multi-hour take.
+async function prepareWav(file, channels, rate, bits) {
+  const h = await fsp.open(file, "r");
+  try {
+    const size = (await h.stat()).size;
+    const frameBytes = channels * bits / 8;
+    const bytes = Math.floor(Math.max(0, size - 80) / frameBytes) * frameBytes;
+    if (size === 80 + bytes + (bytes % 2)) {
+      const header = Buffer.alloc(80);
+      const { bytesRead } = await h.read(header, 0, 80, 0);
+      if (bytesRead === 80 && header.equals(wavHeader(bytes, channels, rate, bits))) {
+        if (!(bytes % 2)) return bytes / frameBytes;
+        const pad = Buffer.alloc(1);
+        if ((await h.read(pad, 0, 1, size - 1)).bytesRead === 1 && pad[0] === 0) return bytes / frameBytes;
+      }
+    }
+  } finally { await h.close(); }
+  return repairWav(file, channels, rate, bits);
+}
+
 function runFFmpeg(binary, args, onProgress, signal) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(Error("Export canceled."));
@@ -191,16 +213,18 @@ class RecordingStore {
     const a = this.active;
     if (!a) return;
     const snapshot = JSON.stringify(a.manifest, null, 2);
-    a.metaChain = a.metaChain.then(async () => {
+    const write = a.metaChain.then(async () => {
       const temp = path.join(a.dir, "session.json.tmp");
       await fsp.writeFile(temp, snapshot);
       await fsp.rename(temp, path.join(a.dir, "session.json"));
     });
-    await a.metaChain;
+    // Return this error to its caller without blocking the next complete snapshot.
+    a.metaChain = write.catch(() => {});
+    await write;
   }
   append(id, key, bytes) {
     const a = this.active;
-    if (!a || a.manifest.id !== id || !a.handles[key])
+    if (!a || a.closing || a.manifest.id !== id || !Object.hasOwn(a.handles, key))
       return Promise.reject(Error("The recording is no longer active."));
     let data = Buffer.from(bytes);
     if (data.length > 16 * 1024 * 1024)
@@ -237,7 +261,7 @@ class RecordingStore {
     return a.chain;
   }
   async event(id, event) {
-    if (this.active?.manifest.id !== id) return;
+    if (!this.active || this.active.closing || this.active.manifest.id !== id) return;
     if (event.type === "marker")
       this.active.manifest.markers.push({
         time: event.time,
@@ -260,22 +284,30 @@ class RecordingStore {
   async endSession(extra = {}) {
     const a = this.active;
     if (!a) return null;
+    // Seal input synchronously: everything already acknowledged is drained before closing.
+    a.closing = true;
     await a.chain.catch(() => {});
-    for (const h of Object.values(a.handles)) await h.close().catch(() => {});
-    for (const t of TRACKS)
-      await repairWav(
-        path.join(a.dir, `${t.id}.wav`),
-        t.channels,
-        a.manifest.sampleRate,
-        trackDepth(a.manifest, t.id),
-      ).catch(() => {});
+    const failures = [];
+    await Promise.all(Object.entries(a.handles).map(async ([key, handle]) => {
+      try { await handle.close(); }
+      catch (error) { failures.push(`Could not close ${key}: ${error.message}`); }
+    }));
+    await Promise.all(TRACKS.map(async t => {
+      try {
+        const bits = trackDepth(a.manifest, t.id);
+        const frames = await repairWav(path.join(a.dir, `${t.id}.wav`), t.channels, a.manifest.sampleRate, bits);
+        if (frames * t.channels * bits / 8 !== a.bytes[t.id])
+          throw Error("The saved sample count differs from the accepted audio.");
+      } catch (error) { failures.push(`${t.name}: ${error.message}`); }
+    }));
     const frames = (a.bytes.mix || 0) / (2 * trackDepth(a.manifest, "mix") / 8);
     Object.assign(a.manifest, extra, {
       duration: frames / a.manifest.sampleRate,
-      status: a.error || extra.error ? "interrupted" : "recorded",
+      status: a.error || extra.error || failures.length ? "interrupted" : "recorded",
       ended: new Date().toISOString(),
     });
-    if (a.error) a.manifest.error = a.error.message;
+    const errors = [extra.error, a.error?.message, ...failures].filter(Boolean);
+    if (errors.length) a.manifest.error = errors.join(" · ");
     try {
       await this.saveManifest();
       return { dir: a.dir, ...a.manifest };
@@ -294,8 +326,13 @@ class RecordingStore {
           m = JSON.parse(
             await fsp.readFile(path.join(dir, "session.json"), "utf8"),
           );
+        if (typeof m?.id !== "string" || !m.id.trim()) continue;
+        // Older/interrupted metadata can lack a valid date; keep the take recoverable.
+        const created = typeof m.created === "string" && Number.isFinite(Date.parse(m.created))
+          ? m.created : (await fsp.stat(path.join(dir, "session.json"))).mtime.toISOString();
         items.push({
           ...m,
+          created,
           dir,
           status:
             m.status === "recording" && m.id !== this.active?.manifest.id
@@ -431,15 +468,16 @@ class RecordingStore {
       const format = exportFormat(options.format);
       const m = await this.resolve(id),
         dir = m.dir;
-      for (const t of TRACKS)
-        await repairWav(
-          path.join(dir, `${t.id}.wav`),
-          t.channels,
-          m.sampleRate,
-          trackDepth(m, t.id),
-        );
-      const frames =
-        ((await fsp.stat(path.join(dir, "mix.wav"))).size - 80) / (2 * trackDepth(m, "mix") / 8);
+      const { tracks, originals } = exportTracks(m, options, format.kind === "video");
+      let frames = 0;
+      for (const { id, name } of [...tracks, ...originals]) {
+        const t = TRACKS.find(track => track.id === id);
+        try {
+          const count = await prepareWav(path.join(dir, id + ".wav"), t.channels, m.sampleRate, trackDepth(m, id));
+          if (id === "mix") frames = count;
+          else if (count !== frames) throw Error("Its sample count does not match the full mix.");
+        } catch (error) { throw Error(`Could not prepare ${name}: ${error.message}`); }
+      }
       const duration = frames / m.sampleRate;
       exportDuration = duration;
       if (duration < 0.1)

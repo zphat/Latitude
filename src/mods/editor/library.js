@@ -2,7 +2,7 @@ import { BUILTIN_PACKS, PACK_LIMITS, validatePack, presetFromClip } from "./pack
 import { cssColor } from "./color.js";
 import { clipMask, ease } from "./motion.js";
 import { fontSpec } from "./fonts.js";
-import { LOCATIONS, KINDS, libraryView, visiblePacks, searchPresets, searchCollections } from "./library-model.js";
+import { LOCATIONS, KINDS, libraryView, isPremium, visiblePacks, searchPresets, searchCollections } from "./library-model.js";
 const escape = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle, stop }) {
   const dialog = document.createElement("dialog");
@@ -16,7 +16,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
   const view = libraryView(savedView), installed = [];
   for (const item of (Array.isArray(saved?.installed) ? saved.installed : []).slice(0, PACK_LIMITS.installed)) {
     try {
-      if (typeof item.id === "string" && /^[\w-]{1,80}$/.test(item.id) && !installed.some(p => p.id === item.id))
+      if (typeof item.id === "string" && !item.id.startsWith("builtin-") && /^[\w-]{1,80}$/.test(item.id) && !installed.some(p => p.id === item.id))
         installed.push({ id: item.id, pack: validatePack(item.pack) });
     } catch {} // Corrupt local packs must never prevent opening a project.
   }
@@ -25,10 +25,16 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
   // Small preferences are separate: searching must not rewrite installed pack data.
   const persistView = () => { try { ui.writeSettings("latitude-editor-library-view", view); } catch {} };
   const filter = () => view.filters[view.location];
-  const allPacks = () => [...BUILTIN_PACKS.map((pack, i) => ({ pack, id: "builtin-" + i, included: true })), ...installed];
-  const allPresets = () => allPacks().flatMap(item => item.pack.presets.map((preset, i) => ({ ...item, preset, key: item.id + ":" + i })));
-  const validFavorites = new Set(allPresets().map(item => item.key));
-  for (const key of favorites) if (!validFavorites.has(key)) favorites.delete(key);
+  let packs, index;
+  function reindex() {
+    packs = [...BUILTIN_PACKS.map((pack, i) => ({ pack, id: "builtin-" + i, included: true })), ...installed];
+    index = new Map();
+    for (const item of packs) item.pack.presets.forEach((preset, i) => {
+      const key = item.id + ":" + i; index.set(key, { ...item, preset, key });
+    });
+  }
+  reindex();
+  for (const key of favorites) if (!index.has(key)) favorites.delete(key);
   const $ = s => dialog.querySelector(s);
   const status = (message, error = false) => {
     if (disposed) return;
@@ -89,8 +95,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
       + (["title", "font"].includes(item.preset.kind) ? '<button class="button small" data-add="' + escape(item.key) + '">Add title</button>' : "");
   }
   function refreshActions() {
-    const presets = new Map(allPresets().map(item => [item.key, item.preset]));
-    for (const b of dialog.querySelectorAll("[data-apply]")) b.disabled = !canApply(presets.get(b.dataset.apply));
+    for (const b of dialog.querySelectorAll("[data-apply]")) b.disabled = !canApply(index.get(b.dataset.apply)?.preset);
   }
   function emptyMessage() {
     const hasFilters = filter().query || filter().collection;
@@ -107,7 +112,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
   }
   function renderCards() {
     stopAnimation(); stopCardPreviews(); const token = ++generation;
-    const matches = searchPresets(allPacks(), view.location, filter(), favorites), items = matches.slice(0, limit);
+    const matches = searchPresets(packs, view.location, filter(), favorites, view.hidePremium), items = matches.slice(0, limit);
     clearCanvases($("#library-grid"));
     $("#library-count").textContent = matches.length + (matches.length === 1 ? " style" : " styles");
     $("#library-grid").innerHTML = items.length ? items.map(item =>
@@ -136,21 +141,21 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
   }
   function renderPacks() {
     stopAnimation(); stopCardPreviews(); generation++; clearCanvases($("#library-grid"));
-    const packs = searchCollections(allPacks(), view.location, filter(), favorites);
-    $("#library-grid").innerHTML = packs.length ? packs.map(item =>
+    const results = searchCollections(packs, view.location, filter(), favorites, view.hidePremium);
+    $("#library-grid").innerHTML = results.length ? results.map(item =>
       '<article class="library-pack"><div><span class="library-badge">' + (item.included ? "Included by Latitude" : "Local · not reviewed")
       + '</span><h3>' + escape(item.pack.name) + '</h3><p>' + escape(item.pack.description) + '</p><small>'
       + item.pack.presets.length + ' styles · ' + escape(item.pack.author) + '</small></div><div class="library-card-actions">'
       + '<button class="button small" data-browse="' + escape(item.id) + '">Browse styles</button>'
       + '<button class="button small" data-export="' + escape(item.id) + '">Export pack</button>'
       + (item.included ? "" : '<button class="text-button" data-remove="' + escape(item.id) + '">Remove</button>') + '</div></article>').join("") : emptyMessage();
-    $("#library-count").textContent = packs.length + (packs.length === 1 ? " collection" : " collections");
+    $("#library-count").textContent = results.length + (results.length === 1 ? " collection" : " collections");
     $("#library-more").hidden = true;
   }
   function collections() {
-    const packs = visiblePacks(allPacks(), view.location, favorites);
-    if (filter().collection && !packs.some(p => p.id === filter().collection)) filter().collection = "";
-    $("#library-collection").innerHTML = '<option value="">All collections</option>' + packs.map(p =>
+    const choices = visiblePacks(packs, view.location, favorites, view.hidePremium);
+    if (filter().collection && !choices.some(p => p.id === filter().collection)) filter().collection = "";
+    $("#library-collection").innerHTML = '<option value="">All collections</option>' + choices.map(p =>
       '<option value="' + escape(p.id) + '">' + escape(p.pack.name) + '</option>').join("");
     $("#library-collection").value = filter().collection;
   }
@@ -166,6 +171,8 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     for (const b of dialog.querySelectorAll("[data-location]")) b.setAttribute("aria-pressed", String(view.location === b.dataset.location));
     for (const b of dialog.querySelectorAll("[data-category]")) b.setAttribute("aria-pressed", String(filter().category === b.dataset.category));
     const discover = view.location === "discover";
+    $("#library-hide-premium").checked = view.hidePremium;
+    $("#library-promo").hidden = view.hidePremium;
     $("#library-browse").hidden = !!detail || discover;
     $("#library-controls").hidden = !!detail || discover;
     $("#library-details").hidden = !detail;
@@ -201,7 +208,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     view.location = location; limit = filter().limit; render(); restoreScroll(filter().scroll); persistView();
   }
   function openDetail(item, button) {
-    if (!item) return;
+    if (!item || (view.hidePremium && isPremium(item))) return;
     rememberScroll(); detailScroll = filter().scroll; detailOpener = button; detail = item; stopAnimation(); stopCardPreviews();
     $("#library-details").innerHTML =
       '<div class="library-detail-heading"><button class="button small" id="library-back">← Back to results</button><span class="library-badge">'
@@ -236,14 +243,16 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
   function install(pack) {
     if (installed.length >= PACK_LIMITS.installed) throw Error("Remove a local pack before adding another (20-pack limit).");
     const canonical = validatePack(pack);
-    if (allPacks().some(item => JSON.stringify(item.pack) === JSON.stringify(canonical))) throw Error("This exact pack is already in your library.");
+    if (packs.some(item => JSON.stringify(item.pack) === JSON.stringify(canonical))) throw Error("This exact pack is already in your library.");
     installed.push({ id: crypto.randomUUID(), pack: canonical });
     try { persist(); } catch (e) { installed.pop(); throw e; }
+    reindex();
     closeDetail({ focus: false }); view.location = "library"; Object.assign(filter(), { category: "packs", query: "", collection: "", scroll: 0, limit: 60 });
     render(); restoreScroll(0); status("Added " + canonical.name + ". Settings stay editable and work offline.");
   }
   dialog.innerHTML = '<header class="library-header"><div><span class="eyebrow">MAKE IT YOURS</span><h2>Creative library</h2><p id="library-selection"></p></div>'
-    + '<button class="button small" id="library-close" aria-label="Close creative library">Done</button></header>'
+    + '<div class="library-header-actions"><details class="library-options"><summary>Options</summary><div class="library-options-panel"><label><input id="library-hide-premium" type="checkbox"> Hide premium content</label><small>Show only free and personal styles. This never changes a project or removes a pack.</small></div></details>'
+    + '<button class="button small" id="library-close" aria-label="Close creative library">Done</button></div></header>'
     + '<nav class="library-locations" aria-label="Library destinations">' + Object.entries(LOCATIONS).map(([id, label]) =>
       '<button class="button small" data-location="' + id + '" aria-pressed="false">' + label + '</button>').join("") + '</nav>'
     + '<div id="library-controls"><div class="library-filters"><input id="library-search" type="search" placeholder="Search styles, collections, creators…" aria-label="Search creative library" maxlength="120">'
@@ -257,20 +266,29 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     + '<button class="button small" id="library-save-clip">Save selected style</button></div></details>'
     + '<div class="library-meta"><span id="library-count" role="status"></span><button class="text-button" id="library-import">Import pack…</button></div>'
     + '<div id="library-grid" class="library-grid"></div><button class="button small" id="library-more" hidden>Show more</button></section>'
-    + '<section id="library-details" hidden></section><section id="library-discover" class="library-discover" hidden><span class="library-badge">A PLACE FOR WHAT’S NEXT</span>'
-    + '<h3>Discover more ways to make it yours</h3><p>Curated title, transition, font and animation collections will live here. The online catalog is not connected yet, and purchases are not enabled.</p>'
+    + '<section id="library-details" hidden></section><section id="library-discover" class="library-discover" hidden><span class="library-badge">YOUR COLLECTIONS</span>'
+    + '<h3>Explore your creative tools</h3><p id="library-promo">Curated title, transition, font and animation collections will live here. The online catalog is not connected yet, and purchases are not enabled.</p>'
     + '<p>Your included styles and imported packs already work offline. You can build, export and share your own collections today.</p>'
     + '<div class="library-card-actions"><button class="button small" data-included>Explore included styles</button><button class="button small" data-import>Import a pack…</button></div></section></div>'
     + '<footer class="library-footer"><p id="library-status" role="status">All included styles are free and work offline. Make them your own in the Inspector.</p>'
     + '<small>Local imports are not reviewed by Latitude. Editing and exports never require a purchase.</small></footer>';
   const importPack = run(async () => { const pack = await io.call("import-pack"); if (pack && !disposed) install(pack); });
+  listen($("#library-hide-premium"), "change", e => {
+    view.hidePremium = e.target.checked;
+    if (detail && isPremium(detail) && view.hidePremium) closeDetail({ focus: false });
+    persistView(); render(); status(view.hidePremium ? "Showing free and personal styles." : "All styles are visible.");
+  });
+  listen(dialog, "pointerdown", e => { if (!e.target.closest(".library-options")) $(".library-options").open = false; });
+  listen(dialog, "focusout", e => { if (e.relatedTarget && !e.relatedTarget.closest(".library-options")) $(".library-options").open = false; });
   listen($("#library-close"), "click", () => { rememberScroll(); dialog.close(); });
   listen(dialog, "close", () => {
-    persistView(); stopAnimation(); stopCardPreviews(); generation++; cancelAnimationFrame(restoreFrame);
+    $(".library-options").open = false; persistView(); stopAnimation(); stopCardPreviews(); generation++; cancelAnimationFrame(restoreFrame);
     detail = null; clearCanvases($("#library-grid")); clearCanvases($("#library-details"));
     $("#library-grid").replaceChildren(); $("#library-details").replaceChildren(); opener?.focus({ preventScroll: true });
   });
-  listen(dialog, "cancel", e => { if (operating || detail) { e.preventDefault(); if (!operating) closeDetail(); } else rememberScroll(); });
+  listen(dialog, "cancel", e => { if ($(".library-options").open) {
+    e.preventDefault(); $(".library-options").open = false; $(".library-options summary").focus(); return;
+  } if (operating || detail) { e.preventDefault(); if (!operating) closeDetail(); } else rememberScroll(); });
   listen(dialog, "keydown", e => {
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "f") {
       e.preventDefault(); closeDetail({ focus: false });
@@ -293,7 +311,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
     if (b.id === "library-import" || b.hasAttribute("data-import")) { importPack(); return; }
     if (b.id === "library-back") { closeDetail(); return; }
     if (b.id === "library-replay" && detail) { animate($("#library-detail-canvas"), detail.preset); return; }
-    if (b.dataset.detail) { openDetail(allPresets().find(item => item.key === b.dataset.detail), b); return; }
+    if (b.dataset.detail) { openDetail(index.get(b.dataset.detail), b); return; }
     if (b.dataset.favorite) {
       const key = b.dataset.favorite, was = favorites.has(key);
       if (!was && favorites.size >= 256) { status("Remove a favorite before adding another (256-style limit).", true); return; }
@@ -306,7 +324,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
       } else render();
       return;
     }
-    const item = allPresets().find(p => p.key === (b.dataset.apply || b.dataset.add));
+    const item = index.get(b.dataset.apply || b.dataset.add);
     if (item) {
       run(async () => {
         if (item.preset.settings.font) await fonts.ensure(item.preset.settings.font);
@@ -316,18 +334,18 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
       })(); return;
     }
     if (b.dataset.browse) {
-      const item = allPacks().find(p => p.id === b.dataset.browse); if (!item) return;
+      const item = packs.find(p => p.id === b.dataset.browse); if (!item) return;
       Object.assign(filter(), { category: "all", collection: item.id, query: "", scroll: 0 }); render(); restoreScroll(0); return;
     }
     if (b.dataset.export) run(async () => {
-      const item = allPacks().find(p => p.id === b.dataset.export); if (item && await io.call("export-pack", item.pack)) status("Pack exported. It contains presets, not your footage or title text.");
+      const item = packs.find(p => p.id === b.dataset.export); if (item && await io.call("export-pack", item.pack)) status("Pack exported. It contains presets, not your footage or title text.");
     })();
     if (b.dataset.remove) run(() => {
       const index = installed.findIndex(p => p.id === b.dataset.remove); if (index < 0) return;
       const old = installed.splice(index, 1)[0], oldFavorites = [...favorites];
       for (const key of favorites) if (key.startsWith(old.id + ":")) favorites.delete(key);
       try { persist(); } catch (error) { installed.splice(index, 0, old); favorites.clear(); oldFavorites.forEach(k => favorites.add(k)); throw error; }
-      render(); status("Local pack removed. Applied styles and project files are unchanged.");
+      reindex(); render(); status("Local pack removed. Applied styles and project files are unchanged.");
     })();
   });
   listen($("#library-search"), "input", e => { filter().query = e.target.value; filter().scroll = 0; limit = filter().limit = 60; render(); restoreScroll(0); });
@@ -341,7 +359,7 @@ export function createLibrary({ root, ui, io, fonts, selection, apply, addTitle,
   }));
   listen($("#library-grid"), "pointerover", e => {
     const card = e.target.closest("[data-preset]"); if (!card || card.contains(e.relatedTarget) || detail) return;
-    const item = allPresets().find(p => p.key === card.dataset.preset);
+    const item = index.get(card.dataset.preset);
     if (item?.preset.kind === "transition") animate(card.querySelector("canvas"), item.preset);
   });
   listen($("#library-grid"), "pointerout", e => { const card = e.target.closest("[data-preset]"); if (card && !card.contains(e.relatedTarget)) stopAnimation(); });

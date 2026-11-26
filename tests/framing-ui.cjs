@@ -420,14 +420,23 @@ require("../scripts/preview.cjs");
   await page.screenshot({
     path: path.resolve(__dirname, "../../qa-editor-compact.png"),
   });
-  const bounds = await page.evaluate(() => ({
-    mixer: document.querySelector("#mixer").getBoundingClientRect().bottom,
-    record: document.querySelector(".record-bar").getBoundingClientRect().top,
-    button: document.querySelector("#record-button").getBoundingClientRect()
-      .bottom,
-  }));
-  assert.ok(bounds.mixer <= bounds.record + 1, JSON.stringify(bounds));
-  assert.ok(bounds.button < 740);
+  const bounds = [];
+  for (const [width, height] of [[1100, 740], [960, 640], [1280, 720]]) {
+    await page.setViewportSize({ width, height });
+    const positions = await page.evaluate(() => {
+      const scroller = document.querySelector(".studio-scroll"), controls = document.querySelector(".record-bar");
+      const bottom = () => document.querySelector("#record-button").getBoundingClientRect().bottom;
+      scroller.scrollTop = 0; const before = bottom();
+      scroller.scrollTop = scroller.scrollHeight;
+      return { before, after: bottom(), scrollerEnd: scroller.getBoundingClientRect().bottom,
+        controlsStart: controls.getBoundingClientRect().top, mixerEnd: document.querySelector("#mixer").getBoundingClientRect().bottom,
+        setupEnd: document.querySelector(".session-setup").getBoundingClientRect().bottom };
+    });
+    bounds.push({ width, height, ...positions });
+    assert.ok(positions.before > 0 && positions.after < height && Math.abs(positions.before - positions.after) < 1, JSON.stringify(positions));
+    assert.ok(Math.max(positions.scrollerEnd, positions.mixerEnd, positions.setupEnd) <= positions.controlsStart + 1, JSON.stringify(positions));
+  }
+  await page.setViewportSize({ width: 1100, height: 740 });
   console.log("Editor: graphic-only recording and unused camera");
   await page.evaluate(() => {
     const { engine, compositor, setScene } = window.__studio;

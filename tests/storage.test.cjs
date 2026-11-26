@@ -339,3 +339,92 @@ test("a zero-byte disk write fails instead of looping forever", async () => {
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test("a failed marker checkpoint does not poison the final save, and Stop drains only accepted chunks", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "latitude-checkpoint-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const store = new RecordingStore(root), s = await store.begin({ name: "Interview" });
+  const temp = path.join(s.dir, "session.json.tmp");
+  await fs.mkdir(temp);
+  await assert.rejects(store.event(s.id, { type: "marker", time: 0, label: "Opening" }));
+  await fs.rmdir(temp);
+  const pending = store.append(s.id, "mix", new Float32Array(64).buffer);
+  const stop = store.end();
+  await assert.rejects(store.append(s.id, "mix", new Float32Array(64).buffer), /no longer active/);
+  await store.event(s.id, { type: "marker", time: 9, label: "Too late" });
+  await pending;
+  const saved = await stop;
+  assert.equal(saved.status, "recorded");
+  assert.equal(saved.duration, 32 / 48000);
+  const [persisted] = await store.list();
+  assert.deepEqual(persisted.markers.map(m => m.label), ["Opening"]);
+});
+
+test("a missing or shortened isolated track never reports a clean recording; intact tracks still finalize", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "latitude-finalize-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  for (const missing of [false, true]) {
+    const store = new RecordingStore(root), s = await store.begin({ voice1: true, desktop: true });
+    await store.append(s.id, "voice1", new Float32Array(64).buffer);
+    await store.append(s.id, "mix", new Float32Array(128).buffer);
+    const file = path.join(s.dir, "voice1.wav");
+    if (missing) { await store.active.handles.voice1.close(); await fs.unlink(file); }
+    else await fs.truncate(file, 80 + 32 * 4);
+    const saved = await store.end();
+    assert.equal(saved.status, "interrupted");
+    assert.match(saved.error, /Voice 1/i);
+    assert.equal((await store.resolve(s.id)).status, "interrupted");
+    assert.equal((await fs.readFile(path.join(s.dir, "mix.wav"))).readUInt32LE(76), 128 * 4);
+  }
+});
+
+test("a damaged date or unrelated manifest cannot hide other takes", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "latitude-list-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const store = new RecordingStore(root), s = await store.begin({}); await store.end();
+  for (const [dir, meta] of [["legacy", { id: "legacy", name: "Recover me", created: 4, status: "recorded" }], ["unrelated", { created: null }]]) {
+    await fs.mkdir(path.join(root, dir));
+    await fs.writeFile(path.join(root, dir, "session.json"), JSON.stringify(meta));
+  }
+  const list = await store.list();
+  assert.deepEqual(new Set(list.map(m => m.id)), new Set([s.id, "legacy"]));
+  assert.ok(Number.isFinite(Date.parse(list.find(m => m.id === "legacy").created)));
+  assert.equal(JSON.parse(await fs.readFile(path.join(root, "legacy", "session.json"))).created, 4);
+});
+
+test("odd-length 24-bit mono stems have a zero RIFF pad, correct sample count and idempotent recovery", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "latitude-riff-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const store = new RecordingStore(root), s = await store.begin({ audioBitDepth: 24, voice1: true });
+  const file = path.join(s.dir, "voice1.wav");
+  await store.append(s.id, "voice1", Float32Array.of(0.25, -0.25, 0.5).buffer); await store.end();
+  const bytes = await fs.readFile(file);
+  assert.equal(bytes.length, 90); assert.equal(bytes.readUInt32LE(4), 82);
+  assert.equal(bytes.readUInt32LE(76), 9); assert.equal(bytes[89], 0);
+  assert.equal(await repairWav(file, 1, 48000, 24), 3);
+  assert.deepEqual(await fs.readFile(file), bytes);
+  const rfBytes = 0x100000001 + 4; // divisible by three and odd
+  const header = wavHeader(rfBytes, 1, 48000, 24);
+  assert.equal(header.readBigUInt64LE(20), BigInt(rfBytes + 73));
+  assert.equal(header.readBigUInt64LE(28), BigInt(rfBytes));
+  assert.equal(header.readBigUInt64LE(36), BigInt(rfBytes / 3));
+});
+
+test("mix-only export leaves intact originals untouched and does not require an unused or damaged stem", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "latitude-preserve-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const store = new RecordingStore(root), s = await store.begin({ voice1: true, audioBitDepth: 24 });
+  await store.append(s.id, "mix", new Float32Array(48000).buffer);
+  await store.append(s.id, "voice1", new Float32Array(24000).buffer);
+  await store.end();
+  const mix = path.join(s.dir, "mix.wav"), old = new Date("2020-05-05T01:00:00Z");
+  await fs.utimes(mix, old, old); const original = await fs.readFile(mix);
+  await fs.unlink(path.join(s.dir, "voice1.wav"));
+  const binary = process.env.TAKE_FFMPEG || require("ffmpeg-static");
+  const options = { format: "flac", normalize: false, separateTracks: false };
+  const ok = await store.export(s.id, options, binary);
+  assert.deepEqual(ok.report.tracks, ["Full mix"]);
+  assert.equal((await fs.stat(mix)).mtimeMs, old.getTime()); assert.deepEqual(await fs.readFile(mix), original);
+  await assert.rejects(store.export(s.id, { ...options, separateTracks: true }, binary), /prepare Voice 1/);
+  assert.equal((await store.resolve(s.id)).exports.length, 1, "a failed isolated export leaves the good mix alone");
+});
