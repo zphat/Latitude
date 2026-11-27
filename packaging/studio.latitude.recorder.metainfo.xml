@@ -16,6 +16,9 @@
   <url type="help">https://github.com/zphat/Latitude/blob/main/docs/LINUX.md</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.9.10" date="2026-11-27" type="development">
+      <description><p>Safer recording finalization, original-preserving exports, reachable compact studio controls, and a free-only Creative library preference.</p></description>
+    </release>
     <release version="0.9.9" date="2026-11-16" type="development">
       <description><p>Safer preview dragging, less timeline rebuilding while scrolling, and responsive timeline coverage when resizing windows.</p></description>
     </release>

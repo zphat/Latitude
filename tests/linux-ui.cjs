@@ -181,10 +181,7 @@ require("../scripts/preview.cjs");
     window.linuxQA.outputsFail = true;
   });
   await page.click("#audio-setup");
-  assert.match(
-    await page.locator("#modal-content").textContent(),
-    /Desktop sound is unavailable/,
-  );
+  await page.getByText(/Desktop sound is unavailable/).waitFor({ state: "visible" });
   await page.selectOption("#setup-desktop", "off");
   await page.click("#apply-devices");
   await page.waitForFunction(() => !window.__studio.engine.streams.desktop);

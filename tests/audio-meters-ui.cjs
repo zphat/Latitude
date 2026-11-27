@@ -141,8 +141,7 @@ require("../scripts/preview.cjs");
     for (const width of [960, 1280, 1480]) {
       await page.setViewportSize({ width, height: 640 });
       await page.evaluate(() => {
-        const w = document.querySelector("#workspace");
-        w.scrollTop = w.scrollHeight;
+        document.querySelector("#mixer").scrollIntoView({ block: "end" });
       });
       const layout = await page.evaluate(() => ({
         width: innerWidth,
@@ -151,6 +150,13 @@ require("../scripts/preview.cjs");
           (el) => el.scrollWidth > el.clientWidth,
         ),
       }));
+      for (const slider of await page.locator("#mixer input[type=range]").all()) {
+        await slider.scrollIntoViewIfNeeded();
+        assert.equal(await slider.evaluate(el => {
+          const r = el.getBoundingClientRect();
+          return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === el;
+        }), true, "Every mixer fader remains reachable above the fixed transport");
+      }
       assert.ok(layout.scroll <= layout.width);
       assert.equal(layout.overflow, false);
       const mixer = await page.locator("#mixer").boundingBox(),

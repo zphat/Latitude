@@ -208,7 +208,7 @@ export class StudioEngine extends EventTarget {
           this.remove(key);
           this.emit(
             "error",
-            `${key === "desktop" ? "Desktop audio" : key === "mic1" ? "Voice 1" : "Voice 2"} disconnected. Its track will contain silence until reconnected.`,
+            `${key === "desktop" ? "Desktop audio" : key === "mic1" ? "Voice 1" : "Voice 2"} disconnected. Its track will contain silence. Reconnect it in Inputs & outputs between takes.`,
           );
         }
       };
@@ -664,6 +664,7 @@ export class StudioEngine extends EventTarget {
       this.queue = Promise.resolve();
       this.blobQueue = Promise.resolve();
       this.ioFailed = false;
+      this.videoFailure = null;
       this.pendingBlobBytes = 0;
       this.recorder.ondataavailable = (e) => {
         if (e.data.size) {
@@ -696,7 +697,8 @@ export class StudioEngine extends EventTarget {
         }
       };
       this.recorder.onerror = (e) => {
-        this.emit("error", e.error?.message || "The video encoder stopped.");
+        this.videoFailure = "Video encoder: " + (e.error?.message || "Picture capture stopped unexpectedly.");
+        this.emit("error", this.videoFailure);
         this.stop().catch(() => {});
       };
       this.startedAt = this.ctx.currentTime;
@@ -818,7 +820,7 @@ export class StudioEngine extends EventTarget {
       try {
         result = await window.take.end({
           error:
-            failure ||
+            [this.videoFailure, failure].filter(Boolean).join(" · ") ||
             (this.ioFailed
               ? "Storage could not keep up; inspect the take before using it."
               : undefined),

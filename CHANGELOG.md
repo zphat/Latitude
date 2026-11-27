@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.10 — 2026-11-27
+
+Recording errors identify affected stems; valid original audio is no longer rewritten on export. Compact studio controls stay within reach, silent mixes have readable labels, and Creative library → Options hides premium content by default. No checkout or change to the audio processing chain.
+
 ## 0.9.9 — 2026-11-16
 
 Creative library destinations, creator/collection search, larger previews and remembered browsing make styles easier to find; offscreen cards avoid unnecessary painting and font loading. Conflicting keyboard commands no longer alter a held preview drag. Timeline scrolling reuses buffered rows and waveforms, and resizing refreshes newly visible clips while preserving edit state. [Full notes](docs/releases/0.9.9.md).

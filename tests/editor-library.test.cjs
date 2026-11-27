@@ -45,3 +45,19 @@ test("navigation preferences migrate independently, reject corrupt values and ne
   searchPresets(packs, "library", filter);
   assert.deepEqual(packs, snapshot);
 });
+
+test("premium visibility is local, defaults to hidden and filters trusted pricing before search, counts and favorites", async () => {
+  const { libraryView, visiblePacks, searchPresets, searchCollections } = await modulePromise;
+  const paid = { ...local, id: "paid", catalog: { price: { kind: "one-time" } } };
+  const free = { ...local, id: "free", catalog: { price: { kind: "free" } } };
+  const personal = { ...local, pack: { ...local.pack, price: { kind: "one-time" } } };
+  const packs = [included, personal, free, paid], favorites = new Set(["paid:0", "local-1:0"]);
+  assert.equal(libraryView(null).hidePremium, true);
+  assert.equal(libraryView({ hidePremium: "false" }).hidePremium, true);
+  assert.equal(libraryView({ hidePremium: false }).hidePremium, false);
+  assert.deepEqual(visiblePacks(packs, "library", favorites, true).map(p => p.id), ["local-1", "free"]);
+  assert.deepEqual(searchPresets(packs, "favorites", filter, favorites, true).map(p => p.key), ["local-1:0"]);
+  assert.deepEqual(searchCollections(packs, "library", { ...filter, collection: "paid" }, favorites, true), []);
+  assert.deepEqual(searchPresets(packs, "favorites", filter, favorites, false).map(p => p.key), ["local-1:0", "paid:0"]);
+  assert.equal(favorites.size, 2);
+});
