@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.10 — 2026-11-26
+## 0.9.10 — 2026-11-27
 
 Recording errors identify affected stems; valid original audio is no longer rewritten on export. Compact studio controls stay within reach, silent mixes have readable labels, and Creative library → Options hides premium content by default. No checkout or change to the audio processing chain.
 

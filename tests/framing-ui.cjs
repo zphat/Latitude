@@ -469,6 +469,18 @@ require("../scripts/preview.cjs");
         !window.__studio.engine.finishing && !window.__studio.engine.recording,
     );
   }
+  await page.click('[data-view="studio"]');
+  await page.evaluate(() => { window.__studio.config.autoExport = true; });
+  await page.click("#record-button"); await page.waitForFunction(() => window.__studio.engine.recording);
+  const failed = await page.evaluate(async () => {
+    const engine = window.__studio.engine;
+    const saved = new Promise(resolve => engine.addEventListener("saved", e => resolve(e.detail), { once: true }));
+    engine.recorder.dispatchEvent(new Event("error"));
+    return saved;
+  });
+  assert.equal(failed.status, "interrupted"); assert.match(failed.error, /Video encoder/);
+  assert.equal((await store.resolve(failed.id)).exports, undefined);
+  await page.getByText(/Video encoder: Picture capture stopped unexpectedly/).first().waitFor();
   assert.equal(errors.length, 0, errors.join("\n"));
   console.log(
     JSON.stringify(
